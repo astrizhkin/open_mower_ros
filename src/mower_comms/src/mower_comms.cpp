@@ -28,13 +28,12 @@
 #include "std_msgs/Bool.h"
 #include "mower_msgs/MowerControlSrv.h"
 #include "mower_msgs/EmergencyStopSrv.h"
-#include "mower_msgs/ImuRaw.h"
 #include "mower_msgs/HighLevelControlSrv.h"
 #include "sensor_msgs/Imu.h"
 #include "sensor_msgs/MagneticField.h"
 
-#include <xesc_driver/xesc_driver.h>
-#include <xesc_msgs/XescStateStamped.h>
+//#include <xesc_driver/xesc_driver.h>
+//#include <xesc_msgs/XescStateStamped.h>
 #include <xbot_msgs/WheelTick.h>
 #include "mower_msgs/HighLevelStatus.h"
 
@@ -59,7 +58,7 @@ bool ll_clear_emergency = false;
 bool allow_send = false;
 
 // Current speeds (duty cycle) for the three ESCs
-float speed_l = 0, speed_r = 0, speed_mow = 0;
+//float speed_l = 0, speed_r = 0, speed_mow = 0;
 
 // Ticks / m and wheel distance for this robot
 double wheel_ticks_per_m = 0.0;
@@ -74,9 +73,9 @@ boost::crc_ccitt_type crc;
 
 mower_msgs::HighLevelStatus last_high_level_status;
 
-xesc_driver::XescDriver *mow_xesc_interface;
-xesc_driver::XescDriver *left_xesc_interface;
-xesc_driver::XescDriver *right_xesc_interface;
+//xesc_driver::XescDriver *mow_xesc_interface;
+//xesc_driver::XescDriver *left_xesc_interface;
+//xesc_driver::XescDriver *right_xesc_interface;
 
 std::mutex ll_status_mutex;
 struct ll_status last_ll_status = {0};
@@ -94,27 +93,30 @@ bool is_emergency() {
 void publishActuators() {
 // emergency or timeout -> send 0 speeds
     if (is_emergency()) {
-        speed_l = 0;
-        speed_r = 0;
-        speed_mow = 0;
+        //TODO: publish speed topic?
+        //speed_l = 0;
+        //speed_r = 0;
+        //speed_mow = 0;
     }
     if (ros::Time::now() - last_cmd_vel > ros::Duration(1.0)) {
-        speed_l = 0;
-        speed_r = 0;
+        //TODO: publish speed topic?
+        //speed_l = 0;
+        //speed_r = 0;
 
     }
     if (ros::Time::now() - last_cmd_vel > ros::Duration(25.0)) {
-        speed_l = 0;
-        speed_r = 0;
-        speed_mow = 0;
+        //TODO: publish speed topic?
+        //speed_l = 0;
+        //speed_r = 0;
+        //speed_mow = 0;
     }
 
-    if(mow_xesc_interface) {
-        mow_xesc_interface->setDutyCycle(speed_mow);
-    }
+    //if(mow_xesc_interface) {
+        //mow_xesc_interface->setDutyCycle(speed_mow);
+    //}
     // We need to invert the speed, because the ESC has the same config as the left one, so the motor is running in the "wrong" direction
-    left_xesc_interface->setDutyCycle(speed_l);
-    right_xesc_interface->setDutyCycle(-speed_r);
+    //left_xesc_interface->setDutyCycle(speed_l);
+    //right_xesc_interface->setDutyCycle(-speed_r);
 
     struct ll_heartbeat heartbeat = {
             .type = PACKET_ID_LL_HEARTBEAT,
@@ -142,7 +144,7 @@ void publishActuators() {
 }
 
 
-void convertStatus(xesc_msgs::XescStateStamped &vesc_status, mower_msgs::ESCStatus &ros_esc_status) {
+/*void convertStatus(xesc_msgs::XescStateStamped &vesc_status, mower_msgs::ESCStatus &ros_esc_status) {
     if (vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED &&
             vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED_INCOMPATIBLE_FW) {
         // ESC is disconnected
@@ -159,7 +161,7 @@ void convertStatus(xesc_msgs::XescStateStamped &vesc_status, mower_msgs::ESCStat
     ros_esc_status.current = vesc_status.state.current_input;
     ros_esc_status.temperature_motor = vesc_status.state.temperature_motor;
     ros_esc_status.temperature_pcb = vesc_status.state.temperature_pcb;
-}
+}*/
 
 void publishStatus() {
     mower_msgs::Status status_msg;
@@ -202,28 +204,28 @@ void publishStatus() {
     status_msg.charge_current = last_ll_status.charging_current;
 
 
-    xesc_msgs::XescStateStamped mow_status, left_status, right_status;
-    if(mow_xesc_interface) {
-        mow_xesc_interface->getStatus(mow_status);
-    } else {
-        mow_status.state.connection_state = xesc_msgs::XescState::XESC_CONNECTION_STATE_DISCONNECTED;
-    }
-    left_xesc_interface->getStatus(left_status);
-    right_xesc_interface->getStatus(right_status);
+    //xesc_msgs::XescStateStamped mow_status, left_status, right_status;
+    //if(mow_xesc_interface) {
+    //    mow_xesc_interface->getStatus(mow_status);
+    //} else {
+    //    mow_status.state.connection_state = xesc_msgs::XescState::XESC_CONNECTION_STATE_DISCONNECTED;
+    //}
+    //left_xesc_interface->getStatus(left_status);
+    //right_xesc_interface->getStatus(right_status);
 
-    convertStatus(mow_status, status_msg.mow_esc_status);
-    convertStatus(left_status, status_msg.left_esc_status);
-    convertStatus(right_status, status_msg.right_esc_status);
+    //convertStatus(mow_status, status_msg.mow_esc_status);
+    //convertStatus(left_status, status_msg.left_esc_status);
+    //convertStatus(right_status, status_msg.right_esc_status);
 
     status_pub.publish(status_msg);
 
     xbot_msgs::WheelTick wheel_tick_msg;
     wheel_tick_msg.wheel_tick_factor = static_cast<unsigned int>(wheel_ticks_per_m);
     wheel_tick_msg.stamp = status_msg.stamp;
-    wheel_tick_msg.wheel_ticks_rl = left_status.state.tacho_absolute;
-    wheel_tick_msg.wheel_direction_rl = left_status.state.direction && abs(left_status.state.duty_cycle) > 0;
-    wheel_tick_msg.wheel_ticks_rr = right_status.state.tacho_absolute;
-    wheel_tick_msg.wheel_direction_rr = !right_status.state.direction && abs(right_status.state.duty_cycle) > 0;
+    //wheel_tick_msg.wheel_ticks_rl = left_status.state.tacho_absolute;
+    //wheel_tick_msg.wheel_direction_rl = left_status.state.direction && abs(left_status.state.duty_cycle) > 0;
+    //wheel_tick_msg.wheel_ticks_rr = right_status.state.tacho_absolute;
+    //wheel_tick_msg.wheel_direction_rr = !right_status.state.direction && abs(right_status.state.duty_cycle) > 0;
 
     wheel_tick_pub.publish(wheel_tick_msg);
 }
@@ -235,11 +237,11 @@ void publishActuatorsTimerTask(const ros::TimerEvent &timer_event) {
 
 bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerControlSrvResponse &res) {
     if (req.mow_enabled && !is_emergency()) {
-        speed_mow = req.mow_direction ? 1 : -1;
+//        speed_mow = req.mow_direction ? 1 : -1;
     } else {
-        speed_mow = 0;
+//        speed_mow = 0;
     }
-    ROS_INFO_STREAM("Setting mow enabled to " << speed_mow);
+//    ROS_INFO_STREAM("Setting mow enabled to " << speed_mow);
     return true;
 }
 
@@ -281,7 +283,7 @@ void highLevelStatusReceived(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
     }
 }
 
-void velReceived(const geometry_msgs::Twist::ConstPtr &msg) {
+/*void velReceived(const geometry_msgs::Twist::ConstPtr &msg) {
     // TODO: update this to rad/s values and implement xESC speed control
     last_cmd_vel = ros::Time::now();
     speed_r = msg->linear.x + 0.5*wheel_distance_m*msg->angular.z;
@@ -297,7 +299,7 @@ void velReceived(const geometry_msgs::Twist::ConstPtr &msg) {
     } else if (speed_r <= -1.0) {
         speed_r = -1.0;
     }
-}
+}*/
 
 void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {
     ROS_INFO_STREAM("Got UI button with code:" << +ui_event->button_id << " and duration: " << +ui_event->press_duration);
@@ -349,35 +351,23 @@ void handleLowLevelStatus(struct ll_status *status) {
 }
 
 void handleLowLevelIMU(struct ll_imu *imu) {
-    mower_msgs::ImuRaw imu_msg;
-    imu_msg.dt = imu->dt_millis;
-    imu_msg.ax = imu->acceleration_mss[0];
-    imu_msg.ay = imu->acceleration_mss[1];
-    imu_msg.az = imu->acceleration_mss[2];
-    imu_msg.gx = imu->gyro_rads[0];
-    imu_msg.gy = imu->gyro_rads[1];
-    imu_msg.gz = imu->gyro_rads[2];
-    imu_msg.mx = imu->mag_uT[0];
-    imu_msg.my = imu->mag_uT[1];
-    imu_msg.mz = imu->mag_uT[2];
-
-
+    //imu_msg.dt = imu->dt_millis;
     sensor_mag_msg.header.stamp = ros::Time::now();
     sensor_mag_msg.header.seq++;
     sensor_mag_msg.header.frame_id = "base_link";
-    sensor_mag_msg.magnetic_field.x = imu_msg.mx/1000.0;
-    sensor_mag_msg.magnetic_field.y = imu_msg.my/1000.0;
-    sensor_mag_msg.magnetic_field.z = imu_msg.mz/1000.0;
+    sensor_mag_msg.magnetic_field.x = imu->mag_uT[0]/1000.0;
+    sensor_mag_msg.magnetic_field.y = imu->mag_uT[1]/1000.0;
+    sensor_mag_msg.magnetic_field.z = imu->mag_uT[2]/1000.0;
 
     sensor_imu_msg.header.stamp = ros::Time::now();
     sensor_imu_msg.header.seq++;
     sensor_imu_msg.header.frame_id = "base_link";
-    sensor_imu_msg.linear_acceleration.x = imu_msg.ax;
-    sensor_imu_msg.linear_acceleration.y = imu_msg.ay;
-    sensor_imu_msg.linear_acceleration.z = imu_msg.az;
-    sensor_imu_msg.angular_velocity.x = imu_msg.gx;
-    sensor_imu_msg.angular_velocity.y = imu_msg.gy;
-    sensor_imu_msg.angular_velocity.z = imu_msg.gz;
+    sensor_imu_msg.linear_acceleration.x = imu->acceleration_mss[0];
+    sensor_imu_msg.linear_acceleration.y = imu->acceleration_mss[1];
+    sensor_imu_msg.linear_acceleration.z = imu->acceleration_mss[2];
+    sensor_imu_msg.angular_velocity.x = imu->gyro_rads[0];
+    sensor_imu_msg.angular_velocity.y = imu->gyro_rads[1];
+    sensor_imu_msg.angular_velocity.z = imu->gyro_rads[2];
  
     sensor_imu_pub.publish(sensor_imu_msg);
     sensor_mag_pub.publish(sensor_mag_msg);
@@ -392,9 +382,9 @@ int main(int argc, char **argv) {
 
     ros::NodeHandle n;
     ros::NodeHandle paramNh("~");
-    ros::NodeHandle leftParamNh("~/left_xesc");
-    ros::NodeHandle mowerParamNh("~/mower_xesc");
-    ros::NodeHandle rightParamNh("~/right_xesc");
+    //ros::NodeHandle leftParamNh("~/left_xesc");
+    //ros::NodeHandle mowerParamNh("~/mower_xesc");
+    //ros::NodeHandle rightParamNh("~/right_xesc");
 
 
 
@@ -414,18 +404,18 @@ int main(int argc, char **argv) {
     ROS_INFO_STREAM("Wheel ticks [1/m]: " << wheel_ticks_per_m);
     ROS_INFO_STREAM("Wheel distance [m]: " << wheel_distance_m);
 
-    speed_l = speed_r = speed_mow = 0;
+    //speed_l = speed_r = speed_mow = 0;
 
 
     // Setup XESC interfaces
-    if(mowerParamNh.hasParam("xesc_type")) {
-        mow_xesc_interface = new xesc_driver::XescDriver(n, mowerParamNh);
-    } else {
-        mow_xesc_interface = nullptr;
-    }
+    //if(mowerParamNh.hasParam("xesc_type")) {
+    //    mow_xesc_interface = new xesc_driver::XescDriver(n, mowerParamNh);
+    //} else {
+    //    mow_xesc_interface = nullptr;
+    //}
 
-    left_xesc_interface = new xesc_driver::XescDriver(n, leftParamNh);
-    right_xesc_interface = new xesc_driver::XescDriver(n, rightParamNh);
+    //left_xesc_interface = new xesc_driver::XescDriver(n, leftParamNh);
+    //right_xesc_interface = new xesc_driver::XescDriver(n, rightParamNh);
 
 
     status_pub = n.advertise<mower_msgs::Status>("mower/status", 1);
@@ -435,7 +425,7 @@ int main(int argc, char **argv) {
     sensor_mag_pub = n.advertise<sensor_msgs::MagneticField>("imu/mag", 1);
     ros::ServiceServer mow_service = n.advertiseService("mower_service/mow_enabled", setMowEnabled);
     ros::ServiceServer emergency_service = n.advertiseService("mower_service/emergency", setEmergencyStop);
-    ros::Subscriber cmd_vel_sub = n.subscribe("cmd_vel", 0, velReceived, ros::TransportHints().tcpNoDelay(true));
+    //ros::Subscriber cmd_vel_sub = n.subscribe("cmd_vel", 0, velReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber high_level_status_sub = n.subscribe("/mower_logic/current_state", 0, highLevelStatusReceived);
     ros::Timer publish_timer = n.createTimer(ros::Duration(0.02), publishActuatorsTimerTask);
 
@@ -545,20 +535,20 @@ int main(int argc, char **argv) {
 
     spinner.stop();
 
-    if(mow_xesc_interface) {
-        mow_xesc_interface->setDutyCycle(0.0);
-        mow_xesc_interface->stop();
-    }
-    left_xesc_interface->setDutyCycle(0.0);
-    right_xesc_interface->setDutyCycle(0.0);
-    left_xesc_interface->stop();
-    right_xesc_interface->stop();
+    //if(mow_xesc_interface) {
+    //    mow_xesc_interface->setDutyCycle(0.0);
+    //    mow_xesc_interface->stop();
+    //}
+    //left_xesc_interface->setDutyCycle(0.0);
+    //right_xesc_interface->setDutyCycle(0.0);
+    //left_xesc_interface->stop();
+    //right_xesc_interface->stop();
 
-    if(mow_xesc_interface) {
-        delete mow_xesc_interface;
-    }
-    delete left_xesc_interface;
-    delete right_xesc_interface;
+    //if(mow_xesc_interface) {
+    //    delete mow_xesc_interface;
+    //}
+    //delete left_xesc_interface;
+    //delete right_xesc_interface;
 
     return 0;
 }

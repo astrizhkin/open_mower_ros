@@ -44,6 +44,7 @@ COPY --link --from=fetch /opt/open_mower_ros/src/lib/slic3r_coverage_planner /op
 WORKDIR /opt/slic3r_coverage_planner_workspace
 RUN rosdep install --from-paths src --ignore-src --simulate | \
     sed --expression '1d' | sort | tr -d '\n' | sed --expression 's/  apt-get install//g' > apt-install_list && \
+    cat apt-install_list && \
     apt-get update && apt-get install --no-install-recommends --yes $(cat apt-install_list) && \
     rm -rf /var/lib/apt/lists/* apt-install_list
 RUN bash -c "source /opt/ros/$ROS_DISTRO/setup.bash && catkin_make"
@@ -77,6 +78,7 @@ COPY --link --from=slic3r /opt/prebuilt/slic3r_coverage_planner /opt/prebuilt/sl
 
 #Fetch the list of packages, this only changes if new dependencies have been added (only sometimes)
 COPY --link --from=dependencies /apt-install_list /apt-install_list
+RUN cat /apt-install_list
 RUN apt-get update && \
     apt-get install --no-install-recommends --yes $(cat /apt-install_list) && \
     rm -rf /var/lib/apt/lists/*
