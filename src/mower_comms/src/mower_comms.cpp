@@ -19,20 +19,20 @@
 
 #include "boost/crc.hpp"
 #include "std_msgs/Empty.h"
+#include "std_msgs/Bool.h"
+#include "std_msgs/Float64.h"
 #include <mower_msgs/Status.h>
 #include <geometry_msgs/Twist.h>
 #include <sensor_msgs/Joy.h>
 #include <serial/serial.h>
 #include "ll_datatypes.h"
 #include "COBS.h"
-#include "std_msgs/Bool.h"
 #include "mower_msgs/MowerControlSrv.h"
 #include "mower_msgs/EmergencyStopSrv.h"
 #include "mower_msgs/HighLevelControlSrv.h"
 #include "sensor_msgs/Imu.h"
 #include "sensor_msgs/MagneticField.h"
 
-//#include <xesc_driver/xesc_driver.h>
 //#include <xesc_msgs/XescStateStamped.h>
 #include <xbot_msgs/WheelTick.h>
 #include "mower_msgs/HighLevelStatus.h"
@@ -42,6 +42,8 @@ ros::Publisher wheel_tick_pub;
 
 ros::Publisher sensor_imu_pub;
 ros::Publisher sensor_mag_pub;
+
+ros::Publisher cmd_vel_safe_pub;
 
 COBS cobs;
 
@@ -73,10 +75,6 @@ boost::crc_ccitt_type crc;
 
 mower_msgs::HighLevelStatus last_high_level_status;
 
-//xesc_driver::XescDriver *mow_xesc_interface;
-//xesc_driver::XescDriver *left_xesc_interface;
-//xesc_driver::XescDriver *right_xesc_interface;
-
 std::mutex ll_status_mutex;
 struct ll_status last_ll_status = {0};
 
@@ -91,7 +89,9 @@ bool is_emergency() {
 }
 
 void publishActuators() {
-// emergency or timeout -> send 0 speeds
+    geometry_msgs::Twist execute_vel;
+
+    // emergency or timeout -> send 0 speeds
     if (is_emergency()) {
         //TODO: publish speed topic?
         //speed_l = 0;
@@ -102,7 +102,6 @@ void publishActuators() {
         //TODO: publish speed topic?
         //speed_l = 0;
         //speed_r = 0;
-
     }
     if (ros::Time::now() - last_cmd_vel > ros::Duration(25.0)) {
         //TODO: publish speed topic?
@@ -114,9 +113,9 @@ void publishActuators() {
     //if(mow_xesc_interface) {
         //mow_xesc_interface->setDutyCycle(speed_mow);
     //}
-    // We need to invert the speed, because the ESC has the same config as the left one, so the motor is running in the "wrong" direction
-    //left_xesc_interface->setDutyCycle(speed_l);
-    //right_xesc_interface->setDutyCycle(-speed_r);
+    execute_vel.angular.z = 0;
+    execute_vel.linear.x = 0;
+    cmd_vel_safe_pub.publish(execute_vel);
 
     struct ll_heartbeat heartbeat = {
             .type = PACKET_ID_LL_HEARTBEAT,
@@ -265,7 +264,6 @@ void highLevelStatusReceived(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
             .gps_quality = static_cast<uint8_t>(msg->gps_quality_percent*100.0)
     };
 
-
     crc.reset();
     crc.process_bytes(&hl_state, sizeof(struct ll_high_level_state) - 2);
     hl_state.crc = crc.checksum();
@@ -283,26 +281,48 @@ void highLevelStatusReceived(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
     }
 }
 
-/*void velReceived(const geometry_msgs::Twist::ConstPtr &msg) {
+void onCmdVelReceived(const geometry_msgs::Twist::ConstPtr &msg) {
     // TODO: update this to rad/s values and implement xESC speed control
     last_cmd_vel = ros::Time::now();
-    speed_r = msg->linear.x + 0.5*wheel_distance_m*msg->angular.z;
-    speed_l = msg->linear.x - 0.5*wheel_distance_m*msg->angular.z;
+    //speed_r = msg->linear.x + 0.5*wheel_distance_m*msg->angular.z;
+    //speed_l = msg->linear.x - 0.5*wheel_distance_m*msg->angular.z;
 
-    if (speed_l >= 1.0) {
-        speed_l = 1.0;
-    } else if (speed_l <= -1.0) {
-        speed_l = -1.0;
-    }
-    if (speed_r >= 1.0) {
-        speed_r = 1.0;
-    } else if (speed_r <= -1.0) {
-        speed_r = -1.0;
-    }
+    //if (speed_l >= 1.0) {
+    //    speed_l = 1.0;
+    //} else if (speed_l <= -1.0) {
+    //    speed_l = -1.0;
+    //}
+    //if (speed_r >= 1.0) {
+    //    speed_r = 1.0;
+    //} else if (speed_r <= -1.0) {
+    //    speed_r = -1.0;
+    //}
+}
+
+/*void onFrontLeftPosReceived(const std_msgs::Float64 &msg) {
+}
+void onFrontRightPosReceived(const std_msgs::Float64 &msg) {
+}
+void onFrontTempReceived(const std_msgs::Float64 &msg) {
+}
+void onFrontConnReceived(const std_msgs::Bool &msg) {
 }*/
+void onRearLeftPosReceived(const std_msgs::Float64 &msg) {
+    ROS_INFO_STREAM("[mower_comms] Got Rear Left Pos " << +msg);
+}
+void onRearRightPosReceived(const std_msgs::Float64 &msg) {
+    ROS_INFO_STREAM("[mower_comms] Got Rear Right Pos " << +msg);
+}
+void onRearTempReceived(const std_msgs::Float64 &msg) {
+    ROS_INFO_STREAM("[mower_comms] Got Rear Temp " << +msg);
+}
+void onRearConnReceived(const std_msgs::Bool &msg) {
+    ROS_INFO_STREAM("[mower_comms] Got Rear Connected " << +msg);
+}
+
 
 void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {
-    ROS_INFO_STREAM("Got UI button with code:" << +ui_event->button_id << " and duration: " << +ui_event->press_duration);
+    ROS_INFO_STREAM("[mower_comms] Got UI button with code:" << +ui_event->button_id << " and duration: " << +ui_event->press_duration);
 
     mower_msgs::HighLevelControlSrv srv;
 
@@ -386,8 +406,6 @@ int main(int argc, char **argv) {
     //ros::NodeHandle mowerParamNh("~/mower_xesc");
     //ros::NodeHandle rightParamNh("~/right_xesc");
 
-
-
     highLevelClient = n.serviceClient<mower_msgs::HighLevelControlSrv>(
             "mower_service/high_level_control");
 
@@ -406,7 +424,6 @@ int main(int argc, char **argv) {
 
     //speed_l = speed_r = speed_mow = 0;
 
-
     // Setup XESC interfaces
     //if(mowerParamNh.hasParam("xesc_type")) {
     //    mow_xesc_interface = new xesc_driver::XescDriver(n, mowerParamNh);
@@ -414,21 +431,31 @@ int main(int argc, char **argv) {
     //    mow_xesc_interface = nullptr;
     //}
 
-    //left_xesc_interface = new xesc_driver::XescDriver(n, leftParamNh);
-    //right_xesc_interface = new xesc_driver::XescDriver(n, rightParamNh);
-
-
     status_pub = n.advertise<mower_msgs::Status>("mower/status", 1);
     wheel_tick_pub = n.advertise<xbot_msgs::WheelTick>("mower/wheel_ticks", 1);
-
     sensor_imu_pub = n.advertise<sensor_msgs::Imu>("imu/data_raw", 1);
     sensor_mag_pub = n.advertise<sensor_msgs::MagneticField>("imu/mag", 1);
+    cmd_vel_safe_pub = n.advertise<sensor_msgs::MagneticField>("cmd_vel_safe", 1);
+
     ros::ServiceServer mow_service = n.advertiseService("mower_service/mow_enabled", setMowEnabled);
     ros::ServiceServer emergency_service = n.advertiseService("mower_service/emergency", setEmergencyStop);
-    //ros::Subscriber cmd_vel_sub = n.subscribe("cmd_vel", 0, velReceived, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber cmd_vel_sub = n.subscribe("cmd_vel", 0, onCmdVelReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber high_level_status_sub = n.subscribe("/mower_logic/current_state", 0, highLevelStatusReceived);
     ros::Timer publish_timer = n.createTimer(ros::Duration(0.02), publishActuatorsTimerTask);
 
+    // ros::Subscriber front_left_pos_sub = n.subscribe("/front/hoverboard/left_wheel/position", 0, onFrontLeftPosReceived, ros::TransportHints().tcpNoDelay(true));
+    // ros::Subscriber front_right_pos_sub = n.subscribe("/front/hoverboard/right_wheel/position", 0, onFrontRightPosReceived, ros::TransportHints().tcpNoDelay(true));
+    // ros::Subscriber front_temp_sub = n.subscribe("/front/hoverboard/temperature", 0, onFrontTempReceived);
+    // ros::Subscriber front_conn_sub = n.subscribe("/front/hoverboard/connected", 0, onFrontConnReceived);
+    // ros::Subscriber rear_left_pos_sub = n.subscribe("/rear/hoverboard/left_wheel/position", 0, onRearLeftPosReceived, ros::TransportHints().tcpNoDelay(true));
+    // ros::Subscriber rear_right_pos_sub = n.subscribe("/rear/hoverboard/right_wheel/position", 0, onRearRightPosReceived, ros::TransportHints().tcpNoDelay(true));
+    // ros::Subscriber rear_temp_sub = n.subscribe("/rear/hoverboard/temperature", 0, onRearTempReceived);
+    // ros::Subscriber rear_conn_sub = n.subscribe("/rear/hoverboard/connected", 0, onRearConnReceived);
+
+    ros::Subscriber rear_left_pos_sub = n.subscribe("/hoverboard/left_wheel/position", 0, onRearLeftPosReceived, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber rear_right_pos_sub = n.subscribe("/hoverboard/right_wheel/position", 0, onRearRightPosReceived, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber rear_temp_sub = n.subscribe("/hoverboard/temperature", 0, onRearTempReceived);
+    ros::Subscriber rear_conn_sub = n.subscribe("/hoverboard/connected", 0, onRearConnReceived);
 
     size_t buflen = 1000;
     uint8_t buffer[buflen];
