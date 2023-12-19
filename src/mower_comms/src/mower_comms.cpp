@@ -137,7 +137,7 @@ void publishActuators() {
         try {
             serial_port.write(out_buf, encoded_size);
         } catch (std::exception &e) {
-            ROS_ERROR_STREAM("Error writing to serial port");
+            ROS_ERROR_STREAM("[mower_comms] Error writing to serial port");
         }
     }
 }
@@ -192,7 +192,7 @@ void publishStatus() {
         // it obviously worked, reset the request
         ll_clear_emergency = false;
     } else {
-        ROS_ERROR_STREAM_THROTTLE(1, "Low Level Emergency. Bitmask was: " << (int)last_ll_status.emergency_bitmask);
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Low Level Emergency. Bitmask was: " << (int)last_ll_status.emergency_bitmask);
     }
 
     // True, if high or low level emergency condition is present
@@ -246,7 +246,7 @@ bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerCon
 
 bool setEmergencyStop(mower_msgs::EmergencyStopSrvRequest &req, mower_msgs::EmergencyStopSrvResponse &res) {
     if (req.emergency) {
-        ROS_ERROR_STREAM("Setting emergency!!");
+        ROS_ERROR_STREAM("[mower_comms] Setting emergency!!");
         ll_clear_emergency = false;
     } else {
         ll_clear_emergency = true;
@@ -276,7 +276,7 @@ void highLevelStatusReceived(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
         try {
             serial_port.write(out_buf, encoded_size);
         } catch (std::exception &e) {
-            ROS_ERROR_STREAM("Error writing to serial port");
+            ROS_ERROR_STREAM("[mower_comms] Error writing to serial port");
         }
     }
 }
@@ -447,15 +447,15 @@ int main(int argc, char **argv) {
     // ros::Subscriber front_right_pos_sub = n.subscribe("/front/hoverboard/right_wheel/position", 0, onFrontRightPosReceived, ros::TransportHints().tcpNoDelay(true));
     // ros::Subscriber front_temp_sub = n.subscribe("/front/hoverboard/temperature", 0, onFrontTempReceived);
     // ros::Subscriber front_conn_sub = n.subscribe("/front/hoverboard/connected", 0, onFrontConnReceived);
-    // ros::Subscriber rear_left_pos_sub = n.subscribe("/rear/hoverboard/left_wheel/position", 0, onRearLeftPosReceived, ros::TransportHints().tcpNoDelay(true));
-    // ros::Subscriber rear_right_pos_sub = n.subscribe("/rear/hoverboard/right_wheel/position", 0, onRearRightPosReceived, ros::TransportHints().tcpNoDelay(true));
-    // ros::Subscriber rear_temp_sub = n.subscribe("/rear/hoverboard/temperature", 0, onRearTempReceived);
-    // ros::Subscriber rear_conn_sub = n.subscribe("/rear/hoverboard/connected", 0, onRearConnReceived);
+    ros::Subscriber rear_left_pos_sub = n.subscribe("/rear/hoverboard/left_wheel/position", 0, onRearLeftPosReceived, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber rear_right_pos_sub = n.subscribe("/rear/hoverboard/right_wheel/position", 0, onRearRightPosReceived, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber rear_temp_sub = n.subscribe("/rear/hoverboard/temperature", 0, onRearTempReceived);
+    ros::Subscriber rear_conn_sub = n.subscribe("/rear/hoverboard/connected", 0, onRearConnReceived);
 
-    ros::Subscriber rear_left_pos_sub = n.subscribe("/hoverboard/left_wheel/position", 0, onRearLeftPosReceived, ros::TransportHints().tcpNoDelay(true));
-    ros::Subscriber rear_right_pos_sub = n.subscribe("/hoverboard/right_wheel/position", 0, onRearRightPosReceived, ros::TransportHints().tcpNoDelay(true));
-    ros::Subscriber rear_temp_sub = n.subscribe("/hoverboard/temperature", 0, onRearTempReceived);
-    ros::Subscriber rear_conn_sub = n.subscribe("/hoverboard/connected", 0, onRearConnReceived);
+    // ros::Subscriber rear_left_pos_sub = n.subscribe("/hoverboard/left_wheel/position", 0, onRearLeftPosReceived, ros::TransportHints().tcpNoDelay(true));
+    // ros::Subscriber rear_right_pos_sub = n.subscribe("/hoverboard/right_wheel/position", 0, onRearRightPosReceived, ros::TransportHints().tcpNoDelay(true));
+    // ros::Subscriber rear_temp_sub = n.subscribe("/hoverboard/temperature", 0, onRearTempReceived);
+    // ros::Subscriber rear_conn_sub = n.subscribe("/hoverboard/connected", 0, onRearConnReceived);
 
     size_t buflen = 1000;
     uint8_t buffer[buflen];
@@ -467,7 +467,7 @@ int main(int argc, char **argv) {
     spinner.start();
     while (ros::ok()) {
         if (!serial_port.isOpen()) {
-            ROS_INFO_STREAM("connecting serial interface: " << ll_serial_port_name);
+            ROS_INFO_STREAM("[mower_comms] connecting serial interface: " << ll_serial_port_name);
             allow_send = false;
             try {
                 serial_port.setPort(ll_serial_port_name);
@@ -483,21 +483,21 @@ int main(int argc, char **argv) {
                 allow_send = true;
             } catch (std::exception &e) {
                 retryDelay.sleep();
-                ROS_ERROR_STREAM("Error during reconnect.");
+                ROS_ERROR_STREAM("[mower_comms] Error during reconnect.");
             }
         }
         size_t bytes_read = 0;
         try {
             bytes_read = serial_port.read(buffer + read, 1);
         } catch (std::exception &e) {
-            ROS_ERROR_STREAM("Error reading serial_port. Closing Connection.");
+            ROS_ERROR_STREAM("[mower_comms] Error reading serial_port. Closing Connection.");
             serial_port.close();
             retryDelay.sleep();
         }
         if (read + bytes_read >= buflen) {
             read = 0;
             bytes_read = 0;
-            ROS_ERROR_STREAM("Prevented buffer overflow. There is a problem with the serial comms.");
+            ROS_ERROR_STREAM("[mower_comms] Prevented buffer overflow. There is a problem with the serial comms.");
         }
         if (bytes_read) {
             if (buffer[read] == 0) {
@@ -508,7 +508,7 @@ int main(int argc, char **argv) {
                 if (data_size < 3) {
                     // We don't even have one byte of data
                     // (type + crc = 3 bytes already)
-                    ROS_INFO_STREAM("Got empty packet from Low Level Board");
+                    ROS_INFO_STREAM("[mower_comms] Got empty packet from Low Level Board");
                 } else {
                     // We have at least 1 byte of data, check the CRC
                     crc.reset();
@@ -524,7 +524,7 @@ int main(int argc, char **argv) {
                                     handleLowLevelStatus((struct ll_status *) buffer_decoded);
                                 } else {
                                     ROS_INFO_STREAM(
-                                            "Low Level Board sent a valid packet with the wrong size. Type was STATUS");
+                                            "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was STATUS");
                                 }
                                 break;
                             case PACKET_ID_LL_IMU:
@@ -532,7 +532,7 @@ int main(int argc, char **argv) {
                                     handleLowLevelIMU((struct ll_imu *) buffer_decoded);
                                 } else {
                                     ROS_INFO_STREAM(
-                                            "Low Level Board sent a valid packet with the wrong size. Type was IMU");
+                                            "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was IMU");
                                 }
                                 break;
                             case PACKET_ID_LL_UI_EVENT:
@@ -540,15 +540,15 @@ int main(int argc, char **argv) {
                                     handleLowLevelUIEvent((struct ll_ui_event*) buffer_decoded);
                                 } else {
                                     ROS_INFO_STREAM(
-                                            "Low Level Board sent a valid packet with the wrong size. Type was UI_EVENT");
+                                            "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was UI_EVENT");
                                 }
                                 break;
                             default:
-                                ROS_INFO_STREAM("Got unknown packet from Low Level Board");
+                                ROS_INFO_STREAM("[mower_comms] Got unknown packet from Low Level Board");
                                 break;
                         }
                     } else {
-                        ROS_INFO_STREAM("Got invalid checksum from Low Level Board");
+                        ROS_INFO_STREAM("[mower_comms] Got invalid checksum from Low Level Board");
                     }
 
                 }

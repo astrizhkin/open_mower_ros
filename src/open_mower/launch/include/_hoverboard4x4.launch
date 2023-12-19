@@ -3,12 +3,13 @@
         <param name="port" type="str" value="/dev/ttyTHS1"/>
         <remap from="/front/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
         <include file="$(find hoverboard_driver)/launch/hoverboard.launch" />
-    </group>
+    </group>-->
+    <rosparam file="$(find open_mower)/params/hardware_specific/CUSTOM/hovermower.yaml" command="load"/>
     <group ns="rear">
-        <param name="port" type="str" value="/dev/ttyTHS2"/>
+        <!--param name="port" type="str" value="/dev/ttyS1"/-->
         <remap from="/rear/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
         <include file="$(find hoverboard_driver)/launch/hoverboard.launch" />
-    </group-->
+    </group>
     <!--include file="$(find hoverboard_driver)/launch/4x4.launch"/-->
 
     <!--rosparam file="$(find open_mower)/params/hoverboard4x4_controllers.yaml" command="load"/>
@@ -20,12 +21,10 @@
 
     <!-- Simple 2 weel mode -->
 
-    <rosparam file="$(find hoverboard_driver)/config/hardware.yaml" command="load"/>
+    <!--rosparam file="$(find hoverboard_driver)/config/hardware.yaml" command="load"/>
     <rosparam file="$(find hoverboard_driver)/config/controllers.yaml" command="load"/>
-    <node name="hoverboard_driver" pkg="hoverboard_driver" type="hoverboard_driver" output="screen">
-        <param name="port" type="str" value="/dev/ttyS1"/>
-    </node>
+    <node name="hoverboard_driver" pkg="hoverboard_driver" type="hoverboard_driver" output="screen"/>
     <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen"
         args="hoverboard_joint_publisher hoverboard_velocity_controller" />
-    <remap from="/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
+    <remap from="/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/-->
 </launch>
