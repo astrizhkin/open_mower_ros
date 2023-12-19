@@ -308,16 +308,16 @@ void onFrontTempReceived(const std_msgs::Float64 &msg) {
 void onFrontConnReceived(const std_msgs::Bool &msg) {
 }*/
 void onRearLeftPosReceived(const std_msgs::Float64 &msg) {
-    ROS_INFO_STREAM("[mower_comms] Got Rear Left Pos");
+    ROS_INFO_STREAM("[mower_comms] Got Rear Left Pos: "<< +msg.data);
 }
 void onRearRightPosReceived(const std_msgs::Float64 &msg) {
-    ROS_INFO_STREAM("[mower_comms] Got Rear Right Pos");
+    ROS_INFO_STREAM("[mower_comms] Got Rear Right Pos: "<< +msg.data);
 }
 void onRearTempReceived(const std_msgs::Float64 &msg) {
-    ROS_INFO_STREAM("[mower_comms] Got Rear Temp");
+    ROS_INFO_STREAM("[mower_comms] Got Rear Temp: "<< +msg.data);
 }
 void onRearConnReceived(const std_msgs::Bool &msg) {
-    ROS_INFO_STREAM("[mower_comms] Got Rear Connected");
+    ROS_INFO_STREAM("[mower_comms] Got Rear Connected: "<< +msg.data);
 }
 
 
