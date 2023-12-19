@@ -4,7 +4,8 @@
         <remap from="/front/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
         <include file="$(find hoverboard_driver)/launch/hoverboard.launch" />
     </group>-->
-    <rosparam file="$(find open_mower)/params/hardware_specific/CUSTOM/hovermower.yaml" command="load"/>
+    <rosparam unless="$(eval env('OM_MOWER')=='CUSTOM')" file="$(find open_mower)/params/hardware_specific/CUSTOM/hoverboard.yaml" command="load"/>
+    <rosparam if="$(eval env('OM_MOWER')=='CUSTOM')" file="$(env HOME)/mower_params/hoverboard.yaml" command="load"/>
     <group ns="rear">
         <!--param name="port" type="str" value="/dev/ttyS1"/-->
         <remap from="/rear/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
