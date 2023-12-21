@@ -66,7 +66,6 @@ ros::Time last_cmd_vel(0.0);
 
 // Ticks / m and wheel distance for this robot
 double wheel_ticks_per_m = 0.0;
-double wheel_distance_m = 0.0;
 
 // Serial port and buffer for the low level connection
 serial::Serial serial_port;
@@ -292,6 +291,7 @@ void highLevelStatusReceived(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
 
 void onCmdVelReceived(const geometry_msgs::Twist::ConstPtr &msg) {
     // TODO: update this to rad/s values and implement xESC speed control
+    ROS_INFO_STREAM("[mower_comms] Got Twist: "<< +msg->linear.x << " " << +msg->angular.z);
     last_cmd_vel = ros::Time::now();
     last_cmd_twist = *msg;
 }
@@ -395,10 +395,8 @@ int main(int argc, char **argv) {
     }
 
     paramNh.getParam("wheel_ticks_per_m",wheel_ticks_per_m);
-    paramNh.getParam("wheel_distance_m",wheel_distance_m);
 
     ROS_INFO_STREAM("Wheel ticks [1/m]: " << wheel_ticks_per_m);
-    ROS_INFO_STREAM("Wheel distance [m]: " << wheel_distance_m);
 
     last_cmd_twist.linear.x = 0;
     last_cmd_twist.angular.z = 0;

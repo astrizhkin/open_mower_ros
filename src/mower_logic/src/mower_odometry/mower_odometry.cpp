@@ -437,7 +437,7 @@ void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
     d_wheel_r = -(int32_t) (msg->right_esc_status.tacho - last_status.right_esc_status.tacho) / TICKS_PER_M;
 
 
-//    ROS_INFO_STREAM("d_wheel_l = " << d_wheel_l << ", d_wheel_r = " << d_wheel_r);
+    ROS_INFO_STREAM("d_wheel_l = " << d_wheel_l << ", d_wheel_r = " << d_wheel_r);
 
     bool success;
     if (!use_f9r_sensor_fusion) {
