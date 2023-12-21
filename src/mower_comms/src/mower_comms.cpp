@@ -297,7 +297,7 @@ void onCmdVelReceived(const geometry_msgs::Twist::ConstPtr &msg) {
 }
 
 void onRearStateReceived(const hoverboard_driver::HoverboardStateStamped::ConstPtr &msg) {
-    ROS_INFO_STREAM("[mower_comms] Got Rear State: "<< +msg->state.connection_state);
+    //ROS_INFO_STREAM("[mower_comms] Got Rear State: "<< +msg->state.connection_state);
     last_rear_status = *msg;
 }
 
