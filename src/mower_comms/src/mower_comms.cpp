@@ -34,6 +34,7 @@
 #include "sensor_msgs/MagneticField.h"
 
 //#include <xesc_msgs/XescStateStamped.h>
+#include <hoverboard_driver/HoverboardStateStamped.h>
 #include <xbot_msgs/WheelTick.h>
 #include "mower_msgs/HighLevelStatus.h"
 
@@ -299,27 +300,9 @@ void onCmdVelReceived(const geometry_msgs::Twist::ConstPtr &msg) {
     //}
 }
 
-/*void onFrontLeftPosReceived(const std_msgs::Float64 &msg) {
+void onRearStateReceived(const hoverboard_driver::HoverboardStateStamped::ConstPtr &msg) {
+    ROS_INFO_STREAM("[mower_comms] Got Rear State: "<< +msg->state.connection_state);
 }
-void onFrontRightPosReceived(const std_msgs::Float64 &msg) {
-}
-void onFrontTempReceived(const std_msgs::Float64 &msg) {
-}
-void onFrontConnReceived(const std_msgs::Bool &msg) {
-}*/
-void onRearLeftPosReceived(const std_msgs::Float64 &msg) {
-    ROS_INFO_STREAM("[mower_comms] Got Rear Left Pos: "<< +msg.data);
-}
-void onRearRightPosReceived(const std_msgs::Float64 &msg) {
-    ROS_INFO_STREAM("[mower_comms] Got Rear Right Pos: "<< +msg.data);
-}
-void onRearTempReceived(const std_msgs::Float64 &msg) {
-    ROS_INFO_STREAM("[mower_comms] Got Rear Temp: "<< +msg.data);
-}
-void onRearConnReceived(const std_msgs::Bool &msg) {
-    ROS_INFO_STREAM("[mower_comms] Got Rear Connected: "<< +msg.data);
-}
-
 
 void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {
     ROS_INFO_STREAM("[mower_comms] Got UI button with code:" << +ui_event->button_id << " and duration: " << +ui_event->press_duration);
@@ -443,19 +426,7 @@ int main(int argc, char **argv) {
     ros::Subscriber high_level_status_sub = n.subscribe("/mower_logic/current_state", 0, highLevelStatusReceived);
     ros::Timer publish_timer = n.createTimer(ros::Duration(0.02), publishActuatorsTimerTask);
 
-    // ros::Subscriber front_left_pos_sub = n.subscribe("/front/hoverboard/left_wheel/position", 0, onFrontLeftPosReceived, ros::TransportHints().tcpNoDelay(true));
-    // ros::Subscriber front_right_pos_sub = n.subscribe("/front/hoverboard/right_wheel/position", 0, onFrontRightPosReceived, ros::TransportHints().tcpNoDelay(true));
-    // ros::Subscriber front_temp_sub = n.subscribe("/front/hoverboard/temperature", 0, onFrontTempReceived);
-    // ros::Subscriber front_conn_sub = n.subscribe("/front/hoverboard/connected", 0, onFrontConnReceived);
-    ros::Subscriber rear_left_pos_sub = n.subscribe("/rear/hoverboard/left_wheel/position", 0, onRearLeftPosReceived, ros::TransportHints().tcpNoDelay(true));
-    ros::Subscriber rear_right_pos_sub = n.subscribe("/rear/hoverboard/right_wheel/position", 0, onRearRightPosReceived, ros::TransportHints().tcpNoDelay(true));
-    ros::Subscriber rear_temp_sub = n.subscribe("/rear/hoverboard/temperature", 0, onRearTempReceived);
-    ros::Subscriber rear_conn_sub = n.subscribe("/rear/hoverboard/connected", 0, onRearConnReceived);
-
-    // ros::Subscriber rear_left_pos_sub = n.subscribe("/hoverboard/left_wheel/position", 0, onRearLeftPosReceived, ros::TransportHints().tcpNoDelay(true));
-    // ros::Subscriber rear_right_pos_sub = n.subscribe("/hoverboard/right_wheel/position", 0, onRearRightPosReceived, ros::TransportHints().tcpNoDelay(true));
-    // ros::Subscriber rear_temp_sub = n.subscribe("/hoverboard/temperature", 0, onRearTempReceived);
-    // ros::Subscriber rear_conn_sub = n.subscribe("/hoverboard/connected", 0, onRearConnReceived);
+    ros::Subscriber rear_state_sub = n.subscribe("/rear/hoverboard_driver/state", 0, onRearStateReceived, ros::TransportHints().tcpNoDelay(true));
 
     size_t buflen = 1000;
     uint8_t buffer[buflen];
