@@ -151,7 +151,7 @@ void convertStatus(hoverboard_driver::HoverboardStateStamped &state_msg, mower_m
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
     } else if(state_msg.state.status) {
-        ROS_ERROR_STREAM_THROTTLE(1, "Motor controller status code: " << state_msg.state.status);
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Motor controller status code: " << state_msg.state.status);
         // ESC has a fault
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
