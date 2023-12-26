@@ -10,14 +10,10 @@
         <rosparam unless="$(eval env('OM_MOWER')=='CUSTOM')" file="$(find open_mower)/params/hardware_specific/$(env OM_MOWER)/comms_$(env OM_MOWER_ESC_TYPE)_params.yaml"/>
         <rosparam if="$(eval env('OM_MOWER')=='CUSTOM')" file="$(env HOME)/mower_params/comms_params.yaml"/>
         <param name="wheel_ticks_per_m" value="$(env OM_WHEEL_TICKS_PER_M)"/>
-        <param name="wheel_distance_m" value="$(env OM_WHEEL_DISTANCE_M)"/>
     </node>
     
-    <include file="$(find open_mower)/launch/include/_howerboard4x4.launch" />
+    <include file="$(find open_mower)/launch/include/_hoverboard4x4.launch" />
 
-    <include file="$(find open_mower)/launch/include/_gps.launch" unless="$(optenv OM_NO_GPS False)">
-
-    </include>
-
+    <include file="$(find open_mower)/launch/include/_gps.launch" unless="$(optenv OM_NO_GPS False)"/>
 
 </launch>

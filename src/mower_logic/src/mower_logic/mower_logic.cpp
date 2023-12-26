@@ -474,6 +474,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
             currentBehavior != &DockingBehavior::INSTANCE &&
             currentBehavior != &UndockingBehavior::RETRY_INSTANCE
         ) {
+        ROS_WARN_STREAM_THROTTLE(1,"About current behavior due to battery level or mower temperature or manual input");
         abortExecution();
     }
 }

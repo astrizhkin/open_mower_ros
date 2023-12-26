@@ -19,21 +19,21 @@
 
 #include "boost/crc.hpp"
 #include "std_msgs/Empty.h"
+#include "std_msgs/Bool.h"
+#include "std_msgs/Float64.h"
 #include <mower_msgs/Status.h>
 #include <geometry_msgs/Twist.h>
 #include <sensor_msgs/Joy.h>
 #include <serial/serial.h>
 #include "ll_datatypes.h"
 #include "COBS.h"
-#include "std_msgs/Bool.h"
 #include "mower_msgs/MowerControlSrv.h"
 #include "mower_msgs/EmergencyStopSrv.h"
 #include "mower_msgs/HighLevelControlSrv.h"
 #include "sensor_msgs/Imu.h"
 #include "sensor_msgs/MagneticField.h"
 
-//#include <xesc_driver/xesc_driver.h>
-//#include <xesc_msgs/XescStateStamped.h>
+#include <hoverboard_driver/HoverboardStateStamped.h>
 #include <xbot_msgs/WheelTick.h>
 #include "mower_msgs/HighLevelStatus.h"
 
@@ -42,6 +42,8 @@ ros::Publisher wheel_tick_pub;
 
 ros::Publisher sensor_imu_pub;
 ros::Publisher sensor_mag_pub;
+
+ros::Publisher cmd_vel_safe_pub;
 
 COBS cobs;
 
@@ -58,24 +60,21 @@ bool ll_clear_emergency = false;
 bool allow_send = false;
 
 // Current speeds (duty cycle) for the three ESCs
-//float speed_l = 0, speed_r = 0, speed_mow = 0;
+geometry_msgs::Twist last_cmd_twist;
+ros::Time last_cmd_vel(0.0);
+//float speed_mow = 0;
 
 // Ticks / m and wheel distance for this robot
 double wheel_ticks_per_m = 0.0;
-double wheel_distance_m = 0.0;
 
 // Serial port and buffer for the low level connection
 serial::Serial serial_port;
 uint8_t out_buf[1000];
-ros::Time last_cmd_vel(0.0);
 
 boost::crc_ccitt_type crc;
 
 mower_msgs::HighLevelStatus last_high_level_status;
-
-//xesc_driver::XescDriver *mow_xesc_interface;
-//xesc_driver::XescDriver *left_xesc_interface;
-//xesc_driver::XescDriver *right_xesc_interface;
+hoverboard_driver::HoverboardStateStamped last_rear_status;
 
 std::mutex ll_status_mutex;
 struct ll_status last_ll_status = {0};
@@ -91,32 +90,32 @@ bool is_emergency() {
 }
 
 void publishActuators() {
-// emergency or timeout -> send 0 speeds
+    geometry_msgs::Twist execute_vel;
+    execute_vel.linear.x = last_cmd_twist.linear.x;
+    execute_vel.angular.z = last_cmd_twist.angular.z;
+    // emergency or timeout -> send 0 speeds
     if (is_emergency()) {
         //TODO: publish speed topic?
-        //speed_l = 0;
-        //speed_r = 0;
+        execute_vel.linear.x = 0;
+        execute_vel.angular.z = 0;
         //speed_mow = 0;
     }
     if (ros::Time::now() - last_cmd_vel > ros::Duration(1.0)) {
         //TODO: publish speed topic?
-        //speed_l = 0;
-        //speed_r = 0;
-
+        execute_vel.linear.x = 0;
+        execute_vel.angular.z = 0;
     }
     if (ros::Time::now() - last_cmd_vel > ros::Duration(25.0)) {
         //TODO: publish speed topic?
-        //speed_l = 0;
-        //speed_r = 0;
+        execute_vel.linear.x = 0;
+        execute_vel.angular.z = 0;
         //speed_mow = 0;
     }
 
     //if(mow_xesc_interface) {
         //mow_xesc_interface->setDutyCycle(speed_mow);
     //}
-    // We need to invert the speed, because the ESC has the same config as the left one, so the motor is running in the "wrong" direction
-    //left_xesc_interface->setDutyCycle(speed_l);
-    //right_xesc_interface->setDutyCycle(-speed_r);
+    cmd_vel_safe_pub.publish(execute_vel);
 
     struct ll_heartbeat heartbeat = {
             .type = PACKET_ID_LL_HEARTBEAT,
@@ -138,30 +137,40 @@ void publishActuators() {
         try {
             serial_port.write(out_buf, encoded_size);
         } catch (std::exception &e) {
-            ROS_ERROR_STREAM("Error writing to serial port");
+            ROS_ERROR_STREAM("[mower_comms] Error writing to serial port");
         }
     }
 }
 
 
-/*void convertStatus(xesc_msgs::XescStateStamped &vesc_status, mower_msgs::ESCStatus &ros_esc_status) {
-    if (vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED &&
-            vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED_INCOMPATIBLE_FW) {
+void convertStatus(hoverboard_driver::HoverboardStateStamped &state_msg, mower_msgs::ESCStatus &ros_esc_left_status,mower_msgs::ESCStatus &ros_esc_right_status) {
+    if (state_msg.state.connection_state != hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_CONNECTED
+        //&& vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED_INCOMPATIBLE_FW
+        ) {
         // ESC is disconnected
-        ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
-    } else if(vesc_status.state.fault_code) {
-        ROS_ERROR_STREAM_THROTTLE(1, "Motor controller fault code: " << vesc_status.state.fault_code);
+        ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
+        ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
+    } else if(state_msg.state.status) {
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Motor controller status code: " << state_msg.state.status);
         // ESC has a fault
-        ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
+        ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
+        ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
     } else {
         // ESC is OK but standing still
-        ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
     }
-    ros_esc_status.tacho = vesc_status.state.tacho;
-    ros_esc_status.current = vesc_status.state.current_input;
-    ros_esc_status.temperature_motor = vesc_status.state.temperature_motor;
-    ros_esc_status.temperature_pcb = vesc_status.state.temperature_pcb;
-}*/
+    //TODO check .tacho compatibility with howerboard .wheelX_cnt
+    ros_esc_left_status.tacho = state_msg.state.wheelL_cnt;
+    ros_esc_left_status.current = state_msg.state.currL_meas;
+    ros_esc_left_status.temperature_motor = state_msg.state.motorL_temp;
+    ros_esc_left_status.temperature_pcb = state_msg.state.boardTemp;
+
+    ros_esc_right_status.tacho = state_msg.state.wheelR_cnt;
+    ros_esc_right_status.current = state_msg.state.currR_meas;
+    ros_esc_right_status.temperature_motor = state_msg.state.motorR_temp;
+    ros_esc_right_status.temperature_pcb = state_msg.state.boardTemp;
+}
 
 void publishStatus() {
     mower_msgs::Status status_msg;
@@ -193,7 +202,7 @@ void publishStatus() {
         // it obviously worked, reset the request
         ll_clear_emergency = false;
     } else {
-        ROS_ERROR_STREAM_THROTTLE(1, "Low Level Emergency. Bitmask was: " << (int)last_ll_status.emergency_bitmask);
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Low Level Emergency. Bitmask was: " << (int)last_ll_status.emergency_bitmask);
     }
 
     // True, if high or low level emergency condition is present
@@ -204,28 +213,26 @@ void publishStatus() {
     status_msg.charge_current = last_ll_status.charging_current;
 
 
-    //xesc_msgs::XescStateStamped mow_status, left_status, right_status;
+    //xesc_msgs::XescStateStamped mow_status;
     //if(mow_xesc_interface) {
     //    mow_xesc_interface->getStatus(mow_status);
     //} else {
     //    mow_status.state.connection_state = xesc_msgs::XescState::XESC_CONNECTION_STATE_DISCONNECTED;
     //}
-    //left_xesc_interface->getStatus(left_status);
-    //right_xesc_interface->getStatus(right_status);
 
     //convertStatus(mow_status, status_msg.mow_esc_status);
-    //convertStatus(left_status, status_msg.left_esc_status);
-    //convertStatus(right_status, status_msg.right_esc_status);
+    convertStatus(last_rear_status, status_msg.left_esc_status, status_msg.right_esc_status);
 
     status_pub.publish(status_msg);
 
     xbot_msgs::WheelTick wheel_tick_msg;
     wheel_tick_msg.wheel_tick_factor = static_cast<unsigned int>(wheel_ticks_per_m);
     wheel_tick_msg.stamp = status_msg.stamp;
-    //wheel_tick_msg.wheel_ticks_rl = left_status.state.tacho_absolute;
-    //wheel_tick_msg.wheel_direction_rl = left_status.state.direction && abs(left_status.state.duty_cycle) > 0;
-    //wheel_tick_msg.wheel_ticks_rr = right_status.state.tacho_absolute;
-    //wheel_tick_msg.wheel_direction_rr = !right_status.state.direction && abs(right_status.state.duty_cycle) > 0;
+    //check compatibility .wheel_ticks_rl and hoverboard .wheelX_cnt (previosuly was tacho_absolute)
+    wheel_tick_msg.wheel_ticks_rl = last_rear_status.state.wheelL_cnt;
+    wheel_tick_msg.wheel_direction_rl = last_rear_status.state.speedL_meas > 0;
+    wheel_tick_msg.wheel_ticks_rr = last_rear_status.state.wheelR_cnt;
+    wheel_tick_msg.wheel_direction_rr = last_rear_status.state.speedR_meas > 0;
 
     wheel_tick_pub.publish(wheel_tick_msg);
 }
@@ -247,7 +254,7 @@ bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerCon
 
 bool setEmergencyStop(mower_msgs::EmergencyStopSrvRequest &req, mower_msgs::EmergencyStopSrvResponse &res) {
     if (req.emergency) {
-        ROS_ERROR_STREAM("Setting emergency!!");
+        ROS_ERROR_STREAM("[mower_comms] Setting emergency!!");
         ll_clear_emergency = false;
     } else {
         ll_clear_emergency = true;
@@ -265,7 +272,6 @@ void highLevelStatusReceived(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
             .gps_quality = static_cast<uint8_t>(msg->gps_quality_percent*100.0)
     };
 
-
     crc.reset();
     crc.process_bytes(&hl_state, sizeof(struct ll_high_level_state) - 2);
     hl_state.crc = crc.checksum();
@@ -278,31 +284,25 @@ void highLevelStatusReceived(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
         try {
             serial_port.write(out_buf, encoded_size);
         } catch (std::exception &e) {
-            ROS_ERROR_STREAM("Error writing to serial port");
+            ROS_ERROR_STREAM("[mower_comms] Error writing to serial port");
         }
     }
 }
 
-/*void velReceived(const geometry_msgs::Twist::ConstPtr &msg) {
+void onCmdVelReceived(const geometry_msgs::Twist::ConstPtr &msg) {
     // TODO: update this to rad/s values and implement xESC speed control
+    ROS_INFO_STREAM("[mower_comms] Got Twist: "<< +msg->linear.x << " " << +msg->angular.z);
     last_cmd_vel = ros::Time::now();
-    speed_r = msg->linear.x + 0.5*wheel_distance_m*msg->angular.z;
-    speed_l = msg->linear.x - 0.5*wheel_distance_m*msg->angular.z;
+    last_cmd_twist = *msg;
+}
 
-    if (speed_l >= 1.0) {
-        speed_l = 1.0;
-    } else if (speed_l <= -1.0) {
-        speed_l = -1.0;
-    }
-    if (speed_r >= 1.0) {
-        speed_r = 1.0;
-    } else if (speed_r <= -1.0) {
-        speed_r = -1.0;
-    }
-}*/
+void onRearStateReceived(const hoverboard_driver::HoverboardStateStamped::ConstPtr &msg) {
+    //ROS_INFO_STREAM("[mower_comms] Got Rear State: "<< +msg->state.connection_state);
+    last_rear_status = *msg;
+}
 
 void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {
-    ROS_INFO_STREAM("Got UI button with code:" << +ui_event->button_id << " and duration: " << +ui_event->press_duration);
+    ROS_INFO_STREAM("[mower_comms] Got UI button with code:" << +ui_event->button_id << " and duration: " << +ui_event->press_duration);
 
     mower_msgs::HighLevelControlSrv srv;
 
@@ -382,11 +382,7 @@ int main(int argc, char **argv) {
 
     ros::NodeHandle n;
     ros::NodeHandle paramNh("~");
-    //ros::NodeHandle leftParamNh("~/left_xesc");
     //ros::NodeHandle mowerParamNh("~/mower_xesc");
-    //ros::NodeHandle rightParamNh("~/right_xesc");
-
-
 
     highLevelClient = n.serviceClient<mower_msgs::HighLevelControlSrv>(
             "mower_service/high_level_control");
@@ -399,13 +395,12 @@ int main(int argc, char **argv) {
     }
 
     paramNh.getParam("wheel_ticks_per_m",wheel_ticks_per_m);
-    paramNh.getParam("wheel_distance_m",wheel_distance_m);
 
     ROS_INFO_STREAM("Wheel ticks [1/m]: " << wheel_ticks_per_m);
-    ROS_INFO_STREAM("Wheel distance [m]: " << wheel_distance_m);
 
-    //speed_l = speed_r = speed_mow = 0;
-
+    last_cmd_twist.linear.x = 0;
+    last_cmd_twist.angular.z = 0;
+    //speed_mow = 0;
 
     // Setup XESC interfaces
     //if(mowerParamNh.hasParam("xesc_type")) {
@@ -414,21 +409,19 @@ int main(int argc, char **argv) {
     //    mow_xesc_interface = nullptr;
     //}
 
-    //left_xesc_interface = new xesc_driver::XescDriver(n, leftParamNh);
-    //right_xesc_interface = new xesc_driver::XescDriver(n, rightParamNh);
-
-
     status_pub = n.advertise<mower_msgs::Status>("mower/status", 1);
     wheel_tick_pub = n.advertise<xbot_msgs::WheelTick>("mower/wheel_ticks", 1);
-
     sensor_imu_pub = n.advertise<sensor_msgs::Imu>("imu/data_raw", 1);
     sensor_mag_pub = n.advertise<sensor_msgs::MagneticField>("imu/mag", 1);
+    cmd_vel_safe_pub = n.advertise<geometry_msgs::Twist>("cmd_vel_safe", 1);
+
     ros::ServiceServer mow_service = n.advertiseService("mower_service/mow_enabled", setMowEnabled);
     ros::ServiceServer emergency_service = n.advertiseService("mower_service/emergency", setEmergencyStop);
-    //ros::Subscriber cmd_vel_sub = n.subscribe("cmd_vel", 0, velReceived, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber cmd_vel_sub = n.subscribe("cmd_vel", 0, onCmdVelReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber high_level_status_sub = n.subscribe("/mower_logic/current_state", 0, highLevelStatusReceived);
     ros::Timer publish_timer = n.createTimer(ros::Duration(0.02), publishActuatorsTimerTask);
 
+    ros::Subscriber rear_state_sub = n.subscribe("/rear/hoverboard_driver/state", 0, onRearStateReceived, ros::TransportHints().tcpNoDelay(true));
 
     size_t buflen = 1000;
     uint8_t buffer[buflen];
@@ -440,7 +433,7 @@ int main(int argc, char **argv) {
     spinner.start();
     while (ros::ok()) {
         if (!serial_port.isOpen()) {
-            ROS_INFO_STREAM("connecting serial interface: " << ll_serial_port_name);
+            ROS_INFO_STREAM("[mower_comms] connecting serial interface: " << ll_serial_port_name);
             allow_send = false;
             try {
                 serial_port.setPort(ll_serial_port_name);
@@ -456,21 +449,21 @@ int main(int argc, char **argv) {
                 allow_send = true;
             } catch (std::exception &e) {
                 retryDelay.sleep();
-                ROS_ERROR_STREAM("Error during reconnect.");
+                ROS_ERROR_STREAM("[mower_comms] Error during reconnect.");
             }
         }
         size_t bytes_read = 0;
         try {
             bytes_read = serial_port.read(buffer + read, 1);
         } catch (std::exception &e) {
-            ROS_ERROR_STREAM("Error reading serial_port. Closing Connection.");
+            ROS_ERROR_STREAM("[mower_comms] Error reading serial_port. Closing Connection.");
             serial_port.close();
             retryDelay.sleep();
         }
         if (read + bytes_read >= buflen) {
             read = 0;
             bytes_read = 0;
-            ROS_ERROR_STREAM("Prevented buffer overflow. There is a problem with the serial comms.");
+            ROS_ERROR_STREAM("[mower_comms] Prevented buffer overflow. There is a problem with the serial comms.");
         }
         if (bytes_read) {
             if (buffer[read] == 0) {
@@ -481,7 +474,7 @@ int main(int argc, char **argv) {
                 if (data_size < 3) {
                     // We don't even have one byte of data
                     // (type + crc = 3 bytes already)
-                    ROS_INFO_STREAM("Got empty packet from Low Level Board");
+                    ROS_INFO_STREAM("[mower_comms] Got empty packet from Low Level Board");
                 } else {
                     // We have at least 1 byte of data, check the CRC
                     crc.reset();
@@ -497,7 +490,7 @@ int main(int argc, char **argv) {
                                     handleLowLevelStatus((struct ll_status *) buffer_decoded);
                                 } else {
                                     ROS_INFO_STREAM(
-                                            "Low Level Board sent a valid packet with the wrong size. Type was STATUS");
+                                            "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was STATUS");
                                 }
                                 break;
                             case PACKET_ID_LL_IMU:
@@ -505,7 +498,7 @@ int main(int argc, char **argv) {
                                     handleLowLevelIMU((struct ll_imu *) buffer_decoded);
                                 } else {
                                     ROS_INFO_STREAM(
-                                            "Low Level Board sent a valid packet with the wrong size. Type was IMU");
+                                            "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was IMU");
                                 }
                                 break;
                             case PACKET_ID_LL_UI_EVENT:
@@ -513,15 +506,15 @@ int main(int argc, char **argv) {
                                     handleLowLevelUIEvent((struct ll_ui_event*) buffer_decoded);
                                 } else {
                                     ROS_INFO_STREAM(
-                                            "Low Level Board sent a valid packet with the wrong size. Type was UI_EVENT");
+                                            "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was UI_EVENT");
                                 }
                                 break;
                             default:
-                                ROS_INFO_STREAM("Got unknown packet from Low Level Board");
+                                ROS_INFO_STREAM("[mower_comms] Got unknown packet from Low Level Board");
                                 break;
                         }
                     } else {
-                        ROS_INFO_STREAM("Got invalid checksum from Low Level Board");
+                        ROS_INFO_STREAM("[mower_comms] Got invalid checksum from Low Level Board");
                     }
 
                 }
@@ -535,20 +528,20 @@ int main(int argc, char **argv) {
 
     spinner.stop();
 
+
     //if(mow_xesc_interface) {
     //    mow_xesc_interface->setDutyCycle(0.0);
     //    mow_xesc_interface->stop();
     //}
-    //left_xesc_interface->setDutyCycle(0.0);
-    //right_xesc_interface->setDutyCycle(0.0);
+    last_cmd_twist.linear.x = 0;
+    last_cmd_twist.angular.z = 0;
+    publishActuators();
     //left_xesc_interface->stop();
     //right_xesc_interface->stop();
 
     //if(mow_xesc_interface) {
     //    delete mow_xesc_interface;
     //}
-    //delete left_xesc_interface;
-    //delete right_xesc_interface;
 
     return 0;
 }
