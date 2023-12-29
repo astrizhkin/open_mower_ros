@@ -94,7 +94,7 @@ void sendLLMessage(uint8_t *msg,size_t size) {
     unsigned short crcVal = crc.checksum();
     msg[size - 1] = (crcVal >> 8) & 0xFF;
     msg[size - 2] = crcVal & 0xFF;
-    ROS_INFO("[mower_comms] sendLL CRC "+crcVal);
+    ROS_INFO_STREAM("[mower_comms] sendLL CRC " << crcVal);
     size_t encoded_size = cobs.encode(msg, size, out_buf);
     out_buf[encoded_size] = 0;
     encoded_size++;
@@ -152,7 +152,7 @@ void publishActuators() {
     crc.reset();
     crc.process_bytes(&heartbeat, sizeof(struct ll_heartbeat) - 2);
     heartbeat.crc = crc.checksum();
-    ROS_INFO("[mower_comms] hertbeat CRC "+heartbeat.crc);
+    ROS_INFO_STREAM("[mower_comms] hertbeat CRC " << heartbeat.crc);
     size_t encoded_size = cobs.encode((uint8_t *) &heartbeat, sizeof(struct ll_heartbeat), out_buf);
     out_buf[encoded_size] = 0;
     encoded_size++;
