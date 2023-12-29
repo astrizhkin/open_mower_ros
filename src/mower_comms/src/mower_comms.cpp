@@ -258,14 +258,15 @@ void publishStatus() {
 
     wheel_tick_pub.publish(wheel_tick_msg);
 
-    uint64_t rear_status_age_ms = (ros::Time::now() - last_rear_status_time).toSec()*1000;
-    if(rear_status_age_ms > UINT16_MAX) {
-        rear_status_age_ms = UINT16_MAX;
+    double rear_status_age_s_double = (ros::Time::now() - last_rear_status_time).toSec();
+    uint8_t rear_status_age_s_uint8_t = rear_status_age_s_double;
+    if(rear_status_age_s_double > UINT8_MAX) {
+        rear_status_age_s_uint8_t = UINT8_MAX;
     }
     struct ll_motor_state ll_motor_state = {
             .type = PACKET_ID_LL_MOTOR_STATE,
             .status = {last_rear_status.state.status,0,0},
-            .status_age_ms = {(uint16_t)rear_status_age_ms,0,0}
+            .status_age_s = {rear_status_age_s_uint8_t,0,0}
     };
     sendLLMessage((uint8_t *)&ll_motor_state,sizeof(struct ll_motor_state));
 }
