@@ -94,7 +94,7 @@ void sendLLMessage(uint8_t *msg,size_t size) {
     unsigned short crcVal = crc.checksum();
     msg[size - 1] = (crcVal >> 8) & 0xFF;
     msg[size - 2] = crcVal & 0xFF;
-    ROS_INFO_STREAM("[mower_comms] sendLL CRC " << crcVal);
+    //ROS_INFO_STREAM("[mower_comms] sendLL CRC " << crcVal);
     size_t encoded_size = cobs.encode(msg, size, out_buf);
     out_buf[encoded_size] = 0;
     encoded_size++;
@@ -148,8 +148,7 @@ void publishActuators() {
     };
     sendLLMessage((uint8_t *)&heartbeat,sizeof(struct ll_heartbeat));
 
-
-    crc.reset();
+    /*crc.reset();
     crc.process_bytes(&heartbeat, sizeof(struct ll_heartbeat) - 2);
     heartbeat.crc = crc.checksum();
     ROS_INFO_STREAM("[mower_comms] hertbeat CRC " << heartbeat.crc);
@@ -163,7 +162,7 @@ void publishActuators() {
         } catch (std::exception &e) {
             ROS_ERROR_STREAM("[mower_comms] Error writing to serial port");
         }
-    }
+    }*/
 }
 
 
