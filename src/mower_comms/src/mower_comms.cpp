@@ -61,7 +61,7 @@ bool allow_send = false;
 
 // Current speeds (duty cycle) for the three ESCs
 geometry_msgs::Twist last_cmd_twist;
-ros::Time last_cmd_vel(0.0);
+ros::Time last_cmd_twist_time(0.0);
 //float speed_mow = 0;
 
 // Ticks / m and wheel distance for this robot
@@ -73,8 +73,11 @@ uint8_t out_buf[1000];
 
 boost::crc_ccitt_type crc;
 
-mower_msgs::HighLevelStatus last_high_level_status;
+//mower_msgs::HighLevelStatus last_high_level_status;
+//ros::Time last_high_level_status_time(0.0);
+
 hoverboard_driver::HoverboardStateStamped last_rear_status;
+ros::Time last_rear_status_time(0.0);
 
 std::mutex ll_status_mutex;
 struct ll_status last_ll_status = {0};
@@ -118,12 +121,12 @@ void publishActuators() {
         execute_vel.angular.z = 0;
         //speed_mow = 0;
     }
-    if (ros::Time::now() - last_cmd_vel > ros::Duration(1.0)) {
+    if (ros::Time::now() - last_cmd_twist_time > ros::Duration(1.0)) {
         //TODO: publish speed topic?
         execute_vel.linear.x = 0;
         execute_vel.angular.z = 0;
     }
-    if (ros::Time::now() - last_cmd_vel > ros::Duration(25.0)) {
+    if (ros::Time::now() - last_cmd_twist_time > ros::Duration(25.0)) {
         //TODO: publish speed topic?
         execute_vel.linear.x = 0;
         execute_vel.angular.z = 0;
@@ -253,9 +256,14 @@ void publishStatus() {
 
     wheel_tick_pub.publish(wheel_tick_msg);
 
+    uint64_t rear_status_age_ms = (ros::Time::now() - last_rear_status_time).toSec()*1000;
+    if(rear_status_age_ms > UINT16_MAX) {
+        rear_status_age_ms = UINT16_MAX;
+    }
     struct ll_motor_state ll_motor_state = {
             .type = PACKET_ID_LL_MOTOR_STATE,
-            .status = {last_rear_status.state.status,0,0}
+            .status = {last_rear_status.state.status,0,0},
+            .status_age_ms = {(uint16_t)rear_status_age_ms,0,0}
     };
     sendLLMessage((uint8_t *)&ll_motor_state,sizeof(struct ll_motor_state));
 }
@@ -316,13 +324,14 @@ void highLevelStatusReceived(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
 void onCmdVelReceived(const geometry_msgs::Twist::ConstPtr &msg) {
     // TODO: update this to rad/s values and implement xESC speed control
     ROS_INFO_STREAM("[mower_comms] Got Twist: "<< +msg->linear.x << " " << +msg->angular.z);
-    last_cmd_vel = ros::Time::now();
     last_cmd_twist = *msg;
+    last_cmd_twist_time = ros::Time::now();
 }
 
 void onRearStateReceived(const hoverboard_driver::HoverboardStateStamped::ConstPtr &msg) {
     //ROS_INFO_STREAM("[mower_comms] Got Rear State: "<< +msg->state.connection_state);
     last_rear_status = *msg;
+    last_rear_status_time = ros::Time::now();
 }
 
 void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {

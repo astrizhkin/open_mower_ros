@@ -164,6 +164,7 @@ struct ll_motor_state {
     //float motor_temp[5];
     //float boardTemp[3];
     uint16_t status[3]; //See motor status bits
+    uint8_t status_age_ms[3];
     uint16_t crc;
 } __attribute__((packed));
 #pragma pack(pop)
