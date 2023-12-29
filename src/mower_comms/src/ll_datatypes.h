@@ -43,8 +43,8 @@
 #define EMERGENCY_BATTERY_EMPTY_BIT 7
 
 // motor status bits
-#define MOTOR_STATUS_ENABLED                0
-#define MOTOR_STATUS_CTRL_MODE              1
+#define MOTOR_STATUS_DISABLED               0
+#define MOTOR_STATUS_BAD_CTRL_MODE          1
 #define MOTOR_STATUS_LEFT_MOTOR_ERR         2
 #define MOTOR_STATUS_RIGHT_MOTOR_ERR        3
 
