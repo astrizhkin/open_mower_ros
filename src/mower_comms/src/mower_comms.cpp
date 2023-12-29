@@ -77,7 +77,6 @@ boost::crc_ccitt_type crc;
 //ros::Time last_high_level_status_time(0.0);
 
 hoverboard_driver::HoverboardStateStamped last_rear_status;
-ros::Time last_rear_status_time(0.0);
 
 std::mutex ll_status_mutex;
 struct ll_status last_ll_status = {0};
@@ -147,22 +146,6 @@ void publishActuators() {
             .emergency_release_requested = ll_clear_emergency
     };
     sendLLMessage((uint8_t *)&heartbeat,sizeof(struct ll_heartbeat));
-
-    /*crc.reset();
-    crc.process_bytes(&heartbeat, sizeof(struct ll_heartbeat) - 2);
-    heartbeat.crc = crc.checksum();
-    ROS_INFO_STREAM("[mower_comms] hertbeat CRC " << heartbeat.crc);
-    size_t encoded_size = cobs.encode((uint8_t *) &heartbeat, sizeof(struct ll_heartbeat), out_buf);
-    out_buf[encoded_size] = 0;
-    encoded_size++;
-
-    if (serial_port.isOpen() && allow_send) {
-        try {
-            serial_port.write(out_buf, encoded_size);
-        } catch (std::exception &e) {
-            ROS_ERROR_STREAM("[mower_comms] Error writing to serial port");
-        }
-    }*/
 }
 
 
@@ -257,9 +240,9 @@ void publishStatus() {
 
     wheel_tick_pub.publish(wheel_tick_msg);
 
-    double rear_status_age_s_double = (ros::Time::now() - last_rear_status_time).toSec();
+    double rear_status_age_s_double = (ros::Time::now() - last_rear_status.header.stamp).toSec();
     uint8_t rear_status_age_s_uint8_t = rear_status_age_s_double;
-    if(rear_status_age_s_double > UINT8_MAX) {
+    if(rear_status_age_s_double > UINT8_MAX || last_rear_status.state.connection_state == hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
         rear_status_age_s_uint8_t = UINT8_MAX;
     }
     struct ll_motor_state ll_motor_state = {
@@ -305,21 +288,6 @@ void highLevelStatusReceived(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
             .gps_quality = static_cast<uint8_t>(msg->gps_quality_percent*100.0)
     };
 
-    /*crc.reset();
-    crc.process_bytes(&hl_state, sizeof(struct ll_high_level_state) - 2);
-    hl_state.crc = crc.checksum();
-
-    size_t encoded_size = cobs.encode((uint8_t *) &hl_state, sizeof(struct ll_high_level_state), out_buf);
-    out_buf[encoded_size] = 0;
-    encoded_size++;
-
-    if (serial_port.isOpen() && allow_send) {
-        try {
-            serial_port.write(out_buf, encoded_size);
-        } catch (std::exception &e) {
-            ROS_ERROR_STREAM("[mower_comms] Error writing to serial port");
-        }
-    }*/
     sendLLMessage((uint8_t *)&hl_state,sizeof(struct ll_high_level_state));
 }
 
@@ -333,7 +301,6 @@ void onCmdVelReceived(const geometry_msgs::Twist::ConstPtr &msg) {
 void onRearStateReceived(const hoverboard_driver::HoverboardStateStamped::ConstPtr &msg) {
     //ROS_INFO_STREAM("[mower_comms] Got Rear State: "<< +msg->state.connection_state);
     last_rear_status = *msg;
-    last_rear_status_time = ros::Time::now();
 }
 
 void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {
