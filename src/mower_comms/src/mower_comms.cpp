@@ -85,6 +85,24 @@ sensor_msgs::Imu sensor_imu_msg;
 ros::ServiceClient highLevelClient;
 
 
+void sendLLMessage(uint8_t *msg,size_t size) {
+    crc.reset();
+    crc.process_bytes(msg, size - 2);
+    *(msg+size-2) = crc.checksum();
+
+    size_t encoded_size = cobs.encode(msg, size, out_buf);
+    out_buf[encoded_size] = 0;
+    encoded_size++;
+
+    if (serial_port.isOpen() && allow_send) {
+        try {
+            serial_port.write(out_buf, encoded_size);
+        } catch (std::exception &e) {
+            ROS_ERROR_STREAM("[mower_comms] Error writing to serial port");
+        }
+    }    
+}
+
 bool is_emergency() {
     return emergency_high_level || emergency_low_level;
 }
@@ -123,9 +141,10 @@ void publishActuators() {
             .emergency_requested = (!emergency_low_level && emergency_high_level),
             .emergency_release_requested = ll_clear_emergency
     };
+    sendLLMessage((uint8_t *)&heartbeat,sizeof(struct ll_heartbeat));
 
 
-    crc.reset();
+    /*crc.reset();
     crc.process_bytes(&heartbeat, sizeof(struct ll_heartbeat) - 2);
     heartbeat.crc = crc.checksum();
 
@@ -139,7 +158,7 @@ void publishActuators() {
         } catch (std::exception &e) {
             ROS_ERROR_STREAM("[mower_comms] Error writing to serial port");
         }
-    }
+    }*/
 }
 
 
@@ -184,16 +203,14 @@ void publishStatus() {
         status_msg.mower_status = mower_msgs::Status::MOWER_STATUS_INITIALIZING;
     }
 
-    status_msg.raspberry_pi_power = (last_ll_status.status_bitmask & 0b00000010) != 0;
-    status_msg.gps_power = (last_ll_status.status_bitmask & 0b00000100) != 0;
-    status_msg.esc_power = (last_ll_status.status_bitmask & 0b00001000) != 0;
-    status_msg.rain_detected = (last_ll_status.status_bitmask & 0b00010000) != 0;
-    status_msg.sound_module_available = (last_ll_status.status_bitmask & 0b00100000) != 0;
-    status_msg.sound_module_busy = (last_ll_status.status_bitmask & 0b01000000) != 0;
-    status_msg.ui_board_available = (last_ll_status.status_bitmask & 0b10000000) != 0;
+    status_msg.raspberry_pi_power = (last_ll_status.status_bitmask & (1<<STATUS_RASPI_POWER_BIT)) != 0;
+    status_msg.charging_allowed = (last_ll_status.status_bitmask & (1<<STATUS_CHARGING_ALLOWED_BIT)) != 0;
+    status_msg.esc_power = (last_ll_status.status_bitmask & (1<<STATUS_ESC_ENABLED_BIT)) != 0;
+    status_msg.rain_detected = (last_ll_status.status_bitmask & (1<<STATUS_RAIN_BIT)) != 0;
 
     for (uint8_t i = 0; i < 5; i++) {
-        status_msg.ultrasonic_ranges[i] = last_ll_status.uss_ranges_m[i];
+        status_msg.uss_ranges[i] = last_ll_status.uss_ranges_m[i];
+        status_msg.uss_age_ms[i] = last_ll_status.uss_age_ms[i];
     }
 
     // overwrite emergency with the LL value.
@@ -235,6 +252,12 @@ void publishStatus() {
     wheel_tick_msg.wheel_direction_rr = last_rear_status.state.speedR_meas > 0;
 
     wheel_tick_pub.publish(wheel_tick_msg);
+
+    struct ll_motor_state ll_motor_state = {
+            .type = PACKET_ID_LL_MOTOR_STATE,
+            .status = {last_rear_status.state.status,0,0}
+    };
+    sendLLMessage((uint8_t *)&ll_motor_state,sizeof(struct ll_motor_state));
 }
 
 void publishActuatorsTimerTask(const ros::TimerEvent &timer_event) {
@@ -272,7 +295,7 @@ void highLevelStatusReceived(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
             .gps_quality = static_cast<uint8_t>(msg->gps_quality_percent*100.0)
     };
 
-    crc.reset();
+    /*crc.reset();
     crc.process_bytes(&hl_state, sizeof(struct ll_high_level_state) - 2);
     hl_state.crc = crc.checksum();
 
@@ -286,7 +309,8 @@ void highLevelStatusReceived(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
         } catch (std::exception &e) {
             ROS_ERROR_STREAM("[mower_comms] Error writing to serial port");
         }
-    }
+    }*/
+    sendLLMessage((uint8_t *)&hl_state,sizeof(struct ll_high_level_state));
 }
 
 void onCmdVelReceived(const geometry_msgs::Twist::ConstPtr &msg) {

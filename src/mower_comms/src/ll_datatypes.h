@@ -25,7 +25,41 @@
 #define PACKET_ID_LL_UI_EVENT 3
 #define PACKET_ID_LL_HEARTBEAT 0x42
 #define PACKET_ID_LL_HIGH_LEVEL_STATE 0x43
+#define PACKET_ID_LL_MOTOR_STATE 0x44
 
+#define STATUS_INIT_BIT 0
+#define STATUS_RASPI_POWER_BIT 1
+#define STATUS_CHARGING_ALLOWED_BIT 2
+#define STATUS_ESC_ENABLED_BIT 3
+#define STATUS_RAIN_BIT 4
+
+#define EMERGENCY_LATCH_BIT 0
+#define EMERGENCY_BUTTON1_BIT 1
+#define EMERGENCY_BUTTON2_BIT 2
+#define EMERGENCY_LIFT1_BIT 3
+#define EMERGENCY_LIFT2_BIT 4
+#define EMERGENCY_USS_BIT 5
+#define EMERGENCY_IMU_BIT 6
+#define EMERGENCY_BATTERY_EMPTY_BIT 7
+
+// motor status bits
+#define MOTOR_STATUS_ENABLED                0
+#define MOTOR_STATUS_CTRL_MODE              1
+#define MOTOR_STATUS_LEFT_MOTOR_ERR         2
+#define MOTOR_STATUS_RIGHT_MOTOR_ERR        3
+
+#define MOTOR_STATUS_PCB_TEMP_WARN          4
+#define MOTOR_STATUS_PCB_TEMP_ERR           5
+#define MOTOR_STATUS_LEFT_MOTOR_TEMP_ERR    6
+#define MOTOR_STATUS_RIGHT_MOTOR_TEMP_ERR   7
+
+#define MOTOR_STATUS_CONN_TIMEOUT           8
+#define MOTOR_STATUS_ADC_TIMEOUT            9
+#define MOTOR_STATUS_GEN_TIMEOUT            10
+
+#define MOTOR_STATUS_BATTERY_DEAD           12
+#define MOTOR_STATUS_BATTERY_L1             13
+#define MOTOR_STATUS_BATTERY_L2             14
 
 #pragma pack(push, 1)
 struct ll_status {
@@ -34,21 +68,26 @@ struct ll_status {
     // Bitmask for rain, sound, powers etc
     // Bit 0: Initialized (i.e. setup() was a success). If this is 0, all other bits are meaningless.
     // Bit 1: Raspberry Power
-    // Bit 2: GPS Power
-    // Bit 3: ESC Power
+    // Bit 2: Charging enabled
+    // Bit 3: ESC power enabled
     // Bit 4: Rain detected
-    // Bit 5: Sound available
-    // Bit 6: Sound busy
-    // Bit 7: UI Board available
+    // Bit 5: don't care
+    // Bit 6: don't care
+    // Bit 7: don't care
     uint8_t status_bitmask;
     // USS range in m
     float uss_ranges_m[5];
+    // USS measurement age in ms (no more than UINT16_MAX)
+    uint16_t uss_age_ms[5];
     // Emergency bitmask:
     // Bit 0: Emergency latch
     // Bit 1: Emergency 0 active
     // Bit 2: Emergency 1 active
     // Bit 3: Emergency 2 active
     // Bit 4: Emergency 3 active
+    // Bit 5: Emergency USS tiemout
+    // Bit 6: Emergency IMU tiemout
+    // Bit 7: Battery empty
     uint8_t emergency_bitmask;
     // Charge voltage
     float v_charge;
@@ -105,6 +144,26 @@ struct ll_high_level_state {
     uint8_t type;
     uint8_t current_mode; // see HighLevelMode
     uint8_t gps_quality;   // GPS quality in percent (0-100)
+    uint16_t crc;
+} __attribute__((packed));
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+struct ll_motor_state {
+    // Type of this message. Has to be PACKET_ID_LL_HIGH_LEVEL_STATE
+    uint8_t type;
+    //uint8_t motor_id;
+
+    //rad/s
+    //float cmd[5];
+    //rad/s
+    //float speed_meas[5];
+    //rad
+    //float wheel_cnt[5];
+    //float curr_meas[5];
+    //float motor_temp[5];
+    //float boardTemp[3];
+    uint16_t status[3]; //See motor status bits
     uint16_t crc;
 } __attribute__((packed));
 #pragma pack(pop)
