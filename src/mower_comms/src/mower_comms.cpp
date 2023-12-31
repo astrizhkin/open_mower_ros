@@ -149,8 +149,11 @@ void publishActuators() {
 }
 
 
-void convertStatus(hoverboard_driver::HoverboardStateStamped &state_msg, mower_msgs::ESCStatus &ros_esc_left_status,mower_msgs::ESCStatus &ros_esc_right_status) {
-    if (state_msg.state.connection_state != hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_CONNECTED
+void convertStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardStateStamped &state_msg, mower_msgs::ESCStatus &ros_esc_left_status,mower_msgs::ESCStatus &ros_esc_right_status) {
+    if (!status_msg.esc_power) {
+        ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
+        ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
+    } else if (state_msg.state.connection_state != hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_CONNECTED
         //&& vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED_INCOMPATIBLE_FW
         ) {
         // ESC is disconnected
@@ -179,6 +182,18 @@ void convertStatus(hoverboard_driver::HoverboardStateStamped &state_msg, mower_m
 }
 
 void publishStatus() {
+    double rear_status_age_s_double = (ros::Time::now() - last_rear_status.header.stamp).toSec();
+    uint8_t rear_status_age_s_uint8_t = rear_status_age_s_double;
+    if(rear_status_age_s_double > UINT8_MAX || last_rear_status.state.connection_state == hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
+        rear_status_age_s_uint8_t = UINT8_MAX;
+    }
+    struct ll_motor_state ll_motor_state = {
+            .type = PACKET_ID_LL_MOTOR_STATE,
+            .status = {last_rear_status.state.status,0,0},
+            .status_age_s = {rear_status_age_s_uint8_t,0,0}
+    };
+    sendLLMessage((uint8_t *)&ll_motor_state,sizeof(struct ll_motor_state));
+
     mower_msgs::Status status_msg;
     status_msg.stamp = ros::Time::now();
 
@@ -194,6 +209,9 @@ void publishStatus() {
     status_msg.charging_allowed = (last_ll_status.status_bitmask & (1<<STATUS_CHARGING_ALLOWED_BIT)) != 0;
     status_msg.esc_power = (last_ll_status.status_bitmask & (1<<STATUS_ESC_ENABLED_BIT)) != 0;
     status_msg.rain_detected = (last_ll_status.status_bitmask & (1<<STATUS_RAIN_BIT)) != 0;
+    status_msg.uss_timeout = (last_ll_status.status_bitmask & (1<<STATUS_USS_BIT)) != 0;
+    status_msg.imu_timeout = (last_ll_status.status_bitmask & (1<<STATUS_IMU_BIT)) != 0;
+    status_msg.battery_empty = (last_ll_status.status_bitmask & (1<<STATUS_BATTERY_EMPTY_BIT)) != 0;
 
     for (uint8_t i = 0; i < 5; i++) {
         status_msg.uss_ranges[i] = last_ll_status.uss_ranges_m[i];
@@ -225,7 +243,7 @@ void publishStatus() {
     //}
 
     //convertStatus(mow_status, status_msg.mow_esc_status);
-    convertStatus(last_rear_status, status_msg.left_esc_status, status_msg.right_esc_status);
+    convertStatus(status_msg, last_rear_status, status_msg.left_esc_status, status_msg.right_esc_status);
 
     status_pub.publish(status_msg);
 
@@ -239,18 +257,6 @@ void publishStatus() {
     wheel_tick_msg.wheel_direction_rr = last_rear_status.state.speedR_meas > 0;
 
     wheel_tick_pub.publish(wheel_tick_msg);
-
-    double rear_status_age_s_double = (ros::Time::now() - last_rear_status.header.stamp).toSec();
-    uint8_t rear_status_age_s_uint8_t = rear_status_age_s_double;
-    if(rear_status_age_s_double > UINT8_MAX || last_rear_status.state.connection_state == hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
-        rear_status_age_s_uint8_t = UINT8_MAX;
-    }
-    struct ll_motor_state ll_motor_state = {
-            .type = PACKET_ID_LL_MOTOR_STATE,
-            .status = {last_rear_status.state.status,0,0},
-            .status_age_s = {rear_status_age_s_uint8_t,0,0}
-    };
-    sendLLMessage((uint8_t *)&ll_motor_state,sizeof(struct ll_motor_state));
 }
 
 void publishActuatorsTimerTask(const ros::TimerEvent &timer_event) {

@@ -11,6 +11,10 @@ bool raspberry_pi_power
 bool charging_allowed
 bool esc_power
 bool rain_detected
+bool uss_timeout
+bool imu_timeout
+bool battery_empty
+
 float32[5] uss_ranges
 uint16[5] uss_age_ms
 bool emergency
