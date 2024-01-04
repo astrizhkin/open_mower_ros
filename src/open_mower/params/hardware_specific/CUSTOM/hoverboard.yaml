@@ -1,2 +1,7 @@
 rear:
-  port: "/dev/ttyS1"
+  hoverboard_driver:
+    port: "/dev/ttyS1"
+
+front:
+  hoverboard_driver:
+    port: "/dev/ttyS2"

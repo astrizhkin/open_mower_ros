@@ -1,11 +1,9 @@
 <launch>
-    <!--group ns="front">
-        <param name="port" type="str" value="/dev/ttyTHS1"/>
+    <group ns="front">
         <remap from="/front/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
         <include file="$(find hoverboard_driver)/launch/hoverboard.launch" />
-    </group>-->
+    </group>
     <group ns="rear">
-        <!--param name="port" type="str" value="/dev/ttyS1"/-->
         <remap from="/rear/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
         <include file="$(find hoverboard_driver)/launch/hoverboard.launch" />
     </group>
