@@ -318,7 +318,7 @@ void onRearStateReceived(const hoverboard_driver::HoverboardStateStamped::ConstP
 
 void onFrontStateReceived(const hoverboard_driver::HoverboardStateStamped::ConstPtr &msg) {
     //ROS_INFO_STREAM("[mower_comms] Got Rear State: "<< +msg->state.connection_state);
-    last_rear_status = *msg;
+    last_front_status = *msg;
 }
 
 void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {
