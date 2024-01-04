@@ -77,6 +77,7 @@ boost::crc_ccitt_type crc;
 //ros::Time last_high_level_status_time(0.0);
 
 hoverboard_driver::HoverboardStateStamped last_rear_status;
+hoverboard_driver::HoverboardStateStamped last_front_status;
 
 std::mutex ll_status_mutex;
 struct ll_status last_ll_status = {0};
@@ -187,10 +188,15 @@ void publishStatus() {
     if(rear_status_age_s_double > UINT8_MAX || last_rear_status.state.connection_state == hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
         rear_status_age_s_uint8_t = UINT8_MAX;
     }
+    double front_status_age_s_double = (ros::Time::now() - last_front_status.header.stamp).toSec();
+    uint8_t front_status_age_s_uint8_t = front_status_age_s_double;
+    if(front_status_age_s_double > UINT8_MAX || last_front_status.state.connection_state == hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
+        front_status_age_s_uint8_t = UINT8_MAX;
+    }
     struct ll_motor_state ll_motor_state = {
             .type = PACKET_ID_LL_MOTOR_STATE,
-            .status = {last_rear_status.state.status,0,0},
-            .status_age_s = {rear_status_age_s_uint8_t,0,0}
+            .status = {last_rear_status.state.status,last_front_status.state.status,0},
+            .status_age_s = {rear_status_age_s_uint8_t,front_status_age_s_uint8_t,0}
     };
     sendLLMessage((uint8_t *)&ll_motor_state,sizeof(struct ll_motor_state));
 
@@ -243,7 +249,8 @@ void publishStatus() {
     //}
 
     //convertStatus(mow_status, status_msg.mow_esc_status);
-    convertStatus(status_msg, last_rear_status, status_msg.left_esc_status, status_msg.right_esc_status);
+    convertStatus(status_msg, last_rear_status, status_msg.rear_left_esc_status, status_msg.rear_right_esc_status);
+    convertStatus(status_msg, last_front_status, status_msg.front_left_esc_status, status_msg.front_right_esc_status);
 
     status_pub.publish(status_msg);
 
@@ -251,10 +258,10 @@ void publishStatus() {
     wheel_tick_msg.wheel_tick_factor = static_cast<unsigned int>(wheel_ticks_per_m);
     wheel_tick_msg.stamp = status_msg.stamp;
     //check compatibility .wheel_ticks_rl and hoverboard .wheelX_cnt (previosuly was tacho_absolute)
-    wheel_tick_msg.wheel_ticks_rl = last_rear_status.state.wheelL_cnt;
-    wheel_tick_msg.wheel_direction_rl = last_rear_status.state.speedL_meas > 0;
-    wheel_tick_msg.wheel_ticks_rr = last_rear_status.state.wheelR_cnt;
-    wheel_tick_msg.wheel_direction_rr = last_rear_status.state.speedR_meas > 0;
+    wheel_tick_msg.wheel_ticks_rl = (last_rear_status.state.wheelL_cnt + last_front_status.state.wheelL_cnt) / 2;
+    wheel_tick_msg.wheel_direction_rl = (last_rear_status.state.speedL_meas + last_front_status.state.speedL_meas ) /2 > 0;
+    wheel_tick_msg.wheel_ticks_rr = (last_rear_status.state.wheelR_cnt + last_front_status.state.wheelR_cnt) / 2;
+    wheel_tick_msg.wheel_direction_rr = (last_rear_status.state.speedR_meas + last_front_status.state.speedR_meas) / 2 > 0;
 
     wheel_tick_pub.publish(wheel_tick_msg);
 }
@@ -305,6 +312,11 @@ void onCmdVelReceived(const geometry_msgs::Twist::ConstPtr &msg) {
 }
 
 void onRearStateReceived(const hoverboard_driver::HoverboardStateStamped::ConstPtr &msg) {
+    //ROS_INFO_STREAM("[mower_comms] Got Rear State: "<< +msg->state.connection_state);
+    last_rear_status = *msg;
+}
+
+void onFrontStateReceived(const hoverboard_driver::HoverboardStateStamped::ConstPtr &msg) {
     //ROS_INFO_STREAM("[mower_comms] Got Rear State: "<< +msg->state.connection_state);
     last_rear_status = *msg;
 }
@@ -430,6 +442,7 @@ int main(int argc, char **argv) {
     ros::Timer publish_timer = n.createTimer(ros::Duration(0.02), publishActuatorsTimerTask);
 
     ros::Subscriber rear_state_sub = n.subscribe("/rear/hoverboard_driver/state", 0, onRearStateReceived, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber front_state_sub = n.subscribe("/front/hoverboard_driver/state", 0, onFrontStateReceived, ros::TransportHints().tcpNoDelay(true));
 
     size_t buflen = 1000;
     uint8_t buffer[buflen];

@@ -412,12 +412,15 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     }
 
     // If the motor controllers error, we enter emergency mode in the hope to save them. They should not error.
-    if (last_status.right_esc_status.status <= mower_msgs::ESCStatus::ESC_STATUS_ERROR || 
-        last_status.left_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR) {
+    if (last_status.rear_right_esc_status.status <= mower_msgs::ESCStatus::ESC_STATUS_ERROR || 
+        last_status.rear_left_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR || 
+        last_status.front_right_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR || 
+        last_status.front_left_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR) {
         ROS_ERROR_STREAM(
-                "EMERGENCY: at least one motor control errored. errors left: " << (last_status.left_esc_status)
-                                                                               << ", status right: "
-                                                                               << last_status.right_esc_status);
+                "EMERGENCY: at least one motor control errored. errors RL: " << last_status.rear_left_esc_status
+                                                                << ", RR: " << last_status.rear_right_esc_status
+                                                                << ", FL: " << last_status.front_left_esc_status
+                                                                << ", FR: " << last_status.front_right_esc_status);
         setEmergencyMode(true);
         return;
     }

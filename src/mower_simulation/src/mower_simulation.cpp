@@ -114,11 +114,15 @@ void publishStatus(const ros::TimerEvent &timer_event) {
         fake_mow_status.v_charge = config.is_charging ? config.battery_voltage + 0.2 : 0.0;
     }
     if (config.wheels_stalled) {
-        fake_mow_status.left_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
-        fake_mow_status.right_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
+        fake_mow_status.rear_left_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
+        fake_mow_status.rear_right_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
+        fake_mow_status.front_left_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
+        fake_mow_status.front_right_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
     } else {
-        fake_mow_status.left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-        fake_mow_status.right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        fake_mow_status.rear_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        fake_mow_status.rear_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        fake_mow_status.front_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        fake_mow_status.front_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
     }
     fake_mow_status.emergency = config.emergency_stop;
 
@@ -230,7 +234,11 @@ int main(int argc, char **argv) {
     fake_mow_status.v_charge = 0.0;
     fake_mow_status.v_battery = 29.0;
     fake_mow_status.stamp = ros::Time::now();
-    fake_mow_status.left_esc_status.status = fake_mow_status.right_esc_status.status = fake_mow_status.mow_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+    fake_mow_status.rear_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+    fake_mow_status.rear_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+    fake_mow_status.front_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+    fake_mow_status.front_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+    fake_mow_status.mow_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
     fake_mow_status.mow_esc_status.temperature_motor = 50;
     fake_mow_status.emergency = true;
     config.emergency_stop = true;

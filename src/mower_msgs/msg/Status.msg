@@ -23,7 +23,9 @@ float32 v_battery
 float32 charge_current
 
 # ESC stuff
-ESCStatus left_esc_status
-ESCStatus right_esc_status
+ESCStatus rear_left_esc_status
+ESCStatus rear_right_esc_status
+ESCStatus front_left_esc_status
+ESCStatus front_right_esc_status
 ESCStatus mow_esc_status
 
