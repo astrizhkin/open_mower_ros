@@ -22,3 +22,6 @@
 [submodule "src/lib/hoverboard-driver"]
 	path = src/lib/hoverboard-driver
 	url = https://github.com/astrizhkin/hoverboard-driver.git
+[submodule "src/lib/xbot_msgs"]
+	path = src/lib/xbot_msgs
+	url = https://github.com/astrizhkin/xbot_msgs.git
