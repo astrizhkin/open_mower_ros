@@ -65,7 +65,7 @@ ros::Time last_cmd_twist_time(0.0);
 //float speed_mow = 0;
 
 // Ticks / m and wheel distance for this robot
-double wheel_ticks_per_m = 0.0;
+double wheel_radius_m = 0.0;
 
 // Serial port and buffer for the low level connection
 serial::Serial serial_port;
@@ -261,13 +261,21 @@ void publishStatus() {
     status_pub.publish(status_msg);
 
     xbot_msgs::WheelTick wheel_tick_msg;
-    wheel_tick_msg.wheel_tick_factor = static_cast<unsigned int>(wheel_ticks_per_m);
+    wheel_tick_msg.valid_wheels = xbot_msgs::WheelTick::WHEEL_VALID_FL | xbot_msgs::WheelTick::WHEEL_VALID_FR | xbot_msgs::WheelTick::WHEEL_VALID_RL | xbot_msgs::WheelTick::WHEEL_VALID_RR;
+    wheel_tick_msg.wheel_pos_to_tick_factor = 0; //TODO: pass it for F9R
+    wheel_tick_msg.wheel_radius = static_cast<unsigned int>(wheel_radius_m);
     wheel_tick_msg.stamp = status_msg.stamp;
     //check compatibility .wheel_ticks_rl and hoverboard .wheelX_cnt (previosuly was tacho_absolute)
-    wheel_tick_msg.wheel_ticks_rl = (last_rear_status.state.wheelL_cnt + last_front_status.state.wheelL_cnt) / 2;
-    wheel_tick_msg.wheel_direction_rl = (last_rear_status.state.speedL_meas + last_front_status.state.speedL_meas ) /2 > 0;
-    wheel_tick_msg.wheel_ticks_rr = (last_rear_status.state.wheelR_cnt + last_front_status.state.wheelR_cnt) / 2;
-    wheel_tick_msg.wheel_direction_rr = (last_rear_status.state.speedR_meas + last_front_status.state.speedR_meas) / 2 > 0;
+
+    wheel_tick_msg.wheel_pos_fl = last_front_status.state.wheelL_cnt;
+    wheel_tick_msg.wheel_direction_fl = last_front_status.state.speedL_meas > 0;
+    wheel_tick_msg.wheel_pos_fr = last_front_status.state.wheelR_cnt;
+    wheel_tick_msg.wheel_direction_fr = last_front_status.state.speedR_meas > 0;
+
+    wheel_tick_msg.wheel_pos_rl = last_rear_status.state.wheelL_cnt;
+    wheel_tick_msg.wheel_direction_rl = last_rear_status.state.speedL_meas > 0;
+    wheel_tick_msg.wheel_pos_rr = last_rear_status.state.wheelR_cnt;
+    wheel_tick_msg.wheel_direction_rr = last_rear_status.state.speedR_meas > 0;
 
     wheel_tick_pub.publish(wheel_tick_msg);
 }
@@ -420,9 +428,12 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    paramNh.getParam("wheel_ticks_per_m",wheel_ticks_per_m);
+    if(!paramNh.getParam("wheel_radius_m",wheel_radius_m)){
+        ROS_ERROR_STREAM("Wheel radius must be specified for odometry. Quitting.");
+        return 1;
+    }
 
-    ROS_INFO_STREAM("Wheel ticks [1/m]: " << wheel_ticks_per_m);
+    ROS_INFO_STREAM("Wheel radius [m]: " << wheel_radius_m);
 
     last_cmd_twist.linear.x = 0;
     last_cmd_twist.angular.z = 0;
