@@ -5,13 +5,13 @@
 
     <group ns="front">
         <node name="hoverboard_driver" pkg="hoverboard_driver" type="hoverboard_driver" output="screen"/>
-        <remap from="/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
+        <remap from="/front/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
         <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen"
             args="hoverboard_joint_publisher hoverboard_velocity_controller" />
     </group>
     <group ns="rear">
         <node name="hoverboard_driver" pkg="hoverboard_driver" type="hoverboard_driver" output="screen"/>
-        <remap from="/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
+        <remap from="/rear/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
         <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen"
             args="hoverboard_joint_publisher hoverboard_velocity_controller" />
     </group>
