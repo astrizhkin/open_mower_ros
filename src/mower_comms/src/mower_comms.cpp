@@ -170,6 +170,12 @@ void convertStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardS
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
     }
+    if (abs(state_msg.state.cmdL - state_msg.state.speedL_meas) > state_msg.state.cmdL * 0.2 ) {
+        ROS_WARN_STREAM_THROTTLE(1, "[mower_comms] Motor L stall/overrun detected");
+    }
+    if (abs(state_msg.state.cmdR - state_msg.state.speedR_meas) > state_msg.state.cmdR * 0.2 ) {
+        ROS_WARN_STREAM_THROTTLE(1, "[mower_comms] Motor R stall/overrun detected");
+    }
     //TODO check .tacho compatibility with howerboard .wheelX_cnt
     ros_esc_left_status.tacho = state_msg.state.wheelL_cnt;
     ros_esc_left_status.current = state_msg.state.currL_meas;
