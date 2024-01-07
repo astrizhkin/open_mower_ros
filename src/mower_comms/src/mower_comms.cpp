@@ -263,7 +263,7 @@ void publishStatus() {
     xbot_msgs::WheelTick wheel_tick_msg;
     wheel_tick_msg.valid_wheels = xbot_msgs::WheelTick::WHEEL_VALID_FL | xbot_msgs::WheelTick::WHEEL_VALID_FR | xbot_msgs::WheelTick::WHEEL_VALID_RL | xbot_msgs::WheelTick::WHEEL_VALID_RR;
     wheel_tick_msg.wheel_pos_to_tick_factor = 0; //TODO: pass it for F9R
-    wheel_tick_msg.wheel_radius = static_cast<unsigned int>(wheel_radius_m);
+    wheel_tick_msg.wheel_radius = wheel_radius_m;
     wheel_tick_msg.stamp = status_msg.stamp;
     //check compatibility .wheel_ticks_rl and hoverboard .wheelX_cnt (previosuly was tacho_absolute)
 
@@ -374,7 +374,7 @@ void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {
     }
 
     if(!highLevelClient.call(srv)) {
-        ROS_ERROR_STREAM("Error calling high level control service");
+        ROS_ERROR_STREAM("[mower_comms] Error calling high level control service");
     }
 
 }
@@ -424,16 +424,16 @@ int main(int argc, char **argv) {
 
     std::string ll_serial_port_name;
     if (!paramNh.getParam("ll_serial_port", ll_serial_port_name)) {
-        ROS_ERROR_STREAM("Error getting low level serial port parameter. Quitting.");
+        ROS_ERROR_STREAM("[mower_comms] Error getting low level serial port parameter. Quitting.");
         return 1;
     }
 
     if(!paramNh.getParam("wheel_radius_m",wheel_radius_m)){
-        ROS_ERROR_STREAM("Wheel radius must be specified for odometry. Quitting.");
+        ROS_ERROR_STREAM("[mower_comms] Wheel radius must be specified for odometry. Quitting.");
         return 1;
     }
 
-    ROS_INFO_STREAM("Wheel radius [m]: " << wheel_radius_m);
+    ROS_INFO_STREAM("[mower_comms] Wheel radius [m]: " << wheel_radius_m);
 
     last_cmd_twist.linear.x = 0;
     last_cmd_twist.angular.z = 0;
