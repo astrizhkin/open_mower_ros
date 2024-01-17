@@ -160,7 +160,9 @@ void convertStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardS
         // ESC is disconnected
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
-    } else if(state_msg.state.status) {
+    } 
+    //all bits except temperature warning
+    else if(state_msg.state.status & (~hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_WARN)) {
         ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Motor controller status code: " << state_msg.state.status);
         // ESC has a fault
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
@@ -209,7 +211,7 @@ void publishStatus() {
     mower_msgs::Status status_msg;
     status_msg.stamp = ros::Time::now();
 
-    if (last_ll_status.status_bitmask & 1) {
+    if (last_ll_status.status_bitmask & (1<<STATUS_INIT_BIT) ) {
         // LL OK, fill the message
         status_msg.mower_status = mower_msgs::Status::MOWER_STATUS_OK;
     } else {
