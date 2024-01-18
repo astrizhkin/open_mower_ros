@@ -409,8 +409,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
             last_status.rear_left_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR || 
             last_status.front_right_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR || 
             last_status.front_left_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR ) {
-        ROS_ERROR_STREAM(
-                "[mower_logic] EMERGENCY: at least one motor control errored. errors RL: " << last_status.rear_left_esc_status.status << ", RR: " << last_status.rear_right_esc_status.status << ", FL: " << last_status.front_left_esc_status.status << ", FR: " << last_status.front_right_esc_status.status);
+        ROS_ERROR("[mower_logic] EMERGENCY: at least one motor control errored. errors RL: %d, RR: %d, FL: %d, FR: %d",last_status.rear_left_esc_status.status,last_status.rear_right_esc_status.status,last_status.front_left_esc_status.status,last_status.front_right_esc_status.status);
         // if 
         //if (last_status.rear_right_esc_status.status <= mower_msgs::ESCStatus::ESC_STATUS_ERROR)
         setEmergencyMode(true,"[mower_logic] motor control errored",0);

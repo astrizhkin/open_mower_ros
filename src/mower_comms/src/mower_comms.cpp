@@ -323,7 +323,7 @@ bool setEmergencyMode(mower_msgs::EmergencyModeSrvRequest &req, mower_msgs::Emer
         if(emergency_high_level && emergency_high_level_end.isZero() && req.duration_s!=0) {
             ROS_WARN_STREAM("[mower_comms] Do not overide previous inifinite duration emergency with finite "<<req.reason);
         } else {
-            ROS_ERROR_STREAM("[mower_comms] Setting emergency: "<<req.reason);
+            ROS_ERROR_STREAM("[mower_comms] Setting emergency: " << req.reason << " duration " << req.duration_s);
             emergency_high_level_reason = req.reason;
             emergency_high_level_end = req.duration_s==0 ? ros::Time(0.0) : ros::Time::now() + ros::Duration(req.duration_s);
         }
