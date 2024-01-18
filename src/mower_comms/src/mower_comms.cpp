@@ -108,7 +108,7 @@ void sendLLMessage(uint8_t *msg,size_t size) {
     }    
 }
 
-bool is_emergency() {
+bool isEmergency() {
     return emergency_high_level || emergency_low_level;
 }
 
@@ -117,7 +117,7 @@ void publishActuators() {
     execute_vel.linear.x = last_cmd_twist.linear.x;
     execute_vel.angular.z = last_cmd_twist.angular.z;
     // emergency or timeout -> send 0 speeds
-    if (is_emergency()) {
+    if (isEmergency()) {
         //TODO: publish speed topic?
         execute_vel.linear.x = 0;
         execute_vel.angular.z = 0;
@@ -242,7 +242,7 @@ void publishStatus() {
     }
 
     // True, if high or low level emergency condition is present
-    status_msg.emergency = is_emergency();
+    status_msg.emergency = isEmergency();
 
     status_msg.v_battery = last_ll_status.v_system;
     status_msg.v_charge = last_ll_status.v_charge;
@@ -288,12 +288,12 @@ void publishActuatorsTimerTask(const ros::TimerEvent &timer_event) {
 }
 
 bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerControlSrvResponse &res) {
-    if (req.mow_enabled && !is_emergency()) {
+    if (req.mow_enabled && !isEmergency()) {
 //        speed_mow = req.mow_direction ? 1 : -1;
     } else {
 //        speed_mow = 0;
     }
-//    ROS_INFO_STREAM("Setting mow enabled to " << speed_mow);
+//    ROS_INFO_STREAM("[mower_comms] Setting mow enabled to " << speed_mow);
     return true;
 }
 
@@ -328,12 +328,12 @@ void onCmdVelReceived(const geometry_msgs::Twist::ConstPtr &msg) {
 }
 
 void onRearStateReceived(const hoverboard_driver::HoverboardStateStamped::ConstPtr &msg) {
-    //ROS_INFO_STREAM("[mower_comms] Got Rear State: "<< +msg->state.connection_state);
+    //ROS_INFO_STREAM("[mower_comms] Got rear driver state: "<< +msg->state.connection_state);
     last_rear_status = *msg;
 }
 
 void onFrontStateReceived(const hoverboard_driver::HoverboardStateStamped::ConstPtr &msg) {
-    //ROS_INFO_STREAM("[mower_comms] Got Rear State: "<< +msg->state.connection_state);
+    //ROS_INFO_STREAM("[mower_comms] Got front driver state: "<< +msg->state.connection_state);
     last_front_status = *msg;
 }
 
