@@ -73,16 +73,16 @@ Behavior *UndockingBehavior::execute() {
     stopMoving();
 
     if (!success) {
-        ROS_ERROR_STREAM("Error during undock");
+        ROS_ERROR_STREAM("[UndockingBehavior] Error during undock");
         return &IdleBehavior::INSTANCE;
     }
 
 
-    ROS_INFO_STREAM("Undock success. Waiting for GPS.");
+    ROS_INFO_STREAM("[UndockingBehavior] Undock success. Waiting for GPS.");
     bool hasGps = waitForGPS();
 
     if (!hasGps) {
-        ROS_ERROR_STREAM("Could not get GPS.");
+        ROS_ERROR_STREAM("[UndockingBehavior] Could not get GPS.");
         return &IdleBehavior::INSTANCE;
     }
 
@@ -104,7 +104,7 @@ void UndockingBehavior::enter() {
 
     // set the robot's position to the dock if we're actually docked
     if(getStatus().v_charge > 5.0) {
-        ROS_INFO_STREAM("Currently inside the docking station, we set the robot's pose to the docks pose.");
+        ROS_INFO_STREAM("[UndockingBehavior] Currently inside the docking station, we set the robot's pose to the docks pose.");
         setRobotPose(docking_pose_stamped.pose);
     }
 }
@@ -132,10 +132,10 @@ bool UndockingBehavior::waitForGPS() {
     ros::Rate odom_rate(1.0);
     while (ros::ok() && !aborted) {
         if (isGpsGood()) {
-            ROS_INFO("Got good gps, let's go");
+            ROS_INFO("[UndockingBehavior] Got good gps, let's go");
             break;
         } else {
-            ROS_INFO_STREAM("waiting for gps. current accuracy: " << getPose().position_accuracy);
+            ROS_INFO_STREAM("[UndockingBehavior] waiting for gps. current accuracy: " << getPose().position_accuracy);
             odom_rate.sleep();
         }
     }

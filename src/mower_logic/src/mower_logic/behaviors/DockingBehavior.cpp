@@ -27,7 +27,7 @@ extern bool setGPS(bool enabled);
 DockingBehavior DockingBehavior::INSTANCE;
 
 bool DockingBehavior::approach_docking_point() {
-    ROS_INFO_STREAM("Calculating approach path");
+    ROS_INFO_STREAM("[DockingBehavior] Calculating approach path");
 
     // Calculate a docking approaching point behind the actual docking point
     tf2::Quaternion quat;
@@ -69,7 +69,7 @@ bool DockingBehavior::approach_docking_point() {
         exePathGoal.dist_tolerance = 0.1;
         exePathGoal.tolerance_from_action = true;
         exePathGoal.controller = "FTCPlanner";
-        ROS_INFO_STREAM("Executing Docking Approach");
+        ROS_INFO_STREAM("[DockingBehavior] Executing Docking Approach");
 
         auto approachResult = mbfClientExePath->sendGoalAndWait(exePathGoal);
         if (approachResult.state_ != approachResult.SUCCEEDED) {
@@ -123,7 +123,7 @@ bool DockingBehavior::dock_straight() {
         auto mbfState = mbfClientExePath->getState();
 
         if(aborted) {
-            ROS_INFO_STREAM("Docking aborted.");
+            ROS_INFO_STREAM("[DockingBehavior] Docking aborted.");
             mbfClientExePath->cancelGoal();
             stopMoving();
             dockingSuccess = false;
@@ -135,7 +135,7 @@ bool DockingBehavior::dock_straight() {
             case actionlib::SimpleClientGoalState::PENDING:
                 // currently moving. Cancel as soon as we're in the station
                 if (last_status.v_charge > 5.0) {
-                    ROS_INFO_STREAM("Got a voltage of " << last_status.v_charge << " V. Cancelling docking.");
+                    ROS_INFO_STREAM("[DockingBehavior] Got a voltage of " << last_status.v_charge << " V. Cancelling docking.");
                     mbfClientExePath->cancelGoal();
                     stopMoving();
                     dockingSuccess = true;
@@ -145,7 +145,7 @@ bool DockingBehavior::dock_straight() {
             case actionlib::SimpleClientGoalState::SUCCEEDED:
                 // we stopped moving because the path has ended. check, if we have docked successfully
                 ROS_INFO_STREAM(
-                        "Docking stopped, because we reached end pose. Voltage was " << last_status.v_charge
+                        "[DockingBehavior] Docking stopped, because we reached end pose. Voltage was " << last_status.v_charge
                                                                                      << " V.");
                 if (last_status.v_charge > 5.0) {
                     mbfClientExePath->cancelGoal();
@@ -155,7 +155,7 @@ bool DockingBehavior::dock_straight() {
                 waitingForResult = false;
                 break;
             default:
-                ROS_WARN_STREAM("Some error during path execution. Docking failed. status value was: "
+                ROS_WARN_STREAM("[DockingBehavior] Some error during path execution. Docking failed. status value was: "
                                         << mbfState.state_);
                 waitingForResult = false;
                 stopMoving();
@@ -177,28 +177,28 @@ Behavior *DockingBehavior::execute() {
 
     // Check if already docked (e.g. carried to base during emergency) and skip
     if(getStatus().v_charge > 5.0) {
-        ROS_INFO_STREAM("Already inside docking station, going directly to idle.");
+        ROS_INFO_STREAM("[DockingBehavior] Already inside docking station, going directly to idle.");
         stopMoving();
         return &IdleBehavior::INSTANCE;
     }
 
     while(!isGPSGood){
-        ROS_WARN_STREAM("Waiting for good GPS");
+        ROS_WARN_STREAM("[DockingBehavior] Waiting for good GPS");
         ros::Duration(1.0).sleep();
     }
 
     bool approachSuccess = approach_docking_point();
 
     if (!approachSuccess) {
-        ROS_ERROR("Error during docking approach.");
+        ROS_ERROR("[DockingBehavior] Error during docking approach.");
 
         retryCount++;
         if(retryCount <= config.docking_retry_count) {
-            ROS_ERROR("Retrying docking approach");
+            ROS_ERROR("[DockingBehavior] Retrying docking approach");
             return &DockingBehavior::INSTANCE;
         }
 
-        ROS_ERROR("Giving up on docking");
+        ROS_ERROR("[DockingBehavior] Giving up on docking");
         return &IdleBehavior::INSTANCE;
     }
 
@@ -212,15 +212,15 @@ Behavior *DockingBehavior::execute() {
     bool docked = dock_straight();
 
     if (!docked) {
-        ROS_ERROR("Error during docking.");
+        ROS_ERROR("[DockingBehavior] Error during docking.");
 
         retryCount++;
         if(retryCount <= config.docking_retry_count && !aborted) {
-            ROS_ERROR_STREAM("Retrying docking. Try " << retryCount << " / " << config.docking_retry_count);
+            ROS_ERROR_STREAM("[DockingBehavior] Retrying docking. Try " << retryCount << " / " << config.docking_retry_count);
             return &UndockingBehavior::RETRY_INSTANCE;
         }
 
-        ROS_ERROR("Giving up on docking");
+        ROS_ERROR("[DockingBehavior] Giving up on docking");
         return &IdleBehavior::INSTANCE;
     }
 
