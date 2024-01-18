@@ -28,7 +28,7 @@
 #include "ll_datatypes.h"
 #include "COBS.h"
 #include "mower_msgs/MowerControlSrv.h"
-#include "mower_msgs/EmergencyStopSrv.h"
+#include "mower_msgs/EmergencyModeSrv.h"
 #include "mower_msgs/HighLevelControlSrv.h"
 #include "sensor_msgs/Imu.h"
 #include "sensor_msgs/MagneticField.h"
@@ -50,11 +50,10 @@ COBS cobs;
 
 // True, if ROS thinks there sould be an emergency
 bool emergency_high_level = false;
+std::string emergency_high_level_reason;
+ros::Time emergency_high_level_end(0.0);
 // True, if the LL board thinks there should be an emergency
 bool emergency_low_level = false;
-
-// True, if the LL emergency should be cleared in the next request
-bool ll_clear_emergency = false;
 
 // True, if we can send to the low level board
 bool allow_send = false;
@@ -143,14 +142,19 @@ void publishActuators() {
     struct ll_heartbeat heartbeat = {
             .type = PACKET_ID_LL_HEARTBEAT,
             // If high level has emergency and LL does not know yet, we set it
-            .emergency_requested = (!emergency_low_level && emergency_high_level),
-            .emergency_release_requested = ll_clear_emergency
+            .emergency_requested = emergency_high_level,
+            .emergency_release_requested = !emergency_high_level
     };
     sendLLMessage((uint8_t *)&heartbeat,sizeof(struct ll_heartbeat));
 }
 
 
 void convertStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardStateStamped &state_msg, mower_msgs::ESCStatus &ros_esc_left_status,mower_msgs::ESCStatus &ros_esc_right_status) {
+    uint8_t statusNoTemperatures = state_msg.state.status & ~(
+            hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_WARN |
+            hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_ERR |
+            hoverboard_driver::HoverboardState::STATUS_LEFT_MOTOR_TEMP_ERR |
+            hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR );
     if (!status_msg.esc_power) {
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
@@ -160,24 +164,35 @@ void convertStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardS
         // ESC is disconnected
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
-    } 
-    //all bits except temperature warning
-    else if(state_msg.state.status & (~hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_WARN)) {
+    } else if(statusNoTemperatures) {
         ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Motor controller status code: " << state_msg.state.status);
         // ESC has a fault
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
     } else {
-        // ESC is OK but standing still
+        // ESC is OK but we will check temperatures
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
     }
+
+    if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_ERR) {
+        ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+        ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+    }
+    if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_LEFT_MOTOR_TEMP_ERR) {
+        ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+    }
+    if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR) {
+        ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+    }
+
     if (abs(state_msg.state.cmdL - state_msg.state.speedL_meas) > state_msg.state.cmdL * 0.2 ) {
-        ROS_WARN_STREAM_THROTTLE(1, "[mower_comms] Motor L stall/overrun detected");
+        ROS_WARN_STREAM_THROTTLE(1, "[mower_comms] Motor L stall/overrun detected cmd=" << state_msg.state.cmdL << " spd=" << state_msg.state.speedL_meas);
     }
     if (abs(state_msg.state.cmdR - state_msg.state.speedR_meas) > state_msg.state.cmdR * 0.2 ) {
-        ROS_WARN_STREAM_THROTTLE(1, "[mower_comms] Motor R stall/overrun detected");
+        ROS_WARN_STREAM_THROTTLE(1, "[mower_comms] Motor R stall/overrun detected cmd=" << state_msg.state.cmdR << " spd=" << state_msg.state.speedR_meas);
     }
+
     //TODO check .tacho compatibility with howerboard .wheelX_cnt
     ros_esc_left_status.tacho = state_msg.state.wheelL_cnt;
     ros_esc_left_status.current = state_msg.state.currL_meas;
@@ -234,12 +249,9 @@ void publishStatus() {
 
     // overwrite emergency with the LL value.
     emergency_low_level = last_ll_status.emergency_bitmask > 0;
-    if (!emergency_low_level) {
-        // it obviously worked, reset the request
-        ll_clear_emergency = false;
-    } else {
+    if (emergency_low_level) {
         ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Low Level Emergency. Bitmask was: " << (int)last_ll_status.emergency_bitmask);
-    }
+    } 
 
     // True, if high or low level emergency condition is present
     status_msg.emergency = isEmergency();
@@ -297,15 +309,25 @@ bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerCon
     return true;
 }
 
-bool setEmergencyStop(mower_msgs::EmergencyStopSrvRequest &req, mower_msgs::EmergencyStopSrvResponse &res) {
+bool setEmergencyMode(mower_msgs::EmergencyModeSrvRequest &req, mower_msgs::EmergencyModeSrvResponse &res) {
+    emergency_high_level = req.emergency;
     if (req.emergency) {
-        ROS_ERROR_STREAM("[mower_comms] Setting emergency!!");
-        ll_clear_emergency = false;
+        ROS_ERROR_STREAM("[mower_comms] Setting emergency: "<<req.reason);
+        //active high level emergency has infinite duration, do not override it
+        if(emergency_high_level && emergency_high_level_end.isZero() && req.duration_s!=0) {
+            ROS_WARN_STREAM("[mower_comms] Do not overide previous inifinite duration emergency with finite");
+        } else {
+            emergency_high_level_reason = req.reason;
+            emergency_high_level_end = req.duration_s==0 ? ros::Time(0.0) : ros::Time::now() + ros::Duration(req.duration_s);
+        }
     } else {
-        ll_clear_emergency = true;
+        ROS_ERROR_STREAM("[mower_comms] Clear emergency: "<<req.reason);
+        emergency_high_level_reason = req.reason;
+        emergency_high_level_end = ros::Time(0.0);
     }
     // Set the high level emergency instantly. Low level value will be set on next update.
-    emergency_high_level = req.emergency;
+    // High level emergency already set with unlimited duration
+
     publishActuators();
     return true;
 }
@@ -455,7 +477,7 @@ int main(int argc, char **argv) {
     cmd_vel_safe_pub = n.advertise<geometry_msgs::Twist>("cmd_vel_safe", 1);
 
     ros::ServiceServer mow_service = n.advertiseService("mower_service/mow_enabled", setMowEnabled);
-    ros::ServiceServer emergency_service = n.advertiseService("mower_service/emergency", setEmergencyStop);
+    ros::ServiceServer emergency_service = n.advertiseService("mower_service/emergency", setEmergencyMode);
     ros::Subscriber cmd_vel_sub = n.subscribe("cmd_vel", 0, onCmdVelReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber high_level_status_sub = n.subscribe("/mower_logic/current_state", 0, highLevelStatusReceived);
     ros::Timer publish_timer = n.createTimer(ros::Duration(0.02), publishActuatorsTimerTask);
