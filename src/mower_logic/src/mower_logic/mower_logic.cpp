@@ -325,7 +325,7 @@ void setEmergencyMode(bool emergency, std::string reason, uint8_t duration_s) {
     bool success = false;
     for ( int i = 0; i < 10; i++ ) {
         if ( emergencyClient.call(emergencyMode) ) {
-            ROS_INFO_STREAM("[mower_logic] successfully set emergency enabled to " << emergency);
+            //ROS_INFO_STREAM("[mower_logic] successfully set emergency enabled to " << emergency);
             success = true;
             break;
         }
