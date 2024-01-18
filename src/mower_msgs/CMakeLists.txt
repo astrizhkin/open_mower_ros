@@ -15,7 +15,7 @@ add_message_files(
 
 add_service_files(
         FILES
-        EmergencyStopSrv.srv
+        EmergencyModeSrv.srv
         GPSControlSrv.srv
         MowerControlSrv.srv
         HighLevelControlSrv.srv

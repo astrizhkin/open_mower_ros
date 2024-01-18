@@ -1,0 +1,4 @@
+uint8 emergency
+string reason
+uint16 duration_s
+---
