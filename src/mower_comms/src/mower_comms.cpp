@@ -322,7 +322,7 @@ void highLevelStatusReceived(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
 
 void onCmdVelReceived(const geometry_msgs::Twist::ConstPtr &msg) {
     // TODO: update this to rad/s values and implement xESC speed control
-    ROS_INFO_STREAM("[mower_comms] Got Twist: "<< +msg->linear.x << " " << +msg->angular.z);
+    //ROS_INFO_STREAM("[mower_comms] Got Twist: "<< +msg->linear.x << " " << +msg->angular.z);
     last_cmd_twist = *msg;
     last_cmd_twist_time = ros::Time::now();
 }
