@@ -317,7 +317,6 @@ bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerCon
 }
 
 bool setEmergencyMode(mower_msgs::EmergencyModeSrvRequest &req, mower_msgs::EmergencyModeSrvResponse &res) {
-    emergency_high_level = req.emergency;
     if (req.emergency) {
         //active high level emergency has infinite duration, do not override it
         if(emergency_high_level && emergency_high_level_end.isZero() && req.duration_s!=0) {
@@ -334,6 +333,7 @@ bool setEmergencyMode(mower_msgs::EmergencyModeSrvRequest &req, mower_msgs::Emer
             emergency_high_level_end = ros::Time(0.0);
         } 
     }
+    emergency_high_level = req.emergency;
     // Set the high level emergency instantly. Low level value will be set on next update.
     // High level emergency already set with unlimited duration
 
