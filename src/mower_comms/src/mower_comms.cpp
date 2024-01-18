@@ -112,6 +112,13 @@ bool isEmergency() {
 }
 
 void publishActuators() {
+    if(emergency_high_level && !emergency_high_level_end.isZero() && emergency_high_level_end < ros::Time::now()) {
+        ROS_WARN_STREAM("[mower_comms] Autoreset emergency " << emergency_high_level_reason);
+        emergency_high_level = false;
+        emergency_high_level_end = ros::Time(0.0);
+    }
+
+
     geometry_msgs::Twist execute_vel;
     execute_vel.linear.x = last_cmd_twist.linear.x;
     execute_vel.angular.z = last_cmd_twist.angular.z;
