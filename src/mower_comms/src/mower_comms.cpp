@@ -80,6 +80,7 @@ hoverboard_driver::HoverboardStateStamped last_front_status;
 
 std::mutex ll_status_mutex;
 struct ll_status last_ll_status = {0};
+ros::Time last_ll_status_esc_enabled(0.0);
 
 sensor_msgs::MagneticField sensor_mag_msg;
 sensor_msgs::Imu sensor_imu_msg;
@@ -162,13 +163,15 @@ void convertStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardS
             hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_ERR |
             hoverboard_driver::HoverboardState::STATUS_LEFT_MOTOR_TEMP_ERR |
             hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR );
-    if (!status_msg.esc_power) {
+    
+    if (!status_msg.esc_power || (ros::Time::now() - last_ll_status_esc_enabled).toSec() < 2.0) {
+        //report esc off status when disabled or started less than 2 seconds ago to prevent report disconnected status
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
     } else if (state_msg.state.connection_state != hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_CONNECTED
         //&& vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED_INCOMPATIBLE_FW
         ) {
-        // ESC is disconnected
+        // ESC is disconnected, the bad status that never should happen
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
     } else if(statusNoTemperatures) {
@@ -182,6 +185,9 @@ void convertStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardS
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
     }
 
+    if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_WARN) {
+        ROS_WARN_STREAM("[mower_comms] Motor controller PCB temerature warning");
+    }
     if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_ERR) {
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
@@ -414,6 +420,11 @@ void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {
 
 void handleLowLevelStatus(struct ll_status *status) {
     std::unique_lock<std::mutex> lk(ll_status_mutex);
+    bool prev_esc_enabled = last_ll_status.status_bitmask & (1<<STATUS_ESC_ENABLED_BIT);
+    bool new_esc_enabled = status->status_bitmask & (1<<STATUS_ESC_ENABLED_BIT); 
+    if(!prev_esc_enabled && new_esc_enabled) {
+        last_ll_status_esc_enabled = ros::Time::now();
+    }
     last_ll_status = *status;
 }
 
