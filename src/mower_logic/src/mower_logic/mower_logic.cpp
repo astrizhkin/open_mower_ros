@@ -124,7 +124,7 @@ xbot_msgs::AbsolutePose getPose() {
 
 
 
-void setEmergencyMode(bool emergency, std::string reason, uint8_t duration_s);
+void setEmergencyMode(bool set_reset, uint8_t emergency_bit, std::string reason, ros::Duration duration);
 
 void registerActions(std::string prefix, const std::vector<xbot_msgs::ActionInfo> &actions) {
     xbot_msgs::RegisterActionsSrv srv;
@@ -166,7 +166,7 @@ void setRobotPose(geometry_msgs::Pose &pose) {
 
     if( !success ) {
         ROS_ERROR_STREAM("[mower_logic] Error setting robot pose. Going to emergency. THIS SHOULD NEVER HAPPEN");
-        setEmergencyMode(true,"[mower_logic] Error setting robot pose",0);
+        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] Error setting robot pose",ros::Duration::ZERO);
     }
 }
 
@@ -216,7 +216,7 @@ bool setGPS(bool enabled) {
 
     if(!success) {
         ROS_ERROR_STREAM("[mower_logic] Error setting GPS. Going to emergency. THIS SHOULD NEVER HAPPEN");
-        setEmergencyMode(true,"[mower_logic] Error setting GPS",0);
+        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_GPS,"[mower_logic] Error setting GPS",ros::Duration::ZERO);
     }
 
     return success;
@@ -313,13 +313,15 @@ void stopBlade() {
 
 /// @brief Stop BLADE motor and any movement
 /// @param emergency 
-void setEmergencyMode(bool emergency, std::string reason, uint8_t duration_s) {
+
+void setEmergencyMode(bool set_reset, uint8_t emergency_bit, std::string reason, ros::Duration duration) {
     stopBlade();
     stopMoving();
     mower_msgs::EmergencyModeSrv emergencyMode;
-    emergencyMode.request.emergency = emergency;
+    emergencyMode.request.set_reset = set_reset;
+    emergencyMode.request.emergency_bit = emergency_bit;
     emergencyMode.request.reason = reason;
-    emergencyMode.request.duration_s = duration_s;
+    emergencyMode.request.duration = duration;
 
     ros::Rate retry_delay(1);
     bool success = false;
@@ -329,7 +331,7 @@ void setEmergencyMode(bool emergency, std::string reason, uint8_t duration_s) {
             success = true;
             break;
         }
-        ROS_ERROR_STREAM("[mower_logic] Error setting emergency enabled to " << emergency << ". Retrying.");
+        ROS_ERROR_STREAM("[mower_logic] Error setting emergency enabled to " << set_reset << " bit " << emergency_bit << ". Retrying.");
         retry_delay.sleep();
     }
 
@@ -382,7 +384,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
         } else if( last_status.v_charge > 5.0 ) {
             // emergency and docked and idle or area recording, so it's safe to reset the emergency mode, reset it. 
             // It's safe since we won't start moving in this mode.
-            setEmergencyMode(false,"[mower_logic] Docked and charger connected reset",0);
+            setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_LOW_BATTERY,"[mower_logic] Docked and charger battery reset",ros::Duration::ZERO);
         }
     }
 
@@ -400,7 +402,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     // Since these should never drop out, we enter emergency instead of "only" stopping
     if ( ros::Time::now() - status_time > ros::Duration(3) ) {
         ROS_WARN_STREAM_THROTTLE(5, "[mower_logic] EMERGENCY /mower/status values stopped. dt was: " << (ros::Time::now() - status_time));
-        setEmergencyMode(true,"[mower_logic] /mower/status values stopped",0);
+        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_STATUS_TIMEOUT,"[mower_logic] /mower/status values stopped",ros::Duration::ZERO);
         return;
     }
 
@@ -410,20 +412,23 @@ void checkSafety(const ros::TimerEvent &timer_event) {
             last_status.front_right_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR || 
             last_status.front_left_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR ) {
         ROS_ERROR("[mower_logic] EMERGENCY: at least one motor control errored. errors RL: %d, RR: %d, FL: %d, FR: %d",last_status.rear_left_esc_status.status,last_status.rear_right_esc_status.status,last_status.front_left_esc_status.status,last_status.front_right_esc_status.status);
-        // if 
-        //if (last_status.rear_right_esc_status.status <= mower_msgs::ESCStatus::ESC_STATUS_ERROR)
-        setEmergencyMode(true,"[mower_logic] motor control errored",0);
+        //set esc emergency
+        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC,"[mower_logic] motor control errored",ros::Duration::ZERO);
         return;
-    } else if (last_status.rear_right_esc_status.status == mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED || 
-            last_status.rear_left_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED || 
-            last_status.front_right_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED || 
-            last_status.front_left_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED) {
-        ROS_ERROR_STREAM(
-                "[mower_logic] EMERGENCY for 5 minutes: at least one motor or ESC is overheated");
-        setEmergencyMode(true,"[mower_logic] motor or ESC is overheated", 60*5);
-        return;
-    }
+    } else {
+        //clear esc emergency
+        setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC,"[mower_logic] motor control errored",ros::Duration::ZERO);
 
+        if (last_status.rear_right_esc_status.status == mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED || 
+                last_status.rear_left_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED || 
+                last_status.front_right_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED || 
+                last_status.front_left_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED) {
+            ROS_ERROR_STREAM(
+                    "[mower_logic] EMERGENCY for 5 minutes: at least one motor or ESC is overheated");
+            setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_TEMPERATURE,"[mower_logic] motor or ESC is overheated", ros::Duration(300.0));
+            return;
+        }
+    }
 
     // We need orientation and a positional accuracy less than configured
     bool gpsGoodNow = isGpsGood();
@@ -531,7 +536,7 @@ bool highLevelCommand(mower_msgs::HighLevelControlSrvRequest &req, mower_msgs::H
             break;
         case mower_msgs::HighLevelControlSrvRequest::COMMAND_RESET_EMERGENCY:
             ROS_WARN_STREAM("[mower_logic] COMMAND_RESET_EMERGENCY");
-            setEmergencyMode(false,"[mower_logic] COMMAND_RESET_EMERGENCY",0);
+            setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ALL,"[mower_logic] COMMAND_RESET_EMERGENCY",ros::Duration::ZERO);
             break;
     }
     return true;
@@ -750,7 +755,7 @@ int main(int argc, char **argv) {
         r.sleep();
         if(last_status.emergency) {
             ROS_INFO_STREAM("[mower_logic] Got emergency, resetting it");
-            setEmergencyMode(false,"[mower_logic] Startup expected emergency reset",0);
+            setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ALL,"[mower_logic] Startup expected emergency reset",ros::Duration::ZERO);
             break;
         }
     }
@@ -761,7 +766,7 @@ int main(int argc, char **argv) {
     ros::Timer ui_timer = n->createTimer(ros::Duration(1.0), updateUI);
 
     // release emergency if it was set
-    setEmergencyMode(false,"[mower_logic] Final startup emergency reset",0);
+    setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ALL,"[mower_logic] Final startup emergency reset",ros::Duration::ZERO);
 
     // initialise the shared state object to be passed into the behaviors
     auto shared_state = std::make_shared<sSharedState>();
@@ -780,7 +785,7 @@ int main(int argc, char **argv) {
             high_level_state_publisher.publish(high_level_status);
             // we have no defined behavior, set emergency
             ROS_ERROR_STREAM("[mower_logic] null behavior - emergency mode");
-            setEmergencyMode(true,"[mower_logic] null behavior",0);
+            setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_BEHAVIOR,"[mower_logic] null behavior",ros::Duration::ZERO);
             ros::Rate r(1.0);
             r.sleep();
         }

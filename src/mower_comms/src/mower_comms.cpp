@@ -48,10 +48,11 @@ ros::Publisher cmd_vel_safe_pub;
 COBS cobs;
 
 
-// True, if ROS thinks there sould be an emergency
-bool emergency_high_level = false;
-std::string emergency_high_level_reason;
-ros::Time emergency_high_level_end(0.0);
+// 8 bits of high level emergency set/reset in ROS
+uint8_t emergency_high_level_bits = 0;
+std::string emergency_high_level_reasons[] = {"", "", "", "", "", "", "", ""};
+ros::Time emergency_high_level_end[] = {ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO};
+
 // True, if the LL board thinks there should be an emergency
 bool emergency_low_level = false;
 
@@ -109,16 +110,17 @@ void sendLLMessage(uint8_t *msg,size_t size) {
 }
 
 bool isEmergency() {
-    return emergency_high_level || emergency_low_level;
+    return emergency_high_level_bits>0 || emergency_low_level;
 }
 
 void publishActuators() {
-    if(emergency_high_level && !emergency_high_level_end.isZero() && emergency_high_level_end < ros::Time::now()) {
-        ROS_WARN_STREAM("[mower_comms] Autoreset emergency " << emergency_high_level_reason);
-        emergency_high_level = false;
-        emergency_high_level_end = ros::Time(0.0);
+    for (uint8_t bit = 0; bit<8; bit++) {
+        if(emergency_high_level_bits & (1<<bit) && !emergency_high_level_end[bit].isZero() && emergency_high_level_end[bit] < ros::Time::now()) {
+            ROS_WARN_STREAM("[mower_comms] Autoreset emergency bit " << bit << " having reason "<< emergency_high_level_reasons[bit]);
+            emergency_high_level_bits &= ~(1<<bit);
+            emergency_high_level_end[bit] = ros::Time::ZERO;
+        }
     }
-
 
     geometry_msgs::Twist execute_vel;
     execute_vel.linear.x = last_cmd_twist.linear.x;
@@ -150,8 +152,8 @@ void publishActuators() {
     struct ll_heartbeat heartbeat = {
             .type = PACKET_ID_LL_HEARTBEAT,
             // If high level has emergency and LL does not know yet, we set it
-            .emergency_requested = emergency_high_level,
-            .emergency_release_requested = !emergency_high_level
+            .emergency_requested = emergency_high_level_bits>0,
+            .emergency_release_requested = emergency_high_level_bits==0
     };
     sendLLMessage((uint8_t *)&heartbeat,sizeof(struct ll_heartbeat));
 }
@@ -263,8 +265,11 @@ void publishStatus() {
     // overwrite emergency with the LL value.
     emergency_low_level = last_ll_status.emergency_bitmask > 0;
     if (emergency_low_level) {
-        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Low Level Emergency. Bitmask was: " << (int)last_ll_status.emergency_bitmask);
-    } 
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Low Level Emergency. Bitmask: " << (int)last_ll_status.emergency_bitmask);
+    }
+    if (emergency_high_level_bits > 0) {
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] High Level Emergency. Bitmask: " << (int)emergency_high_level_bits);
+    }
 
     // True, if high or low level emergency condition is present
     status_msg.emergency = isEmergency();
@@ -323,23 +328,36 @@ bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerCon
 }
 
 bool setEmergencyMode(mower_msgs::EmergencyModeSrvRequest &req, mower_msgs::EmergencyModeSrvResponse &res) {
-    if (req.emergency) {
-        //active high level emergency has infinite duration, do not override it
-        if(emergency_high_level && emergency_high_level_end.isZero() && req.duration_s!=0) {
+    uint8_t emergency_bit = req.emergency_bit;
+    uint8_t emergency_code = 1<<emergency_bit;
+    if(emergency_bit == mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ALL) {
+        ROS_WARN_STREAM("[mower_comms] Emergency ALL action");
+        for (uint8_t bit = 0; bit<8; bit++) {
+            req.emergency_bit = bit;
+            setEmergencyMode(req,res);
+        }
+        req.emergency_bit = mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ALL;
+        return true;
+    }
+    if (req.set_reset) {
+        if(emergency_high_level_bits & emergency_code && emergency_high_level_end[emergency_bit].isZero() && !req.duration.isZero()) {
+            //active high level emergency has infinite duration, do not override it
             ROS_WARN_STREAM("[mower_comms] Do not overide previous inifinite duration emergency with finite "<<req.reason);
         } else {
-            ROS_ERROR_STREAM("[mower_comms] Setting emergency: " << req.reason << " duration " << req.duration_s);
-            emergency_high_level_reason = req.reason;
-            emergency_high_level_end = req.duration_s==0 ? ros::Time(0.0) : ros::Time::now() + ros::Duration(req.duration_s);
+            ROS_ERROR_STREAM("[mower_comms] Setting emergency bit " << emergency_bit << " " << req.reason << " duration " << req.duration.toSec());
+            emergency_high_level_reasons[emergency_bit] = req.reason;
+            emergency_high_level_end[emergency_bit] = req.duration.isZero() ? ros::Time::ZERO : ros::Time::now() + req.duration;
         }
+        emergency_high_level_bits |= emergency_code;
     } else {
-        if(emergency_high_level) {
-            ROS_WARN_STREAM("[mower_comms] Clear emergency: "<<req.reason);
-            emergency_high_level_reason = req.reason;
-            emergency_high_level_end = ros::Time(0.0);
-        } 
+        if( emergency_high_level_bits & emergency_code ) {
+            ROS_WARN_STREAM("[mower_comms] Clear emergency bit "<< emergency_bit<<" "<<req.reason);
+            emergency_high_level_reasons[emergency_bit] = req.reason;
+            emergency_high_level_end[emergency_bit] = ros::Time::ZERO;
+        }
+        emergency_high_level_bits &= ~emergency_code;
     }
-    emergency_high_level = req.emergency;
+    
     // Set the high level emergency instantly. Low level value will be set on next update.
     // High level emergency already set with unlimited duration
 

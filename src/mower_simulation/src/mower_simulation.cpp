@@ -62,7 +62,7 @@ bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerCon
 }
 
 bool setEmergencyMode(mower_msgs::EmergencyModeSrvRequest &req, mower_msgs::EmergencyModeSrvResponse &res) {
-    config.emergency_stop = req.emergency;
+    config.emergency_stop = req.set_reset;
     reconfig_server->updateConfig(config);
     return true;
 }
