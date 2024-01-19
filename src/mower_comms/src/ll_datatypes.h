@@ -36,11 +36,12 @@
 #define STATUS_IMU_BIT 6
 #define STATUS_BATTERY_EMPTY_BIT 7
 
-#define EMERGENCY_LATCH_BIT 0
 #define EMERGENCY_BUTTON1_BIT 1
 #define EMERGENCY_BUTTON2_BIT 2
 #define EMERGENCY_LIFT1_BIT 3
 #define EMERGENCY_LIFT2_BIT 4
+#define EMERGENCY_ROS_TIMEOUT 5
+#define EMERGENCY_HIGH_LEVEL 6
 
 // motor status bits
 #define MOTOR_STATUS_DISABLED               0
@@ -118,12 +119,8 @@ struct ll_imu {
 struct ll_heartbeat {
     // Type of this message. Has to be PACKET_ID_LL_HEARTBEAT.
     uint8_t type;
-    // True, if emergency should be engaged (e.g. navigation error, ...)
-    // False to not change the latch
-    uint8_t emergency_requested;
-    // True, if emergency condition should be reset
-    // False to not change the latch
-    uint8_t emergency_release_requested;
+    //high level emergency bits (e.g. navigation error, ...)
+    uint8_t emergency_high_level;
     uint16_t crc;
 } __attribute__((packed));
 #pragma pack(pop)
