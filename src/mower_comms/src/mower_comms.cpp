@@ -81,6 +81,7 @@ hoverboard_driver::HoverboardStateStamped last_front_status;
 
 std::mutex ll_status_mutex;
 struct ll_status last_ll_status = {0};
+ros::Time last_ll_status_time(0.0);
 ros::Time last_ll_status_esc_enabled(0.0);
 
 sensor_msgs::MagneticField sensor_mag_msg;
@@ -264,7 +265,7 @@ void publishStatus() {
     // overwrite emergency with the LL value.
     emergency_low_level = last_ll_status.emergency_bitmask > 0;
     if (emergency_low_level) {
-        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Low Level Emergency. Bitmask: " << (int)last_ll_status.emergency_bitmask);
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Low Level Emergency. Bitmask: " << (int)last_ll_status.emergency_bitmask << " Age " << (status_msg.stamp - last_ll_status_time).toSec() << "s");
     }
     if (emergency_high_level_bits > 0) {
         ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] High Level Emergency. Bitmask: " << (int)emergency_high_level_bits);
@@ -443,6 +444,7 @@ void handleLowLevelStatus(struct ll_status *status) {
         last_ll_status_esc_enabled = ros::Time::now();
     }
     last_ll_status = *status;
+    last_ll_status_time = ros::Time::now();
 }
 
 void handleLowLevelIMU(struct ll_imu *imu) {
