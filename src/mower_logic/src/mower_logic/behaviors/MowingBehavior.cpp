@@ -144,12 +144,12 @@ bool MowingBehavior::create_mowing_plan(int area_index) {
     double angle = 0;
     auto points = mapSrv.response.area.area.points;
     if(points.size() >= 1) {
-        ROS_INFO_STREAM("[MowingBehavior] Dump moving plan. Num points: " << (int)points.size());
+        ROS_INFO_STREAM("[MowingBehavior] DUMP area points. Num points: " << (int)points.size());
         for(auto point : points) {
-            ROS_INFO_STREAM(point.x << ", " << point.y);
+            ROS_INFO_STREAM("[MowingBehavior] DUMP " << point.x << ", " << point.y);
         }
     }else{
-        ROS_ERROR_STREAM("[MowingBehavior] Got empty moving plan");
+        ROS_ERROR_STREAM("[MowingBehavior] Got empty area points");
     }
 
     if (points.size() >= 2) {
@@ -191,6 +191,16 @@ bool MowingBehavior::create_mowing_plan(int area_index) {
     }
 
     currentMowingPaths = pathSrv.response.paths;
+
+    ROS_INFO_STREAM("[MowingBehavior] DUMP Path " << currentMowingPaths.size() << " segments.");
+    for( int i=0; i < currentMowingPaths.size(); i++) {
+        auto &path = currentMowingPaths.at(i);
+        ROS_INFO_STREAM("[MowingBehavior] DUMP Path segment " << path.path.poses.size() << " poses.");
+        for( int j=0; j < path.path.poses.size(); j++) {
+            auto &pose = path.path.poses.at(j);
+            ROS_INFO_STREAM("[MowingBehavior] DUMP " << j << "," << pose.pose.position.x << ", " << pose.pose.position.y);
+        }
+    }
 
     return true;
 }
