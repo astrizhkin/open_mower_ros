@@ -82,6 +82,7 @@ Behavior *IdleBehavior::execute() {
                 return &UndockingBehavior::INSTANCE;
             }
             // Not docked, so just mow
+            ROS_INFO_STREAM("Currently undocked, just start mowing.");
             setGPS(true);
             return &MowingBehavior::INSTANCE;
         }

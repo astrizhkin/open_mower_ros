@@ -143,6 +143,15 @@ bool MowingBehavior::create_mowing_plan(int area_index) {
     // Area orientation is the same as the first point
     double angle = 0;
     auto points = mapSrv.response.area.area.points;
+    if(points.size() >= 1) {
+        ROS_INFO_STREAM("[MowingBehavior] Dump moving plan. Num points: " << (int)points.size());
+        for(auto point : points) {
+            ROS_INFO_STREAM(point.x << ", " << point.y);
+        }
+    }else{
+        ROS_ERROR_STREAM("[MowingBehavior] Got empty moving plan");
+    }
+
     if (points.size() >= 2) {
         tf2::Vector3 first(points[0].x, points[0].y, 0);
         for(auto point : points) {
