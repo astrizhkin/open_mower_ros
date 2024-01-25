@@ -198,15 +198,16 @@ void abortExecution() {
     }
 }
 
-bool setGPS(bool enabled) {
+bool setGPS(bool enabled, std::string reason) {
     xbot_positioning::GPSControlSrv gps_srv;
     gps_srv.request.gps_enabled = enabled;
+    gps_srv.request.reason = reason;
 
     ros::Rate retry_delay(1);
     bool success = false;
     for(int i = 0; i < 10; i++) {
         if(gpsClient.call(gps_srv)) {
-            ROS_INFO_STREAM("[mower_logic] successfully set GPS to " << enabled);
+            //ROS_INFO_STREAM("[mower_logic] successfully set GPS to " << enabled);
             success = true;
             break;
         }

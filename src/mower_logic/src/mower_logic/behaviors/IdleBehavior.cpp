@@ -19,7 +19,7 @@
 extern void stopMoving();
 extern void stopBlade();
 extern void setEmergencyMode(bool emergency);
-extern void setGPS(bool enabled);
+extern void setGPS(bool enabled, std::string reason);
 extern void setRobotPose(geometry_msgs::Pose &pose);
 extern void registerActions(std::string prefix, const std::vector<xbot_msgs::ActionInfo> &actions);
 
@@ -56,7 +56,7 @@ Behavior *IdleBehavior::execute() {
         return &AreaRecordingBehavior::INSTANCE;
     }
 
-    setGPS(false);
+    setGPS(false,"idle");
     geometry_msgs::PoseStamped docking_pose_stamped;
     docking_pose_stamped.pose = get_docking_point_srv.response.docking_pose;
     docking_pose_stamped.header.frame_id = "map";
@@ -83,7 +83,7 @@ Behavior *IdleBehavior::execute() {
             }
             // Not docked, so just mow
             ROS_INFO_STREAM("Currently undocked, just start mowing.");
-            setGPS(true);
+            setGPS(true, "prepare for mowing");
             return &MowingBehavior::INSTANCE;
         }
 

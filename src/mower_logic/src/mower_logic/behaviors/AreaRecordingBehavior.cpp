@@ -25,7 +25,7 @@ extern void registerActions(std::string prefix, const std::vector<xbot_msgs::Act
 
 extern void stop();
 
-extern bool setGPS(bool enabled);
+extern bool setGPS(bool enabled, std::string reason);
 
 AreaRecordingBehavior AreaRecordingBehavior::INSTANCE;
 
@@ -38,7 +38,7 @@ std::string AreaRecordingBehavior::state_name() {
 
 
 Behavior *AreaRecordingBehavior::execute() {
-    setGPS(true);
+    setGPS(true,"area recording");
     bool error = false;
     ros::Rate inputDelay(ros::Duration().fromSec(0.1));
 

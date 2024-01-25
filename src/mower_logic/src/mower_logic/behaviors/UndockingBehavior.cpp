@@ -24,7 +24,7 @@ extern mower_msgs::Status getStatus();
 extern void setRobotPose(geometry_msgs::Pose &pose);
 extern void stopMoving();
 extern bool isGpsGood();
-extern bool setGPS(bool enabled);
+extern bool setGPS(bool enabled, std::string reason);
 
 UndockingBehavior UndockingBehavior::INSTANCE(&MowingBehavior::INSTANCE);
 UndockingBehavior UndockingBehavior::RETRY_INSTANCE(&DockingBehavior::INSTANCE);
@@ -128,7 +128,7 @@ bool UndockingBehavior::mower_enabled() {
 
 bool UndockingBehavior::waitForGPS() {
     gpsRequired = false;
-    setGPS(true);
+    setGPS(true,"undocking finished");
     ros::Rate odom_rate(1.0);
     while (ros::ok() && !aborted) {
         if (isGpsGood()) {

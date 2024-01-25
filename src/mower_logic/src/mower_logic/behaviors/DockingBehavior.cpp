@@ -22,7 +22,7 @@ extern actionlib::SimpleActionClient<mbf_msgs::ExePathAction> *mbfClientExePath;
 extern mower_msgs::Status getStatus();
 
 extern void stopMoving();
-extern bool setGPS(bool enabled);
+extern bool setGPS(bool enabled, std::string reason);
 
 DockingBehavior DockingBehavior::INSTANCE;
 
@@ -207,7 +207,7 @@ Behavior *DockingBehavior::execute() {
 
     // Disable GPS
     inApproachMode = false;
-    setGPS(false);
+    setGPS(false,"start docking");
 
     bool docked = dock_straight();
 

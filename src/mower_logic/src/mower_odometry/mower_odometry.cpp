@@ -166,18 +166,18 @@ void imuReceived(const sensor_msgs::Imu::ConstPtr &msg) {
 void handleGPSUpdate(tf2::Vector3 gps_pos, double gps_accuracy_m) {
 
     if (config.simulate_gps_outage) {
-        ROS_INFO_STREAM_THROTTLE(5, "Dropping GPS due to simulated outage!");
+        ROS_INFO_STREAM_THROTTLE(5, "[mower_odometry] Dropping GPS due to simulated outage!");
         return;
     }
 
     if (gps_accuracy_m > 0.05) {
-        ROS_INFO_STREAM("dropping gps with accuracy: " << gps_accuracy_m << "m");
+        ROS_INFO_STREAM("[mower_odometry] dropping gps with accuracy: " << gps_accuracy_m << "m");
         return;
     }
 
     double time_since_last_gps = (ros::Time::now() - last_gps_odometry_time).toSec();
     if (time_since_last_gps > 5.0) {
-        ROS_WARN_STREAM("Last GPS was " << time_since_last_gps << " seconds ago.");
+        ROS_WARN_STREAM("[mower_odometry] Last GPS was " << time_since_last_gps << " seconds ago.");
         gpsOdometryValid = false;
         valid_gps_samples = 0;
         gps_outlier_count = 0;
@@ -211,8 +211,8 @@ void handleGPSUpdate(tf2::Vector3 gps_pos, double gps_accuracy_m) {
         gps_outlier_count = 0;
         valid_gps_samples++;
         if (!gpsOdometryValid && valid_gps_samples > 10) {
-            ROS_INFO_STREAM("GPS data now valid");
-            ROS_INFO_STREAM("First GPS data, moving odometry to " << base_link_x << ", " << base_link_y);
+            ROS_INFO_STREAM("[mower_odometry] GPS data now valid");
+            ROS_INFO_STREAM("[mower_odometry] First GPS data, moving odometry to " << base_link_x << ", " << base_link_y);
             // we don't even have gps yet, set odometry to first estimate
             x = base_link_x;
             y = base_link_y;
@@ -223,11 +223,11 @@ void handleGPSUpdate(tf2::Vector3 gps_pos, double gps_accuracy_m) {
             y = y * (1.0 - config.gps_filter_factor) + config.gps_filter_factor * base_link_y;
         }
     } else {
-        ROS_WARN_STREAM("GPS outlier found. Distance was: " << distance_to_last_gps);
+        ROS_WARN_STREAM("[mower_odometry] GPS outlier found. Distance was: " << distance_to_last_gps);
         gps_outlier_count++;
         // ~10 sec
         if (gps_outlier_count > 10) {
-            ROS_ERROR_STREAM("too many outliers, assuming that the current gps value is valid.");
+            ROS_ERROR_STREAM("[mower_odometry] too many outliers, assuming that the current gps value is valid.");
             last_gps_pos = gps_pos;
             last_gps_acc_m = gps_accuracy_m;
             last_gps_odometry_time = ros::Time::now();
@@ -243,19 +243,19 @@ void handleGPSUpdate(tf2::Vector3 gps_pos, double gps_accuracy_m) {
 void gpsPositionReceived(const xbot_msgs::AbsolutePose::ConstPtr &msg) {
     // drop messages if we don't use the GPS (docking / undocking)
     if (!gpsEnabled) {
-        ROS_INFO_STREAM_THROTTLE(1, "Dropped GPS Update, because gpsEnable = false");
+        ROS_INFO_STREAM_THROTTLE(1, "[mower_odometry] Dropped GPS Update, because gpsEnable = false");
         return;
     }
 
     if (msg->source != xbot_msgs::AbsolutePose::SOURCE_GPS) {
-        ROS_ERROR_STREAM("Please only feed GPS updates here fore now!");
+        ROS_ERROR_STREAM("[mower_odometry] Please only feed GPS updates here fore now!");
         gpsOdometryValid = false;
         return;
     }
 
     if (!(msg->flags & xbot_msgs::AbsolutePose::FLAG_GPS_RTK_FIXED) &&
         !(msg->flags & xbot_msgs::AbsolutePose::FLAG_GPS_RTK_FLOAT)) {
-        ROS_INFO_THROTTLE(1, "Dropped GPS update, because it neither has RTK FIXED nor RTK FLOAT");
+        ROS_INFO_THROTTLE(1, "[mower_odometry] Dropped GPS update, because it neither has RTK FIXED nor RTK FLOAT");
         gpsOdometryValid = false;
         return;
     }
@@ -276,26 +276,26 @@ void gpsPositionReceivedF9R(const xbot_msgs::AbsolutePose::ConstPtr &msg) {
 
     // drop messages if we don't use the GPS (docking / undocking)
     if (!gpsEnabled) {
-        ROS_INFO_STREAM_THROTTLE(1, "Dropped GPS Update, because gpsEnable = false");
+        ROS_INFO_STREAM_THROTTLE(1, "[mower_odometry] Dropped GPS Update, because gpsEnable = false");
         return;
     }
 
     if (msg->source != xbot_msgs::AbsolutePose::SOURCE_GPS) {
-        ROS_ERROR_STREAM("Please only feed GPS updates here fore now!");
+        ROS_ERROR_STREAM("[mower_odometry] Please only feed GPS updates here fore now!");
         gpsOdometryValid = false;
         return;
     }
 
 
     if (!msg->orientation_valid) {
-        ROS_INFO_THROTTLE(1, "Dropped at least one GPS update due to invalid vehicle heading.");
+        ROS_INFO_THROTTLE(1, "[mower_odometry] Dropped at least one GPS update due to invalid vehicle heading.");
         gpsOdometryValid = false;
         return;
     }
 
     if (!(msg->flags & xbot_msgs::AbsolutePose::FLAG_GPS_RTK_FIXED) &&
         !(msg->flags & xbot_msgs::AbsolutePose::FLAG_GPS_DEAD_RECKONING)) {
-        ROS_INFO_THROTTLE(1, "Dropped GPS update, because it neither has RTK FIXED nor DR");
+        ROS_INFO_THROTTLE(1, "[mower_odometry] Dropped GPS update, because it neither has RTK FIXED nor DR");
         gpsOdometryValid = false;
         return;
     }
@@ -335,7 +335,7 @@ void gpsPositionReceivedF9R(const xbot_msgs::AbsolutePose::ConstPtr &msg) {
 bool statusReceivedOrientation(const mower_msgs::Status::ConstPtr &msg) {
 
     if (!hasImuMessage) {
-        ROS_INFO_THROTTLE(1, "odometry is waiting for imu message");
+        ROS_INFO_THROTTLE(1, "[mower_odometry] odometry is waiting for imu message");
         return false;
     }
 
@@ -383,7 +383,7 @@ bool statusReceivedOrientation(const mower_msgs::Status::ConstPtr &msg) {
 bool statusReceivedGyro(const mower_msgs::Status::ConstPtr &msg) {
 
     if (!hasImuMessage) {
-        ROS_INFO_THROTTLE(1, "odometry is waiting for imu message");
+        ROS_INFO_THROTTLE(1, "[mower_odometry] odometry is waiting for imu message");
         return false;
     }
 
@@ -446,7 +446,7 @@ void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
             ) / 2 
         ) / TICKS_PER_M;
 
-    ROS_INFO_STREAM("d_wheel_l = " << d_wheel_l << ", d_wheel_r = " << d_wheel_r);
+    ROS_INFO_STREAM("[mower_odometry] d_wheel_l = " << d_wheel_l << ", d_wheel_r = " << d_wheel_r);
 
     bool success;
     if (!use_f9r_sensor_fusion) {
@@ -463,14 +463,14 @@ void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
 }
 
 void reconfigureCB(mower_logic::MowerOdometryConfig &c, uint32_t level) {
-    ROS_INFO_STREAM("Setting new Mower Odom Config");
+    ROS_INFO_STREAM("[mower_odometry] Setting new Mower Odom Config");
     config = c;
 }
 
 bool setGpsState(mower_msgs::GPSControlSrvRequest &req, mower_msgs::GPSControlSrvResponse &res) {
     gpsEnabled = req.gps_enabled;
     gpsOdometryValid = false;
-    ROS_INFO_STREAM("Setting GPS enabled to: " << gpsEnabled);
+    ROS_INFO_STREAM("[mower_odometry] Setting GPS enabled to: " << gpsEnabled << " with reason " << req.reason);
     return true;
 }
 
@@ -504,13 +504,13 @@ int main(int argc, char **argv) {
 
     ros::Subscriber gps_sub;
     if (use_f9r_sensor_fusion) {
-        ROS_INFO("Odometry is using F9R sensor fusion");
+        ROS_INFO("[mower_odometry] Odometry is using F9R sensor fusion");
 
         gps_sub = n.subscribe("xbot_driver_gps/xb_pose", 100, gpsPositionReceivedF9R);
         status_sub = n.subscribe("mower/status", 100, statusReceived);
         imu_sub = n.subscribe("xbot_driver_gps/imu", 100, imuReceived);
     } else {
-        ROS_INFO("Odometry is using relative positioning.");
+        ROS_INFO("[mower_odometry] Odometry is using relative positioning.");
         gps_sub = n.subscribe("xbot_driver_gps/xb_pose", 100, gpsPositionReceived);
         status_sub = n.subscribe("mower/status", 100, statusReceived);
         imu_sub = n.subscribe("imu/data", 100, imuReceived);
