@@ -318,10 +318,11 @@ void publishActuatorsTimerTask(const ros::TimerEvent &timer_event) {
 }
 
 bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerControlSrvResponse &res) {
+    ROS_WARN_STREAM("[mower_comms] setMowEnabled(en=" << static_cast<unsigned>(req.mow_enabled) << ", dir=" << static_cast<unsigned>(req.mow_direction) << ")");
     if (req.mow_enabled && !isEmergency()) {
-//        speed_mow = req.mow_direction ? 1 : -1;
+        //speed_mow = req.mow_direction ? 1 : -1;
     } else {
-//        speed_mow = 0;
+        //speed_mow = 0;
     }
 //    ROS_INFO_STREAM("[mower_comms] Setting mow enabled to " << speed_mow);
     return true;

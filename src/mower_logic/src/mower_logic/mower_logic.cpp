@@ -77,10 +77,7 @@ std::recursive_mutex mower_logic_mutex;
 
 mower_msgs::HighLevelStatus high_level_status;
 
-std::atomic<bool> mowerEnabled;
-
 Behavior *currentBehavior = &IdleBehavior::INSTANCE;
-
 
 /**
  * Some thread safe methods to get a copy of the logic state
@@ -236,33 +233,28 @@ bool setMowerEnabled(bool enabled) {
         enabled = false;
     }
     
-    // status change ?
-    if ( mowerEnabled != enabled ) {
-        ros::Time started = ros::Time::now();
-        mower_msgs::MowerControlSrv mow_srv;
-        mow_srv.request.mow_enabled = enabled;
-        mow_srv.request.mow_direction = started.sec & 0x1; // Randomize mower direction on second
-        ROS_WARN_STREAM("[mower_logic] setMowerEnabled(" << enabled << ", " << static_cast<unsigned>(mow_srv.request.mow_direction) << ") call");
+    //ros::Time started = ros::Time::now();
+    mower_msgs::MowerControlSrv mow_srv;
+    mow_srv.request.mow_enabled = enabled;
+    mow_srv.request.mow_direction = started.sec & 0x1; // Randomize mower direction on second
 
-        ros::Rate retry_delay(1);
-        bool success = false;
-        for ( int i = 0; i < 10; i++ ) {
-            if( mowClient.call(mow_srv) ) {
-                ROS_INFO_STREAM("[mower_logic] successfully set mower enabled to " << enabled << " (direction " << static_cast<unsigned>(mow_srv.request.mow_direction) << ")");
-                    success = true;
-                break;
-            }
-            ROS_ERROR_STREAM("[mower_logic] Error setting mower enabled to " << enabled << ". Retrying.");
-            retry_delay.sleep();
+    ros::Rate retry_delay(1);
+    bool success = false;
+    for ( int i = 0; i < 10; i++ ) {
+        if( mowClient.call(mow_srv) ) {
+            //ROS_INFO_STREAM("[mower_logic] successfully set mower enabled to " << enabled << " (direction " << static_cast<unsigned>(mow_srv.request.mow_direction) << ")");
+            success = true;
+            break;
         }
-
-        if ( !success ) {
-            ROS_ERROR_STREAM("[mower_logic] Error setting mower enabled. THIS SHOULD NEVER HAPPEN");
-        }
-
-        ROS_WARN_STREAM("[mower_logic] setMowerEnabled(" << enabled << ", " << static_cast<unsigned>(mow_srv.request.mow_direction) << ") call completed within " << (ros::Time::now() - started).toSec() << "s");
-        mowerEnabled = enabled;
+        ROS_ERROR_STREAM("[mower_logic] Error setting mower enabled to " << enabled << ". Retrying.");
+        retry_delay.sleep();
     }
+
+    if ( !success ) {
+        ROS_ERROR_STREAM("[mower_logic] Error setting mower enabled. THIS SHOULD NEVER HAPPEN");
+    }
+
+    //ROS_WARN_STREAM("[mower_logic] setMowerEnabled(" << enabled << ", " << static_cast<unsigned>(mow_srv.request.mow_direction) << ") call completed within " << (ros::Time::now() - started).toSec() << "s");
 
 // TODO: Spinup feedback & delay
 /*    if (enabled) {
@@ -304,10 +296,8 @@ void stopMoving() {
 
 /// @brief If the BLADE motor is currently enabled, we stop it
 void stopBlade() {
-   // ROS_INFO_STREAM("om_mower_logic: stopBlade() - stopping blade motor if running");
-    if ( mowerEnabled ) {
-        setMowerEnabled(false);
-    }
+    // ROS_INFO_STREAM("om_mower_logic: stopBlade() - stopping blade motor if running");
+    setMowerEnabled(false);
     // ROS_INFO_STREAM("om_mower_logic: stopBlade() - finished");
 }
 
@@ -560,7 +550,6 @@ int main(int argc, char **argv) {
 
     n = new ros::NodeHandle();
     paramNh = new ros::NodeHandle("~");
-    mowerEnabled = false;
 
     boost::recursive_mutex mutex;
 
