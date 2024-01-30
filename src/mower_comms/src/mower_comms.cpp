@@ -63,6 +63,8 @@ bool allow_send = false;
 geometry_msgs::Twist last_cmd_twist;
 ros::Time last_cmd_twist_time(0.0);
 //float speed_mow = 0;
+uint8_t mower_enabled = 0;
+uint8_t mower_direction = 0;
 
 // Ticks / m and wheel distance for this robot
 double wheel_radius_m = 0.0;
@@ -318,8 +320,12 @@ void publishActuatorsTimerTask(const ros::TimerEvent &timer_event) {
 }
 
 bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerControlSrvResponse &res) {
-    ROS_WARN_STREAM("[mower_comms] setMowEnabled(en=" << static_cast<unsigned>(req.mow_enabled) << ", dir=" << static_cast<unsigned>(req.mow_direction) << ")");
-    if (req.mow_enabled && !isEmergency()) {
+    if (req.mow_enabled!=mower_enabled) {
+        ROS_INFO_STREAM("[mower_comms] setMowEnabled(en=" << static_cast<unsigned>(req.mow_enabled) << ", dir=" << static_cast<unsigned>(req.mow_direction) << ")");
+    }
+    mower_enabled = req.mow_enabled;
+    mower_direction = req.mow_direction;
+    if (mower_enabled && !isEmergency()) {
         //speed_mow = req.mow_direction ? 1 : -1;
     } else {
         //speed_mow = 0;
