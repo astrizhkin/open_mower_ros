@@ -290,8 +290,8 @@ bool setMowerEnabled(bool enabled) {
 
 
 /// @brief Halt all bot movement
-void stopMoving() {
-   // ROS_INFO_STREAM("om_mower_logic: stopMoving() - stopping bot movement");
+void stopMoving(std::string reason) {
+    ROS_WARN_STREAM("[mower_logic] stopMoving() - stopping bot movement with reason [" << reason << "]");
     geometry_msgs::Twist stop;
     stop.angular.z = 0;
     stop.linear.x = 0;
@@ -303,7 +303,7 @@ void stopMoving() {
 
 void setEmergencyMode(bool set_reset, uint8_t emergency_bit, std::string reason, ros::Duration duration) {
     setMowerEnabled(false);
-    stopMoving();
+    stopMoving("emergency: "+reason);
     mower_msgs::EmergencyModeSrv emergencyMode;
     emergencyMode.request.set_reset = set_reset;
     emergencyMode.request.emergency_bit = emergency_bit;
@@ -380,7 +380,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     // Note that the mowing behavior will pause as well by itself.
     if ( ros::Time::now() - pose_time > ros::Duration(1.0) ) {
         setMowerEnabled(false);
-        stopMoving();
+        stopMoving("pose values stopped");
         ROS_WARN_STREAM_THROTTLE(5, "[mower_logic] EMERGENCY pose values stopped. dt was: " << (ros::Time::now() - pose_time));
         return;
     }
@@ -445,7 +445,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
         // Stop the mower
         if ( gpsTimeout ) {
             setMowerEnabled(false);
-            stopMoving();
+            stopMoving("gps timeout");
         }
         currentBehavior->setGoodGPS(!gpsTimeout);
     }
@@ -530,13 +530,14 @@ bool highLevelCommand(mower_msgs::HighLevelControlSrvRequest &req, mower_msgs::H
 }
 
 void actionReceived(const std_msgs::String::ConstPtr &action) {
-    if(currentBehavior) {
+    if (currentBehavior) {
         currentBehavior->handle_action(action->data);
     }
 }
 
 void joyVelReceived(const geometry_msgs::Twist::ConstPtr &joy_vel) {
-    if(currentBehavior && currentBehavior->redirect_joystick()) {
+    if (currentBehavior && currentBehavior->redirect_joystick()) {
+        ROS_INFO_STREAM("[mower_logic] redirect joystic cmd " << joy_vel->linear.x << ", " << joy_vel->angular.z);
         cmd_vel_pub.publish(joy_vel);
     }
 }

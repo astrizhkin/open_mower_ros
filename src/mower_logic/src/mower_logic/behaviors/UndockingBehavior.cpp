@@ -22,7 +22,7 @@ extern xbot_msgs::AbsolutePose getPose();
 extern mower_msgs::Status getStatus();
 
 extern void setRobotPose(geometry_msgs::Pose &pose, std::string reason);
-extern void stopMoving();
+extern void stopMoving(std::string reason);
 extern bool isGpsGood();
 extern bool setGPS(bool enabled, std::string reason);
 
@@ -70,10 +70,10 @@ Behavior *UndockingBehavior::execute() {
     bool success = result.state_ == actionlib::SimpleClientGoalState::SUCCEEDED;
 
     // stop the bot for now
-    stopMoving();
+    stopMoving("undocking safety stop");
 
     if (!success) {
-        ROS_ERROR_STREAM("[UndockingBehavior] Error during undock");
+        ROS_ERROR_STREAM("[UndockingBehavior] Error during undock. MBF/FTCPlanner state is " << result.toString());
         return &IdleBehavior::INSTANCE;
     }
 

@@ -21,7 +21,7 @@ extern actionlib::SimpleActionClient<mbf_msgs::MoveBaseAction> *mbfClient;
 extern actionlib::SimpleActionClient<mbf_msgs::ExePathAction> *mbfClientExePath;
 extern mower_msgs::Status getStatus();
 
-extern void stopMoving();
+extern void stopMoving(std::string reason);
 extern bool setGPS(bool enabled, std::string reason);
 
 DockingBehavior DockingBehavior::INSTANCE;
@@ -125,7 +125,7 @@ bool DockingBehavior::dock_straight() {
         if(aborted) {
             ROS_INFO_STREAM("[DockingBehavior] Docking aborted.");
             mbfClientExePath->cancelGoal();
-            stopMoving();
+            stopMoving("docking aborted");
             dockingSuccess = false;
             waitingForResult = false;
         }
@@ -137,7 +137,7 @@ bool DockingBehavior::dock_straight() {
                 if (last_status.v_charge > 5.0) {
                     ROS_INFO_STREAM("[DockingBehavior] Got a voltage of " << last_status.v_charge << " V. Cancelling docking.");
                     mbfClientExePath->cancelGoal();
-                    stopMoving();
+                    stopMoving("docking success waiting");
                     dockingSuccess = true;
                     waitingForResult = false;
                 }
@@ -150,7 +150,7 @@ bool DockingBehavior::dock_straight() {
                 if (last_status.v_charge > 5.0) {
                     mbfClientExePath->cancelGoal();
                     dockingSuccess = true;
-                    stopMoving();
+                    stopMoving("docking success");
                 }
                 waitingForResult = false;
                 break;
@@ -158,13 +158,13 @@ bool DockingBehavior::dock_straight() {
                 ROS_WARN_STREAM("[DockingBehavior] Some error during path execution. Docking failed. status value was: "
                                         << mbfState.state_);
                 waitingForResult = false;
-                stopMoving();
+                stopMoving("docking bad MBF state");
                 break;
         }
     }
 
     // to be safe if the planner sent additional commands after cancel
-    stopMoving();
+    stopMoving("docking safety stop");
 
     return dockingSuccess;
 }
@@ -178,7 +178,7 @@ Behavior *DockingBehavior::execute() {
     // Check if already docked (e.g. carried to base during emergency) and skip
     if(getStatus().v_charge > 5.0) {
         ROS_INFO_STREAM("[DockingBehavior] Already inside docking station, going directly to idle.");
-        stopMoving();
+        stopMoving("docking unnecessary");
         return &IdleBehavior::INSTANCE;
     }
 

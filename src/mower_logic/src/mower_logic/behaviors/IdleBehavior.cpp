@@ -16,7 +16,7 @@
 //
 #include "IdleBehavior.h"
 
-extern void stopMoving();
+extern void stopMoving(std::string reason);
 extern void setEmergencyMode(bool emergency);
 extern void setGPS(bool enabled, std::string reason);
 extern void setRobotPose(geometry_msgs::Pose &pose, std::string reason);
@@ -42,14 +42,14 @@ Behavior *IdleBehavior::execute() {
     mower_map::GetMowingAreaSrv mapSrv;
     mapSrv.request.index = 0;
     if (!mapClient.call(mapSrv)) {
-        ROS_WARN("We don't have a map configured. Starting Area Recorder!");
+        ROS_WARN("[IdleBehavior] We don't have a map configured. Starting Area Recorder!");
         return &AreaRecordingBehavior::INSTANCE;
     }
 
     // Check, if we have a docking position. If not, print info and go to area recorder
     mower_map::GetDockingPointSrv get_docking_point_srv;
     if(!dockingPointClient.call(get_docking_point_srv)) {
-        ROS_WARN("We don't have a docking point configured. Starting Area Recorder!");
+        ROS_WARN("[IdleBehavior] We don't have a docking point configured. Starting Area Recorder!");
         return &AreaRecordingBehavior::INSTANCE;
     }
 
@@ -62,7 +62,7 @@ Behavior *IdleBehavior::execute() {
     ros::Rate r(25);
     while (ros::ok()) {
         setMowerEnabled(false);
-        stopMoving();
+        stopMoving("idle");
         const auto last_config = getConfig();
         const auto last_status = getStatus();
 
@@ -74,12 +74,12 @@ Behavior *IdleBehavior::execute() {
         if (manual_start_mowing || ((automatic_mode || active_semiautomatic_task) && mower_ready)) {
             // set the robot's position to the dock if we're actually docked
             if(last_status.v_charge > 5.0) {
-                ROS_INFO_STREAM("Currently inside the docking station, we set the robot's pose to the docks pose.");
+                ROS_INFO_STREAM("[IdleBehavior] Currently inside the docking station, we set the robot's pose to the docks pose.");
                 setRobotPose(docking_pose_stamped.pose, "idle prepare for undocking");
                 return &UndockingBehavior::INSTANCE;
             }
             // Not docked, so just mow
-            ROS_INFO_STREAM("Currently undocked, just start mowing.");
+            ROS_INFO_STREAM("[IdleBehavior] Currently undocked, just start mowing.");
             setGPS(true, "idle prepare for mowing");
             return &MowingBehavior::INSTANCE;
         }
@@ -178,10 +178,10 @@ IdleBehavior::IdleBehavior() {
 
 void IdleBehavior::handle_action(std::string action) {
     if(action == "mower_logic:idle/start_mowing") {
-        ROS_INFO_STREAM("Got start_mowing command");
+        ROS_INFO_STREAM("[IdleBehavior] Got start_mowing command");
         manual_start_mowing = true;
     } else if(action == "mower_logic:idle/start_area_recording") {
-        ROS_INFO_STREAM("Got start_area_recording command");
+        ROS_INFO_STREAM("[IdleBehavior] Got start_area_recording command");
         start_area_recorder = true;
     }
 }
