@@ -127,13 +127,18 @@ void registerActions(std::string prefix, const std::vector<xbot_msgs::ActionInfo
     srv.request.actions = actions;
 
     ros::Rate retry_delay(1);
+    bool success = false;
     for(int i = 0; i < 10; i++) {
         if(actionRegistrationClient.call(srv)) {
-            ROS_INFO_STREAM("[mower_logic] successfully registered actions for " << prefix);
+            //ROS_INFO_STREAM("[mower_logic] successfully registered actions for " << prefix);
+            success = true;
             break;
         }
         ROS_ERROR_STREAM("[mower_logic] Error registering actions for " << prefix << ". Retrying.");
         retry_delay.sleep();
+    }
+    if (!success) {
+        ROS_ERROR_STREAM("[mower_logic] Error registering actions for " << prefix << ". THIS SHOULD NEVER HAPPEN");
     }
 }
 
@@ -150,8 +155,8 @@ void setRobotPose(geometry_msgs::Pose &pose, std::string reason) {
 
     ros::Rate retry_delay(1);
     bool success = false;
-    for( int i = 0; i < 10; i++ ) {
-        if( positioningClient.call(pose_srv) ) {
+    for (int i = 0; i < 10; i++) {
+        if (positioningClient.call(pose_srv)) {
 //            ROS_INFO_STREAM("successfully set pose to " << pose);
             success = true;
             break;
@@ -160,7 +165,7 @@ void setRobotPose(geometry_msgs::Pose &pose, std::string reason) {
         retry_delay.sleep();
     }
 
-    if( !success ) {
+    if (!success) {
         ROS_ERROR_STREAM("[mower_logic] Error setting robot pose. Going to emergency. THIS SHOULD NEVER HAPPEN");
         setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] Error setting robot pose",ros::Duration::ZERO);
     }
