@@ -17,7 +17,6 @@
 #include "IdleBehavior.h"
 
 extern void stopMoving();
-extern void stopBlade();
 extern void setEmergencyMode(bool emergency);
 extern void setGPS(bool enabled, std::string reason);
 extern void setRobotPose(geometry_msgs::Pose &pose, std::string reason);
@@ -62,8 +61,8 @@ Behavior *IdleBehavior::execute() {
 
     ros::Rate r(25);
     while (ros::ok()) {
+        setMowerEnabled(false);
         stopMoving();
-        stopBlade();
         const auto last_config = getConfig();
         const auto last_status = getStatus();
 

@@ -293,19 +293,11 @@ void stopMoving() {
     cmd_vel_pub.publish(stop);
 }
 
-/// @brief If the BLADE motor is currently enabled, we stop it
-void stopBlade() {
-    // ROS_INFO_STREAM("om_mower_logic: stopBlade() - stopping blade motor if running");
-    setMowerEnabled(false);
-    // ROS_INFO_STREAM("om_mower_logic: stopBlade() - finished");
-}
-
-
 /// @brief Stop BLADE motor and any movement
 /// @param emergency 
 
 void setEmergencyMode(bool set_reset, uint8_t emergency_bit, std::string reason, ros::Duration duration) {
-    stopBlade();
+    setMowerEnabled(false);
     stopMoving();
     mower_msgs::EmergencyModeSrv emergencyMode;
     emergencyMode.request.set_reset = set_reset;
@@ -382,7 +374,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     // check if odometry is current. If not, the GPS was bad so we stop moving.
     // Note that the mowing behavior will pause as well by itself.
     if ( ros::Time::now() - pose_time > ros::Duration(1.0) ) {
-        stopBlade();
+        setMowerEnabled(false);
         stopMoving();
         ROS_WARN_STREAM_THROTTLE(5, "[mower_logic] EMERGENCY pose values stopped. dt was: " << (ros::Time::now() - pose_time));
         return;
@@ -447,7 +439,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     if (currentBehavior != nullptr && currentBehavior->needs_gps()) {
         // Stop the mower
         if ( gpsTimeout ) {
-            stopBlade();
+            setMowerEnabled(false);
             stopMoving();
         }
         currentBehavior->setGoodGPS(!gpsTimeout);
