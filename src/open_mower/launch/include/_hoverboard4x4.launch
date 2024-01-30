@@ -1,7 +1,7 @@
 <launch>
     <rosparam file="$(find open_mower)/params/hardware_specific/CUSTOM/hoverboard.yaml" command="load"/>
     <!-- load yaml here to override default -->
-    <rosparam file="$(env HOME)/mower_params/hoverboard.yaml" command="load"/>
+    <rosparam file="$(env HOME)/mower_params/hoverboard.yaml" command="load" subst_value="true"/>
 
     <group ns="front">
         <remap from="/front/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
