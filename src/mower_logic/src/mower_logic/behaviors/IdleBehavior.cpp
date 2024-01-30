@@ -20,7 +20,7 @@ extern void stopMoving();
 extern void stopBlade();
 extern void setEmergencyMode(bool emergency);
 extern void setGPS(bool enabled, std::string reason);
-extern void setRobotPose(geometry_msgs::Pose &pose);
+extern void setRobotPose(geometry_msgs::Pose &pose, std::string reason);
 extern void registerActions(std::string prefix, const std::vector<xbot_msgs::ActionInfo> &actions);
 
 extern ros::ServiceClient dockingPointClient;
@@ -39,8 +39,6 @@ std::string IdleBehavior::state_name() {
 }
 
 Behavior *IdleBehavior::execute() {
-
-
     // Check, if we have a configured map. If not, print info and go to area recorder
     mower_map::GetMowingAreaSrv mapSrv;
     mapSrv.request.index = 0;
@@ -78,12 +76,12 @@ Behavior *IdleBehavior::execute() {
             // set the robot's position to the dock if we're actually docked
             if(last_status.v_charge > 5.0) {
                 ROS_INFO_STREAM("Currently inside the docking station, we set the robot's pose to the docks pose.");
-                setRobotPose(docking_pose_stamped.pose);
+                setRobotPose(docking_pose_stamped.pose, "idle prepare for undocking");
                 return &UndockingBehavior::INSTANCE;
             }
             // Not docked, so just mow
             ROS_INFO_STREAM("Currently undocked, just start mowing.");
-            setGPS(true, "prepare for mowing");
+            setGPS(true, "idle prepare for mowing");
             return &MowingBehavior::INSTANCE;
         }
 
@@ -103,6 +101,7 @@ Behavior *IdleBehavior::execute() {
 }
 
 void IdleBehavior::enter() {
+    mower_enabled_flag = mower_enabled_flag_before_pause = false;
     start_area_recorder = false;
     // Reset the docking behavior, to allow docking
     DockingBehavior::INSTANCE.reset();
@@ -128,10 +127,6 @@ void IdleBehavior::reset() {
 }
 
 bool IdleBehavior::needs_gps() {
-    return false;
-}
-
-bool IdleBehavior::mower_enabled() {
     return false;
 }
 

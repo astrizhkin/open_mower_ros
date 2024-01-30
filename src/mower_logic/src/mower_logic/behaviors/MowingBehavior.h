@@ -37,7 +37,6 @@ private:
     bool execute_mowing_plan();
 
     // Progress
-    bool mowerEnabled = false;
     std::vector<slic3r_coverage_planner::Path> currentMowingPaths;
 
 
@@ -57,8 +56,6 @@ public:
     void reset() override;
 
     bool needs_gps() override;
-
-    bool mower_enabled() override;
 
     void command_home() override;
 

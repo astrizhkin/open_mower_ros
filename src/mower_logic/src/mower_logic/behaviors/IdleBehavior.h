@@ -48,8 +48,6 @@ public:
 
     bool needs_gps() override;
 
-    bool mower_enabled() override;
-
     void command_home() override;
 
     void command_start() override;

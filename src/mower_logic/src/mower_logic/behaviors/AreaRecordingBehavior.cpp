@@ -170,9 +170,7 @@ void AreaRecordingBehavior::enter() {
     finished_all = false;
     set_docking_position = false;
     markers = visualization_msgs::MarkerArray();
-    paused = aborted = false;
-
-
+    mower_enabled_flag = mower_enabled_flag_before_pause = paused = aborted = false;
 
     add_mowing_area_client = n->serviceClient<mower_map::AddMowingAreaSrv>("mower_map_service/add_mowing_area");
     set_docking_point_client = n->serviceClient<mower_map::SetDockingPointSrv>("mower_map_service/set_docking_point");
@@ -224,15 +222,11 @@ bool AreaRecordingBehavior::needs_gps() {
     return false;
 }
 
-bool AreaRecordingBehavior::mower_enabled() {
-    // No mower during docking
-    return false;
-}
-
 void AreaRecordingBehavior::pose_received(const xbot_msgs::AbsolutePose::ConstPtr &msg) {
     last_pose = *msg;
     has_odom = true;
 }
+
 void AreaRecordingBehavior::joy_received(const sensor_msgs::Joy &joy_msg) {
 
     if (joy_msg.buttons[1] && !last_joy.buttons[1]) {

@@ -470,7 +470,7 @@ void reconfigureCB(mower_logic::MowerOdometryConfig &c, uint32_t level) {
 bool setGpsState(mower_msgs::GPSControlSrvRequest &req, mower_msgs::GPSControlSrvResponse &res) {
     gpsEnabled = req.gps_enabled;
     gpsOdometryValid = false;
-    ROS_INFO_STREAM("[mower_odometry] Setting GPS enabled to: " << gpsEnabled << " with reason " << req.reason);
+    ROS_INFO_STREAM("[mower_odometry] Setting GPS enabled to: " << gpsEnabled << " with reason [" << req.reason << "]");
     return true;
 }
 

@@ -343,16 +343,16 @@ bool setEmergencyMode(mower_msgs::EmergencyModeSrvRequest &req, mower_msgs::Emer
     if (req.set_reset) {
         if(emergency_high_level_bits & emergency_code && emergency_high_level_end[emergency_bit].isZero() && !req.duration.isZero()) {
             //active high level emergency has infinite duration, do not override it
-            ROS_WARN_STREAM("[mower_comms] Do not overide previous inifinite duration emergency with finite "<<req.reason);
+            ROS_WARN_STREAM("[mower_comms] Do not overide previous inifinite duration emergency with reason ["<<req.reason<<"]");
         } else {
-            ROS_ERROR_STREAM("[mower_comms] Setting emergency bit " << (int)emergency_bit << " " << req.reason << " duration " << req.duration.toSec());
+            ROS_ERROR_STREAM("[mower_comms] Setting emergency bit " << (int)emergency_bit << " with reason [" << req.reason << "] duration " << req.duration.toSec());
             emergency_high_level_reasons[emergency_bit] = req.reason;
             emergency_high_level_end[emergency_bit] = req.duration.isZero() ? ros::Time::ZERO : ros::Time::now() + req.duration;
         }
         emergency_high_level_bits |= emergency_code;
     } else {
         if( emergency_high_level_bits & emergency_code ) {
-            ROS_WARN_STREAM("[mower_comms] Clear emergency bit "<< (int)emergency_bit<<" "<<req.reason);
+            ROS_WARN_STREAM("[mower_comms] Clear emergency bit "<< (int)emergency_bit<<" with reason ["<<req.reason<<"]");
             emergency_high_level_reasons[emergency_bit] = req.reason;
             emergency_high_level_end[emergency_bit] = ros::Time::ZERO;
         }

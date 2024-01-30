@@ -228,7 +228,7 @@ Behavior *DockingBehavior::execute() {
 }
 
 void DockingBehavior::enter() {
-    paused = aborted = false;
+    mower_enabled_flag = mower_enabled_flag_before_pause = paused = aborted = false;
     // start with target approach and then dock later
     inApproachMode = true;
 
@@ -251,11 +251,6 @@ void DockingBehavior::reset() {
 bool DockingBehavior::needs_gps() {
     // we only need GPS if we're in approach mode
     return inApproachMode;
-}
-
-bool DockingBehavior::mower_enabled() {
-    // No mower during docking
-    return false;
 }
 
 void DockingBehavior::command_home() {

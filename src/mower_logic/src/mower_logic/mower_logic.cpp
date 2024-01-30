@@ -119,8 +119,6 @@ xbot_msgs::AbsolutePose getPose() {
     return last_pose;
 }
 
-
-
 void setEmergencyMode(bool set_reset, uint8_t emergency_bit, std::string reason, ros::Duration duration);
 
 void registerActions(std::string prefix, const std::vector<xbot_msgs::ActionInfo> &actions) {
@@ -139,7 +137,7 @@ void registerActions(std::string prefix, const std::vector<xbot_msgs::ActionInfo
     }
 }
 
-void setRobotPose(geometry_msgs::Pose &pose) {
+void setRobotPose(geometry_msgs::Pose &pose, std::string reason) {
     // set the robot pose internally as well. othwerise we need to wait for xbot_positioning to send a new one once it has updated the internal pose.
     {
         std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
@@ -148,6 +146,7 @@ void setRobotPose(geometry_msgs::Pose &pose) {
 
     xbot_positioning::SetPoseSrv pose_srv;
     pose_srv.request.robot_pose = pose;
+    pose_srv.request.reason = reason;
 
     ros::Rate retry_delay(1);
     bool success = false;
@@ -172,8 +171,8 @@ void poseReceived(const xbot_msgs::AbsolutePose::ConstPtr &msg) {
 
     last_pose = *msg;
 
- #ifdef VERBOSE_DEBUG
-    ROS_INFO("om_mower_logic: pose received with accuracy %f", last_pose.position_accuracy);
+#ifdef VERBOSE_DEBUG
+    ROS_INFO("[mower_logic] pose received with accuracy %f", last_pose.position_accuracy);
 #endif
     pose_time = ros::Time::now();
 }
@@ -182,7 +181,7 @@ void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
     std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
 
 #ifdef VERBOSE_DEBUG
-    ROS_INFO("om_mower_logic: statusReceived");
+    ROS_INFO("[mower_logic] statusReceived");
 #endif
     last_status = *msg;
     status_time = ros::Time::now();
@@ -233,7 +232,7 @@ bool setMowerEnabled(bool enabled) {
         enabled = false;
     }
     
-    //ros::Time started = ros::Time::now();
+    ros::Time started = ros::Time::now();
     mower_msgs::MowerControlSrv mow_srv;
     mow_srv.request.mow_enabled = enabled;
     mow_srv.request.mow_direction = started.sec & 0x1; // Randomize mower direction on second

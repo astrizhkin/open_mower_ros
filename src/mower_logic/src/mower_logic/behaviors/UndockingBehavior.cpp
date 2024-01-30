@@ -21,7 +21,7 @@ extern actionlib::SimpleActionClient<mbf_msgs::ExePathAction> *mbfClientExePath;
 extern xbot_msgs::AbsolutePose getPose();
 extern mower_msgs::Status getStatus();
 
-extern void setRobotPose(geometry_msgs::Pose &pose);
+extern void setRobotPose(geometry_msgs::Pose &pose, std::string reason);
 extern void stopMoving();
 extern bool isGpsGood();
 extern bool setGPS(bool enabled, std::string reason);
@@ -93,7 +93,7 @@ Behavior *UndockingBehavior::execute() {
 
 void UndockingBehavior::enter() {
     reset();
-    paused = aborted = false;
+    mower_enabled_flag_before_pause = mower_enabled_flag = paused = aborted = false;
 
     // Get the docking pose in map
     mower_map::GetDockingPointSrv get_docking_point_srv;
@@ -105,7 +105,7 @@ void UndockingBehavior::enter() {
     // set the robot's position to the dock if we're actually docked
     if(getStatus().v_charge > 5.0) {
         ROS_INFO_STREAM("[UndockingBehavior] Currently inside the docking station, we set the robot's pose to the docks pose.");
-        setRobotPose(docking_pose_stamped.pose);
+        setRobotPose(docking_pose_stamped.pose, "undocking init");
     }
 }
 
@@ -119,11 +119,6 @@ void UndockingBehavior::reset() {
 
 bool UndockingBehavior::needs_gps() {
     return gpsRequired;
-}
-
-bool UndockingBehavior::mower_enabled() {
-    // No mower during docking
-    return false;
 }
 
 bool UndockingBehavior::waitForGPS() {
