@@ -233,7 +233,7 @@ bool setMowerEnabled(bool enabled) {
     const auto last_config = getConfig();
 
     if ( !last_config.enable_mower && enabled ) {
-        // ROS_INFO_STREAM("om_mower_logic: setMowerEnabled() - Mower should be enabled but is hard-disabled in the config.");
+        ROS_WARN_STREAM("[mower_logic] setMowerEnabled() - Mower should be enabled but is hard-disabled in the config.");
         enabled = false;
     }
     
@@ -290,6 +290,7 @@ bool setMowerEnabled(bool enabled) {
 
 
 /// @brief Halt all bot movement
+// it only temporary overrides autonomus velecity commands for a time configured in twist_mux config
 void stopMoving(std::string reason) {
     ROS_WARN_STREAM("[mower_logic] stopMoving() - stopping bot movement with reason [" << reason << "]");
     geometry_msgs::Twist stop;
@@ -302,8 +303,12 @@ void stopMoving(std::string reason) {
 /// @param emergency 
 
 void setEmergencyMode(bool set_reset, uint8_t emergency_bit, std::string reason, ros::Duration duration) {
-    setMowerEnabled(false);
-    stopMoving("emergency: "+reason);
+    if (set_reset) {
+        //we immediatelly stop blade and motion
+        //it must be retored to normal state by the active behavior
+        setMowerEnabled(false);
+        stopMoving("emergency: "+reason);
+    }
     mower_msgs::EmergencyModeSrv emergencyMode;
     emergencyMode.request.set_reset = set_reset;
     emergencyMode.request.emergency_bit = emergency_bit;
@@ -379,18 +384,24 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     // check if odometry is current. If not, the GPS was bad so we stop moving.
     // Note that the mowing behavior will pause as well by itself.
     if ( ros::Time::now() - pose_time > ros::Duration(1.0) ) {
-        setMowerEnabled(false);
-        stopMoving("pose values stopped");
+        //uncommet this if emerency is not triggered
+        //setMowerEnabled(false);
+        //stopMoving("pose values stopped");
         ROS_WARN_STREAM_THROTTLE(5, "[mower_logic] EMERGENCY pose values stopped. dt was: " << (ros::Time::now() - pose_time));
+        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] pose values timout",ros::Duration::ZERO);
         return;
+    } else {
+        //setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] pose values ok",ros::Duration::ZERO);
     }
  
     // check if status is current. if not, we have a problem since it contains wheel ticks and so on.
     // Since these should never drop out, we enter emergency instead of "only" stopping
     if ( ros::Time::now() - status_time > ros::Duration(3) ) {
         ROS_WARN_STREAM_THROTTLE(5, "[mower_logic] EMERGENCY /mower/status values stopped. dt was: " << (ros::Time::now() - status_time));
-        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_STATUS_TIMEOUT,"[mower_logic] /mower/status values stopped",ros::Duration::ZERO);
+        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_STATUS_TIMEOUT,"[mower_logic] /mower/status values timout",ros::Duration::ZERO);
         return;
+    } else {
+        //setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_STATUS_TIMEOUT,"[mower_logic] /mower/status values ok",ros::Duration::ZERO);
     }
 
     // If the motor controllers error, we enter emergency mode in the hope to save them. They should not error.
@@ -404,7 +415,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
         return;
     } else {
         //clear esc emergency
-        setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC,"[mower_logic] motor control errored",ros::Duration::ZERO);
+        setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC,"[mower_logic] motor control ok",ros::Duration::ZERO);
 
         if (last_status.rear_right_esc_status.status == mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED || 
                 last_status.rear_left_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED || 
