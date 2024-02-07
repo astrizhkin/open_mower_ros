@@ -38,13 +38,21 @@ xbot_msgs::SensorInfo si_charge_current;
 ros::Publisher si_charge_current_pub;
 ros::Publisher charge_current_data_pub;
 
-xbot_msgs::SensorInfo si_left_esc_temp;
-ros::Publisher si_left_esc_temp_pub;
-ros::Publisher left_esc_temp_data_pub;
+xbot_msgs::SensorInfo si_rear_left_esc_temp;
+ros::Publisher si_rear_left_esc_temp_pub;
+ros::Publisher rear_left_esc_temp_data_pub;
 
-xbot_msgs::SensorInfo si_right_esc_temp;
-ros::Publisher si_right_esc_temp_pub;
-ros::Publisher right_esc_temp_data_pub;
+xbot_msgs::SensorInfo si_rear_right_esc_temp;
+ros::Publisher si_rear_right_esc_temp_pub;
+ros::Publisher rear_right_esc_temp_data_pub;
+
+xbot_msgs::SensorInfo si_front_left_esc_temp;
+ros::Publisher si_front_left_esc_temp_pub;
+ros::Publisher front_left_esc_temp_data_pub;
+
+xbot_msgs::SensorInfo si_front_right_esc_temp;
+ros::Publisher si_front_right_esc_temp_pub;
+ros::Publisher front_right_esc_temp_data_pub;
 
 xbot_msgs::SensorInfo si_mow_esc_temp;
 ros::Publisher si_mow_esc_temp_pub;
@@ -85,11 +93,17 @@ void status(const mower_msgs::Status::ConstPtr &msg) {
     sensor_data.data = msg->charge_current;
     charge_current_data_pub.publish(sensor_data);
 
-    sensor_data.data = msg->left_esc_status.temperature_pcb;
-    left_esc_temp_data_pub.publish(sensor_data);
+    sensor_data.data = msg->rear_left_esc_status.temperature_pcb;
+    rear_left_esc_temp_data_pub.publish(sensor_data);
 
-    sensor_data.data = msg->right_esc_status.temperature_pcb;
-    right_esc_temp_data_pub.publish(sensor_data);
+    sensor_data.data = msg->rear_right_esc_status.temperature_pcb;
+    rear_right_esc_temp_data_pub.publish(sensor_data);
+
+    sensor_data.data = msg->front_left_esc_status.temperature_pcb;
+    front_left_esc_temp_data_pub.publish(sensor_data);
+
+    sensor_data.data = msg->front_right_esc_status.temperature_pcb;
+    front_right_esc_temp_data_pub.publish(sensor_data);
 
     sensor_data.data = msg->mow_esc_status.temperature_pcb;
     mow_esc_temp_data_pub.publish(sensor_data);
@@ -154,23 +168,41 @@ void registerSensors() {
     charge_current_data_pub = n->advertise<xbot_msgs::SensorDataDouble>("xbot_monitoring/sensors/" + si_charge_current.sensor_id + "/data",10);
     si_charge_current_pub.publish(si_charge_current);
 
-    si_left_esc_temp.sensor_id = "om_left_esc_temp";
-    si_left_esc_temp.sensor_name = "Left ESC Temp";
-    si_left_esc_temp.value_type = xbot_msgs::SensorInfo::TYPE_DOUBLE;
-    si_left_esc_temp.value_description = xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE;
-    si_left_esc_temp.unit = "deg.C";
-    si_left_esc_temp_pub = n->advertise<xbot_msgs::SensorInfo>("xbot_monitoring/sensors/" + si_left_esc_temp.sensor_id + "/info", 1, true);
-    left_esc_temp_data_pub = n->advertise<xbot_msgs::SensorDataDouble>("xbot_monitoring/sensors/" + si_left_esc_temp.sensor_id + "/data",10);
-    si_left_esc_temp_pub.publish(si_left_esc_temp);
+    si_rear_left_esc_temp.sensor_id = "om_rear_left_esc_temp";
+    si_rear_left_esc_temp.sensor_name = "Rear Left ESC Temp";
+    si_rear_left_esc_temp.value_type = xbot_msgs::SensorInfo::TYPE_DOUBLE;
+    si_rear_left_esc_temp.value_description = xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE;
+    si_rear_left_esc_temp.unit = "deg.C";
+    si_rear_left_esc_temp_pub = n->advertise<xbot_msgs::SensorInfo>("xbot_monitoring/sensors/" + si_rear_left_esc_temp.sensor_id + "/info", 1, true);
+    rear_left_esc_temp_data_pub = n->advertise<xbot_msgs::SensorDataDouble>("xbot_monitoring/sensors/" + si_rear_left_esc_temp.sensor_id + "/data",10);
+    si_rear_left_esc_temp_pub.publish(si_rear_left_esc_temp);
 
-    si_right_esc_temp.sensor_id = "om_right_esc_temp";
-    si_right_esc_temp.sensor_name = "Right ESC Temp";
-    si_right_esc_temp.value_type = xbot_msgs::SensorInfo::TYPE_DOUBLE;
-    si_right_esc_temp.value_description = xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE;
-    si_right_esc_temp.unit = "deg.C";
-    si_right_esc_temp_pub = n->advertise<xbot_msgs::SensorInfo>("xbot_monitoring/sensors/" + si_right_esc_temp.sensor_id + "/info", 1, true);
-    right_esc_temp_data_pub = n->advertise<xbot_msgs::SensorDataDouble>("xbot_monitoring/sensors/" + si_right_esc_temp.sensor_id + "/data",10);
-    si_right_esc_temp_pub.publish(si_right_esc_temp);
+    si_rear_right_esc_temp.sensor_id = "om_rear_right_esc_temp";
+    si_rear_right_esc_temp.sensor_name = "Rear Right ESC Temp";
+    si_rear_right_esc_temp.value_type = xbot_msgs::SensorInfo::TYPE_DOUBLE;
+    si_rear_right_esc_temp.value_description = xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE;
+    si_rear_right_esc_temp.unit = "deg.C";
+    si_rear_right_esc_temp_pub = n->advertise<xbot_msgs::SensorInfo>("xbot_monitoring/sensors/" + si_rear_right_esc_temp.sensor_id + "/info", 1, true);
+    rear_right_esc_temp_data_pub = n->advertise<xbot_msgs::SensorDataDouble>("xbot_monitoring/sensors/" + si_rear_right_esc_temp.sensor_id + "/data",10);
+    si_rear_right_esc_temp_pub.publish(si_rear_right_esc_temp);
+
+    si_front_left_esc_temp.sensor_id = "om_front_left_esc_temp";
+    si_front_left_esc_temp.sensor_name = "Front Left ESC Temp";
+    si_front_left_esc_temp.value_type = xbot_msgs::SensorInfo::TYPE_DOUBLE;
+    si_front_left_esc_temp.value_description = xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE;
+    si_front_left_esc_temp.unit = "deg.C";
+    si_front_left_esc_temp_pub = n->advertise<xbot_msgs::SensorInfo>("xbot_monitoring/sensors/" + si_front_left_esc_temp.sensor_id + "/info", 1, true);
+    front_left_esc_temp_data_pub = n->advertise<xbot_msgs::SensorDataDouble>("xbot_monitoring/sensors/" + si_front_left_esc_temp.sensor_id + "/data",10);
+    si_front_left_esc_temp_pub.publish(si_front_left_esc_temp);
+
+    si_front_right_esc_temp.sensor_id = "om_front_right_esc_temp";
+    si_front_right_esc_temp.sensor_name = "Front Right ESC Temp";
+    si_front_right_esc_temp.value_type = xbot_msgs::SensorInfo::TYPE_DOUBLE;
+    si_front_right_esc_temp.value_description = xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE;
+    si_front_right_esc_temp.unit = "deg.C";
+    si_front_right_esc_temp_pub = n->advertise<xbot_msgs::SensorInfo>("xbot_monitoring/sensors/" + si_front_right_esc_temp.sensor_id + "/info", 1, true);
+    front_right_esc_temp_data_pub = n->advertise<xbot_msgs::SensorDataDouble>("xbot_monitoring/sensors/" + si_front_right_esc_temp.sensor_id + "/data",10);
+    si_front_right_esc_temp_pub.publish(si_front_right_esc_temp);
 
     si_mow_esc_temp.sensor_id = "om_mow_esc_temp";
     si_mow_esc_temp.sensor_name = "Mow ESC Temp";

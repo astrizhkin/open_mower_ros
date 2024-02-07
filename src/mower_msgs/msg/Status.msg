@@ -8,20 +8,24 @@ time stamp
 # Initialized or not
 uint8 mower_status
 bool raspberry_pi_power
-bool gps_power
+bool charging_allowed
 bool esc_power
 bool rain_detected
-bool sound_module_available
-bool sound_module_busy
-bool ui_board_available
-float32[5] ultrasonic_ranges
+bool uss_timeout
+bool imu_timeout
+bool battery_empty
+
+float32[5] uss_ranges
+uint16[5] uss_age_ms
 bool emergency
 float32 v_charge
 float32 v_battery
 float32 charge_current
 
 # ESC stuff
-ESCStatus left_esc_status
-ESCStatus right_esc_status
+ESCStatus rear_left_esc_status
+ESCStatus rear_right_esc_status
+ESCStatus front_left_esc_status
+ESCStatus front_right_esc_status
 ESCStatus mow_esc_status
 

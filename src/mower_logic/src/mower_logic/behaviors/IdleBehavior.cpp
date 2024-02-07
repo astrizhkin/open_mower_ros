@@ -16,11 +16,10 @@
 //
 #include "IdleBehavior.h"
 
-extern void stopMoving();
-extern void stopBlade();
+extern void stopMoving(std::string reason);
 extern void setEmergencyMode(bool emergency);
-extern void setGPS(bool enabled);
-extern void setRobotPose(geometry_msgs::Pose &pose);
+extern void setGPS(bool enabled, std::string reason);
+extern void setRobotPose(geometry_msgs::Pose &pose, std::string reason);
 extern void registerActions(std::string prefix, const std::vector<xbot_msgs::ActionInfo> &actions);
 
 extern ros::ServiceClient dockingPointClient;
@@ -39,24 +38,22 @@ std::string IdleBehavior::state_name() {
 }
 
 Behavior *IdleBehavior::execute() {
-
-
     // Check, if we have a configured map. If not, print info and go to area recorder
     mower_map::GetMowingAreaSrv mapSrv;
     mapSrv.request.index = 0;
     if (!mapClient.call(mapSrv)) {
-        ROS_WARN("We don't have a map configured. Starting Area Recorder!");
+        ROS_WARN("[IdleBehavior] We don't have a map configured. Starting Area Recorder!");
         return &AreaRecordingBehavior::INSTANCE;
     }
 
     // Check, if we have a docking position. If not, print info and go to area recorder
     mower_map::GetDockingPointSrv get_docking_point_srv;
     if(!dockingPointClient.call(get_docking_point_srv)) {
-        ROS_WARN("We don't have a docking point configured. Starting Area Recorder!");
+        ROS_WARN("[IdleBehavior] We don't have a docking point configured. Starting Area Recorder!");
         return &AreaRecordingBehavior::INSTANCE;
     }
 
-    setGPS(false);
+    setGPS(false,"idle");
     geometry_msgs::PoseStamped docking_pose_stamped;
     docking_pose_stamped.pose = get_docking_point_srv.response.docking_pose;
     docking_pose_stamped.header.frame_id = "map";
@@ -64,8 +61,8 @@ Behavior *IdleBehavior::execute() {
 
     ros::Rate r(25);
     while (ros::ok()) {
-        stopMoving();
-        stopBlade();
+        setMowerEnabled(false);
+        stopMoving("idle");
         const auto last_config = getConfig();
         const auto last_status = getStatus();
 
@@ -77,12 +74,13 @@ Behavior *IdleBehavior::execute() {
         if (manual_start_mowing || ((automatic_mode || active_semiautomatic_task) && mower_ready)) {
             // set the robot's position to the dock if we're actually docked
             if(last_status.v_charge > 5.0) {
-                ROS_INFO_STREAM("Currently inside the docking station, we set the robot's pose to the docks pose.");
-                setRobotPose(docking_pose_stamped.pose);
+                ROS_INFO_STREAM("[IdleBehavior] Currently inside the docking station, we set the robot's pose to the docks pose.");
+                setRobotPose(docking_pose_stamped.pose, "idle prepare for undocking");
                 return &UndockingBehavior::INSTANCE;
             }
             // Not docked, so just mow
-            setGPS(true);
+            ROS_INFO_STREAM("[IdleBehavior] Currently undocked, just start mowing.");
+            setGPS(true, "idle prepare for mowing");
             return &MowingBehavior::INSTANCE;
         }
 
@@ -102,6 +100,7 @@ Behavior *IdleBehavior::execute() {
 }
 
 void IdleBehavior::enter() {
+    mower_enabled_flag = mower_enabled_flag_before_pause = false;
     start_area_recorder = false;
     // Reset the docking behavior, to allow docking
     DockingBehavior::INSTANCE.reset();
@@ -127,10 +126,6 @@ void IdleBehavior::reset() {
 }
 
 bool IdleBehavior::needs_gps() {
-    return false;
-}
-
-bool IdleBehavior::mower_enabled() {
     return false;
 }
 
@@ -183,10 +178,10 @@ IdleBehavior::IdleBehavior() {
 
 void IdleBehavior::handle_action(std::string action) {
     if(action == "mower_logic:idle/start_mowing") {
-        ROS_INFO_STREAM("Got start_mowing command");
+        ROS_INFO_STREAM("[IdleBehavior] Got start_mowing command");
         manual_start_mowing = true;
     } else if(action == "mower_logic:idle/start_area_recording") {
-        ROS_INFO_STREAM("Got start_area_recording command");
+        ROS_INFO_STREAM("[IdleBehavior] Got start_area_recording command");
         start_area_recorder = true;
     }
 }

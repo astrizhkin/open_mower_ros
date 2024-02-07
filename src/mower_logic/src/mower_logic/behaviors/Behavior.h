@@ -45,6 +45,9 @@ protected:
     std::atomic<bool> aborted;
     std::atomic<bool> paused;
 
+    std::atomic<bool> mower_enabled_flag;
+    std::atomic<bool> mower_enabled_flag_before_pause;
+
     std::atomic<bool> requested_continue_flag;
     std::atomic<bool> requested_pause_flag;
 
@@ -70,8 +73,7 @@ public:
         return "";
     }
 
-    bool hasGoodGPS()
-    {
+    bool hasGoodGPS() {
         return isGPSGood;
     }
 
@@ -79,26 +81,34 @@ public:
         isGPSGood = isGood;
     }
 
-    void requestContinue()
-    {
+    void requestContinue() {
         requested_continue_flag = true;
     }
 
-    void requestPause()
-    {
+    void requestPause() {
         requested_pause_flag = true;
     }
 
-    void setPause()
-    {
+    void setPause() {
         paused = true;
+        mower_enabled_flag_before_pause = mower_enabled_flag.load();
+        mower_enabled_flag = false;
     }
 
-    void setContinue()
-    {
+    void setContinue() {
         paused = false;
         requested_continue_flag = false;
         requested_pause_flag = false;
+        mower_enabled_flag = mower_enabled_flag_before_pause.load();
+    }
+
+    // return true, if the mower motor should currently be running.
+    bool mower_enabled() {
+        return mower_enabled_flag;
+    }
+
+    void setMowerEnabled(bool enabled) {
+        mower_enabled_flag = enabled;
     }
 
     void start(mower_logic::MowerLogicConfig &c, std::shared_ptr<sSharedState> s) {
@@ -108,9 +118,7 @@ public:
         ROS_INFO_STREAM("- Entered state: " << state_name());
         ROS_INFO_STREAM("--------------------------------------");
         aborted = false;
-        paused = false;
-        requested_continue_flag = false;
-        requested_pause_flag = false;
+        this->setContinue();
         this->config = c;
         this->shared_state = std::move(s);
         startTime = ros::Time::now();
@@ -149,9 +157,6 @@ public:
     // Return true, if this state needs absolute positioning.
     // The state will be aborted if GPS is lost and resumed at some later point in time.
     virtual bool needs_gps() = 0;
-
-    // return true, if the mower motor should currently be running.
-    virtual bool mower_enabled() = 0;
 
     // return true to redirect joystick speeds to the controller
     virtual bool redirect_joystick() = 0;

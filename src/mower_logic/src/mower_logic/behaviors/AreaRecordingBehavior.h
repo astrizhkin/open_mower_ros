@@ -36,7 +36,7 @@
 
 #include "mower_map/AddMowingAreaSrv.h"
 #include "mower_map/SetDockingPointSrv.h"
-#include "mower_msgs/EmergencyStopSrv.h"
+#include "mower_msgs/EmergencyModeSrv.h"
 #include "xbot_msgs/AbsolutePose.h"
 #include "xbot_msgs/ActionInfo.h"
 
@@ -112,8 +112,6 @@ public:
     void reset() override;
 
     bool needs_gps() override;
-
-    bool mower_enabled() override;
 
     void command_home() override;
 

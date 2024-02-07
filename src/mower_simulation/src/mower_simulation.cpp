@@ -20,7 +20,7 @@
 #include "mower_msgs/Status.h"
 #include "mower_msgs/MowerControlSrv.h"
 #include "xbot_positioning/GPSControlSrv.h"
-#include "mower_msgs/EmergencyStopSrv.h"
+#include "mower_msgs/EmergencyModeSrv.h"
 #include "geometry_msgs/Twist.h"
 #include "geometry_msgs/PoseWithCovarianceStamped.h"
 #include "mower_map/GetDockingPointSrv.h"
@@ -61,8 +61,8 @@ bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerCon
     return true;
 }
 
-bool setEmergencyStop(mower_msgs::EmergencyStopSrvRequest &req, mower_msgs::EmergencyStopSrvResponse &res) {
-    config.emergency_stop = req.emergency;
+bool setEmergencyMode(mower_msgs::EmergencyModeSrvRequest &req, mower_msgs::EmergencyModeSrvResponse &res) {
+    config.emergency_stop = req.set_reset;
     reconfig_server->updateConfig(config);
     return true;
 }
@@ -114,11 +114,15 @@ void publishStatus(const ros::TimerEvent &timer_event) {
         fake_mow_status.v_charge = config.is_charging ? config.battery_voltage + 0.2 : 0.0;
     }
     if (config.wheels_stalled) {
-        fake_mow_status.left_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
-        fake_mow_status.right_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
+        fake_mow_status.rear_left_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
+        fake_mow_status.rear_right_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
+        fake_mow_status.front_left_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
+        fake_mow_status.front_right_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
     } else {
-        fake_mow_status.left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-        fake_mow_status.right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        fake_mow_status.rear_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        fake_mow_status.rear_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        fake_mow_status.front_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        fake_mow_status.front_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
     }
     fake_mow_status.emergency = config.emergency_stop;
 
@@ -230,7 +234,11 @@ int main(int argc, char **argv) {
     fake_mow_status.v_charge = 0.0;
     fake_mow_status.v_battery = 29.0;
     fake_mow_status.stamp = ros::Time::now();
-    fake_mow_status.left_esc_status.status = fake_mow_status.right_esc_status.status = fake_mow_status.mow_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+    fake_mow_status.rear_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+    fake_mow_status.rear_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+    fake_mow_status.front_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+    fake_mow_status.front_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+    fake_mow_status.mow_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
     fake_mow_status.mow_esc_status.temperature_motor = 50;
     fake_mow_status.emergency = true;
     config.emergency_stop = true;
@@ -243,7 +251,7 @@ int main(int argc, char **argv) {
     ros::Subscriber odom_sub = n.subscribe("/mower/odom", 0, odomReceived, ros::TransportHints().tcpNoDelay(true));
     ros::ServiceServer mow_service = n.advertiseService("mower_service/mow_enabled", setMowEnabled);
     ros::ServiceServer gps_service = n.advertiseService("xbot_positioning/set_gps_state", setGpsState);
-    ros::ServiceServer emergency_service = n.advertiseService("mower_service/emergency", setEmergencyStop);
+    ros::ServiceServer emergency_service = n.advertiseService("mower_service/emergency", setEmergencyMode);
     ros::ServiceServer pose_service = n.advertiseService("xbot_positioning/set_robot_pose", setPose);
 
     ros::Timer publish_timer = n.createTimer(ros::Duration(0.02), publishStatus);

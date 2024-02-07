@@ -21,10 +21,10 @@ extern actionlib::SimpleActionClient<mbf_msgs::ExePathAction> *mbfClientExePath;
 extern xbot_msgs::AbsolutePose getPose();
 extern mower_msgs::Status getStatus();
 
-extern void setRobotPose(geometry_msgs::Pose &pose);
-extern void stopMoving();
+extern void setRobotPose(geometry_msgs::Pose &pose, std::string reason);
+extern void stopMoving(std::string reason);
 extern bool isGpsGood();
-extern bool setGPS(bool enabled);
+extern bool setGPS(bool enabled, std::string reason);
 
 UndockingBehavior UndockingBehavior::INSTANCE(&MowingBehavior::INSTANCE);
 UndockingBehavior UndockingBehavior::RETRY_INSTANCE(&DockingBehavior::INSTANCE);
@@ -70,19 +70,19 @@ Behavior *UndockingBehavior::execute() {
     bool success = result.state_ == actionlib::SimpleClientGoalState::SUCCEEDED;
 
     // stop the bot for now
-    stopMoving();
+    stopMoving("undocking safety stop");
 
     if (!success) {
-        ROS_ERROR_STREAM("Error during undock");
+        ROS_ERROR_STREAM("[UndockingBehavior] Error during undock. MBF/FTCPlanner state is " << result.toString());
         return &IdleBehavior::INSTANCE;
     }
 
 
-    ROS_INFO_STREAM("Undock success. Waiting for GPS.");
+    ROS_INFO_STREAM("[UndockingBehavior] Undock success. Waiting for GPS.");
     bool hasGps = waitForGPS();
 
     if (!hasGps) {
-        ROS_ERROR_STREAM("Could not get GPS.");
+        ROS_ERROR_STREAM("[UndockingBehavior] Could not get GPS.");
         return &IdleBehavior::INSTANCE;
     }
 
@@ -93,7 +93,7 @@ Behavior *UndockingBehavior::execute() {
 
 void UndockingBehavior::enter() {
     reset();
-    paused = aborted = false;
+    mower_enabled_flag_before_pause = mower_enabled_flag = paused = aborted = false;
 
     // Get the docking pose in map
     mower_map::GetDockingPointSrv get_docking_point_srv;
@@ -104,8 +104,8 @@ void UndockingBehavior::enter() {
 
     // set the robot's position to the dock if we're actually docked
     if(getStatus().v_charge > 5.0) {
-        ROS_INFO_STREAM("Currently inside the docking station, we set the robot's pose to the docks pose.");
-        setRobotPose(docking_pose_stamped.pose);
+        ROS_INFO_STREAM("[UndockingBehavior] Currently inside the docking station, we set the robot's pose to the docks pose.");
+        setRobotPose(docking_pose_stamped.pose, "undocking init");
     }
 }
 
@@ -121,21 +121,16 @@ bool UndockingBehavior::needs_gps() {
     return gpsRequired;
 }
 
-bool UndockingBehavior::mower_enabled() {
-    // No mower during docking
-    return false;
-}
-
 bool UndockingBehavior::waitForGPS() {
     gpsRequired = false;
-    setGPS(true);
+    setGPS(true,"undocking finished");
     ros::Rate odom_rate(1.0);
     while (ros::ok() && !aborted) {
         if (isGpsGood()) {
-            ROS_INFO("Got good gps, let's go");
+            ROS_INFO("[UndockingBehavior] Got good gps, let's go");
             break;
         } else {
-            ROS_INFO_STREAM("waiting for gps. current accuracy: " << getPose().position_accuracy);
+            ROS_INFO_STREAM("[UndockingBehavior] waiting for gps. current accuracy: " << getPose().position_accuracy);
             odom_rate.sleep();
         }
     }

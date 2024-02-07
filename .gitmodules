@@ -7,12 +7,6 @@
 [submodule "src/lib/ntrip_client"]
 	path = src/lib/ntrip_client
 	url = https://github.com/LORD-MicroStrain/ntrip_client.git
-[submodule "src/lib/xbot_msgs"]
-	path = src/lib/xbot_msgs
-	url = https://github.com/ClemensElflein/xbot_msgs.git
-[submodule "src/lib/xbot_driver_gps"]
-	path = src/lib/xbot_driver_gps
-	url = https://github.com/ClemensElflein/xbot_driver_gps.git
 [submodule "src/lib/xbot_positioning"]
 	path = src/lib/xbot_positioning
 	url = https://github.com/astrizhkin/xbot_positioning.git
@@ -25,3 +19,9 @@
 [submodule "src/lib/hoverboard-driver"]
 	path = src/lib/hoverboard-driver
 	url = https://github.com/astrizhkin/hoverboard-driver.git
+[submodule "src/lib/xbot_msgs"]
+	path = src/lib/xbot_msgs
+	url = https://github.com/astrizhkin/xbot_msgs.git
+[submodule "src/lib/xbot_driver_gps"]
+	path = src/lib/xbot_driver_gps
+	url = https://github.com/astrizhkin/xbot_driver_gps.git

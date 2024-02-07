@@ -1,0 +1,16 @@
+uint8 EMERGENCY_ESC=0
+uint8 EMERGENCY_LOW_BATTERY=1
+uint8 EMERGENCY_POSE=2
+uint8 EMERGENCY_GPS=3
+uint8 EMERGENCY_TEMPERATURE=4
+uint8 EMERGENCY_STATUS_TIMEOUT=5
+uint8 EMERGENCY_BEHAVIOR=6
+uint8 EMERGENCY_7=7
+
+uint8 EMERGENCY_ALL=100
+
+bool set_reset
+uint8 emergency_bit
+string reason
+duration duration
+---

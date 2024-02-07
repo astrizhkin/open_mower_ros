@@ -52,7 +52,6 @@
 
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
-
 // Publishes the map as occupancy grid
 ros::Publisher map_pub, map_areas_pub;
 
@@ -76,7 +75,6 @@ geometry_msgs::Pose fake_obstacle_pose;
 
 // The grid map. This is built from the polygons loaded from the file.
 grid_map::GridMap map;
-
 
 /**
  * Convert a geometry_msgs::Polygon to a grid_map::Polygon.
@@ -116,7 +114,6 @@ void publishMapMonitoring() {
 
     m.getRPY(unused1, unused2, yaw);
     xb_map.dockHeading = yaw;
-
 
     for(const auto& area:navigation_areas) {
         xbot_msgs::MapArea xb_area;
@@ -194,7 +191,6 @@ void visualizeAreas() {
         }
     }
 
-
     // Visualize Docking Point
     {
         std_msgs::ColorRGBA color;
@@ -209,7 +205,7 @@ void visualizeAreas() {
         marker.color = color;
         marker.type = visualization_msgs::Marker::ARROW;
         marker.pose = docking_point;
-        ROS_INFO_STREAM("docking pose: " << docking_point);
+        ROS_INFO_STREAM("[mower_map_service] docking pose: " << docking_point);
         marker.header.frame_id = "map";
         marker.ns = "mower_map_service";
         marker.id = markerArray.markers.size() + 1;
@@ -217,7 +213,6 @@ void visualizeAreas() {
         markerArray.markers.push_back(marker);
 
     }
-
 
     map_server_viz_array_pub.publish(markerArray);
     map_areas_pub.publish(mapAreas);
@@ -289,15 +284,14 @@ void buildMap() {
         minY = -5.0;
     }
 
-
     map = grid_map::GridMap({"navigation_area"});
     map.setFrameId("map");
     grid_map::Position origin;
     origin.x() = (maxX + minX) / 2.0;
     origin.y() = (maxY + minY) / 2.0;
 
-    ROS_INFO_STREAM("Map Position: x=" << origin.x() << ", y=" << origin.y());
-    ROS_INFO_STREAM("Map Size: x=" << (maxX - minX) << ", y=" << (maxY - minY));
+    ROS_INFO_STREAM("[mower_map_service] Map Position: x=" << origin.x() << ", y=" << origin.y());
+    ROS_INFO_STREAM("[mower_map_service] Map Size: x=" << (maxX - minX) << ", y=" << (maxY - minY));
 
     map.setGeometry(grid_map::Length(maxX - minX, maxY - minY), 0.05, origin);
     map.setTimestamp(ros::Time::now().toNSec());
@@ -446,7 +440,7 @@ void readMapFromFile(const std::string& filename, bool append = false) {
     try {
         bag.open(filename);
     } catch (rosbag::BagIOException &e) {
-        ROS_WARN("Error opening stored mowing areas.");
+        ROS_WARN("[mower_map_service] Error opening stored mowing areas.");
         return;
     }
 
@@ -483,13 +477,12 @@ void readMapFromFile(const std::string& filename, bool append = false) {
         }
     }
 
-
-    ROS_INFO_STREAM("Loaded " << mowing_areas.size() << " mowing areas and " << navigation_areas.size()
+    ROS_INFO_STREAM("[mower_map_service] Loaded " << mowing_areas.size() << " mowing areas and " << navigation_areas.size()
                               << " navigation areas from file.");
 }
 
 bool addMowingArea(mower_map::AddMowingAreaSrvRequest &req, mower_map::AddMowingAreaSrvResponse &res) {
-    ROS_INFO_STREAM("Got addMowingArea call");
+    ROS_INFO_STREAM("[mower_map_service] Got addMowingArea call");
 
     if(req.isNavigationArea) {
         navigation_areas.push_back(req.area);
@@ -503,10 +496,10 @@ bool addMowingArea(mower_map::AddMowingAreaSrvRequest &req, mower_map::AddMowing
 }
 
 bool getMowingArea(mower_map::GetMowingAreaSrvRequest &req, mower_map::GetMowingAreaSrvResponse &res) {
-    ROS_INFO_STREAM("Got getMowingArea call with index: " << req.index);
+    ROS_INFO_STREAM("[mower_map_service] Got getMowingArea call with index: " << req.index);
 
     if (req.index >= mowing_areas.size()) {
-        ROS_ERROR_STREAM("No mowing area with index: " << req.index);
+        ROS_ERROR_STREAM("[mower_map_service] No mowing area with index: " << req.index);
         return false;
     }
 
@@ -515,13 +508,12 @@ bool getMowingArea(mower_map::GetMowingAreaSrvRequest &req, mower_map::GetMowing
     return true;
 }
 
-
 bool
 deleteMowingArea(mower_map::DeleteMowingAreaSrvRequest &req, mower_map::DeleteMowingAreaSrvResponse &res) {
-    ROS_INFO_STREAM("Got delete mowing area call with index: " << req.index);
+    ROS_INFO_STREAM("[mower_map_service] Got delete mowing area call with index: " << req.index);
 
     if (req.index >= mowing_areas.size()) {
-        ROS_ERROR_STREAM("No mowing area with index: " << req.index);
+        ROS_ERROR_STREAM("[mower_map_service] No mowing area with index: " << req.index);
         return false;
     }
 
@@ -536,10 +528,10 @@ deleteMowingArea(mower_map::DeleteMowingAreaSrvRequest &req, mower_map::DeleteMo
 bool
 convertToNavigationArea(mower_map::ConvertToNavigationAreaSrvRequest &req,
                         mower_map::ConvertToNavigationAreaSrvResponse &res) {
-    ROS_INFO_STREAM("Got convert to nav area call with index: " << req.index);
+    ROS_INFO_STREAM("[mower_map_service] Got convert to nav area call with index: " << req.index);
 
     if (req.index >= mowing_areas.size()) {
-        ROS_ERROR_STREAM("No mowing area with index: " << req.index);
+        ROS_ERROR_STREAM("[mower_map_service] No mowing area with index: " << req.index);
         return false;
     }
 
@@ -554,8 +546,7 @@ convertToNavigationArea(mower_map::ConvertToNavigationAreaSrvRequest &req,
 }
 
 bool appendMapFromFile(mower_map::AppendMapSrvRequest &req, mower_map::AppendMapSrvResponse &res) {
-    ROS_INFO_STREAM("Appending maps from: " << req.bagfile);
-
+    ROS_INFO_STREAM("[mower_map_service] Appending maps from: " << req.bagfile);
 
     readMapFromFile(req.bagfile, true);
 
@@ -566,7 +557,7 @@ bool appendMapFromFile(mower_map::AppendMapSrvRequest &req, mower_map::AppendMap
 }
 
 bool setDockingPoint(mower_map::SetDockingPointSrvRequest &req, mower_map::SetDockingPointSrvResponse &res) {
-    ROS_INFO_STREAM("Setting Docking Point");
+    ROS_INFO_STREAM("[mower_map_service] Setting Docking Point");
 
     docking_point = req.docking_pose;
     has_docking_point = true;
@@ -577,19 +568,18 @@ bool setDockingPoint(mower_map::SetDockingPointSrvRequest &req, mower_map::SetDo
     return true;
 }
 
-
 bool getDockingPoint(mower_map::GetDockingPointSrvRequest &req, mower_map::GetDockingPointSrvResponse &res) {
-    ROS_INFO_STREAM("Getting Docking Point");
+    ROS_INFO_STREAM("[mower_map_service] Getting Docking Point");
 
     res.docking_pose = docking_point;
 
     return has_docking_point;
 }
+
 bool setNavPoint(mower_map::SetNavPointSrvRequest &req, mower_map::SetNavPointSrvResponse &res) {
-    ROS_INFO_STREAM("Setting Nav Point");
+    ROS_INFO_STREAM("[mower_map_service] Setting Nav Point");
 
     fake_obstacle_pose = req.nav_pose;
-
     show_fake_obstacle = true;
 
     buildMap();
@@ -597,9 +587,8 @@ bool setNavPoint(mower_map::SetNavPointSrvRequest &req, mower_map::SetNavPointSr
     return true;
 }
 
-
 bool clearNavPoint(mower_map::ClearNavPointSrvRequest &req, mower_map::ClearNavPointSrvResponse &res) {
-    ROS_INFO_STREAM("Clearing Nav Point");
+    ROS_INFO_STREAM("[mower_map_service] Clearing Nav Point");
 
     show_fake_obstacle = false;
 
@@ -609,7 +598,7 @@ bool clearNavPoint(mower_map::ClearNavPointSrvRequest &req, mower_map::ClearNavP
 }
 
 bool clearMap(mower_map::ClearMapSrvRequest &req, mower_map::ClearMapSrvResponse &res) {
-    ROS_INFO_STREAM("Clearing Map");
+    ROS_INFO_STREAM("[mower_map_service] Clearing Map");
 
     mowing_areas.clear();
     navigation_areas.clear();
@@ -618,7 +607,6 @@ bool clearMap(mower_map::ClearMapSrvRequest &req, mower_map::ClearMapSrvResponse
     saveMapToFile();
     return true;
 }
-
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "mower_map_service");
@@ -634,25 +622,16 @@ int main(int argc, char **argv) {
 
     buildMap();
 
-
     ros::ServiceServer add_area_srv = n.advertiseService("mower_map_service/add_mowing_area", addMowingArea);
     ros::ServiceServer get_area_srv = n.advertiseService("mower_map_service/get_mowing_area", getMowingArea);
     ros::ServiceServer delete_area_srv = n.advertiseService("mower_map_service/delete_mowing_area", deleteMowingArea);
     ros::ServiceServer append_maps_srv = n.advertiseService("mower_map_service/append_maps", appendMapFromFile);
-    ros::ServiceServer convert_maps_srv = n.advertiseService("mower_map_service/convert_to_navigation_area",
-                                                             convertToNavigationArea);
-    ros::ServiceServer set_docking_point_srv = n.advertiseService("mower_map_service/set_docking_point",
-                                                                  setDockingPoint);
-    ros::ServiceServer get_docking_point_srv = n.advertiseService("mower_map_service/get_docking_point",
-                                                                  getDockingPoint);
-    ros::ServiceServer set_nav_point_srv = n.advertiseService("mower_map_service/set_nav_point",
-                                                                  setNavPoint);
-    ros::ServiceServer clear_nav_point_srv = n.advertiseService("mower_map_service/clear_nav_point",
-                                                                  clearNavPoint);
-    ros::ServiceServer clear_map_srv = n.advertiseService("mower_map_service/clear_map",
-                                                                  clearMap);
-
-
+    ros::ServiceServer convert_maps_srv = n.advertiseService("mower_map_service/convert_to_navigation_area",convertToNavigationArea);
+    ros::ServiceServer set_docking_point_srv = n.advertiseService("mower_map_service/set_docking_point",setDockingPoint);
+    ros::ServiceServer get_docking_point_srv = n.advertiseService("mower_map_service/get_docking_point",getDockingPoint);
+    ros::ServiceServer set_nav_point_srv = n.advertiseService("mower_map_service/set_nav_point",setNavPoint);
+    ros::ServiceServer clear_nav_point_srv = n.advertiseService("mower_map_service/clear_nav_point",clearNavPoint);
+    ros::ServiceServer clear_map_srv = n.advertiseService("mower_map_service/clear_map",clearMap);
 
     ros::spin();
     return 0;
