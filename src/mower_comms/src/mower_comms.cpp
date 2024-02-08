@@ -88,12 +88,12 @@ ros::Time last_ll_status_esc_enabled(0.0);
 
 sensor_msgs::MagneticField sensor_mag_msg;
 sensor_msgs::Imu sensor_imu_msg;
-double imu_x_multiplier = 0.0,imu_y_multiplier = 0.0,imu_z_multiplier = 0.0;
-int imu_x_idx = -1, imu_y_idx = -1, imu_z_idx = -1;
-
+double imu_gyro_multiplier[] = {0.0, 0.0, 0.0};
+int imu_gyro_idx[] = {-1, -1, -1};
+double imu_accel_multiplier[] = {0.0, 0.0, 0.0};
+int imu_accel_idx[] = {-1, -1, -1};
 
 ros::ServiceClient highLevelClient;
-
 
 void sendLLMessage(uint8_t *msg,size_t size) {
     crc.reset();
@@ -469,17 +469,39 @@ void handleLowLevelIMU(struct ll_imu *imu) {
     sensor_imu_msg.header.stamp = ros::Time::now();
     sensor_imu_msg.header.seq++;
     sensor_imu_msg.header.frame_id = "base_link";
-    sensor_imu_msg.linear_acceleration.x = imu->acceleration_mss[imu_x_idx] * imu_x_multiplier;
-    sensor_imu_msg.linear_acceleration.y = imu->acceleration_mss[imu_y_idx] * imu_y_multiplier;
-    sensor_imu_msg.linear_acceleration.z = imu->acceleration_mss[imu_z_idx] * imu_z_multiplier;
-    sensor_imu_msg.angular_velocity.x = imu->gyro_rads[imu_x_idx] * imu_x_multiplier;
-    sensor_imu_msg.angular_velocity.y = imu->gyro_rads[imu_y_idx] * imu_y_multiplier;
-    sensor_imu_msg.angular_velocity.z = imu->gyro_rads[imu_z_idx] * imu_z_multiplier;
+    sensor_imu_msg.linear_acceleration.x = imu->acceleration_mss[imu_accel_idx[0]] * imu_accel_multiplier[0];
+    sensor_imu_msg.linear_acceleration.y = imu->acceleration_mss[imu_accel_idx[1]] * imu_accel_multiplier[1];
+    sensor_imu_msg.linear_acceleration.z = imu->acceleration_mss[imu_accel_idx[2]] * imu_accel_multiplier[2];
+    sensor_imu_msg.angular_velocity.x = imu->gyro_rads[imu_gyro_idx[0]] * imu_gyro_multiplier[0];
+    sensor_imu_msg.angular_velocity.y = imu->gyro_rads[imu_gyro_idx[1]] * imu_gyro_multiplier[1];
+    sensor_imu_msg.angular_velocity.z = imu->gyro_rads[imu_gyro_idx[2]] * imu_gyro_multiplier[2];
  
     sensor_imu_pub.publish(sensor_imu_msg);
     sensor_mag_pub.publish(sensor_mag_msg);
 }
 
+int parseAxes(ros::NodeHandle& paramNh, double* axes_multiplier, int* axes_idx, const std::string& axes_param) {
+    std::string axes = "+x+y+z";
+    if(!paramNh.getParam(axes_param,axes)){
+        ROS_ERROR_STREAM("[mower_comms] IMU axes (" << axes_param << " param) orientation is not specified. Example \"+x-y-z\" for upside-down configuration");
+        return 0;
+    }
+    if(axes.length()!=6) {
+        ROS_ERROR_STREAM("[mower_comms] IMU axes (" << axes_param <<" param) orientation foramt is incorrect. Example \"+x-y-z\" for upside-down configuration");
+        return 0;
+    }
+    axes_multiplier[0] = axes.at(0) == '+' ? 1.0 : axes.at(0) == '-' ? -1.0 : 0;
+    axes_idx[0] = axes.at(1) == 'x' ? 0 : axes.at(1) == 'y' ? 1 : axes.at(1) == 'z' ? 2 : -1;
+    axes_multiplier[1] = axes.at(2) == '+' ? 1.0 : axes.at(2) == '-' ? -1.0 : 0;
+    axes_idx[1] = axes.at(3) == 'x' ? 0 : axes.at(3) == 'y' ? 1 : axes.at(3) == 'z' ? 2 : -1;
+    axes_multiplier[2] = axes.at(4) == '+' ? 1.0 : axes.at(4) == '-' ? -1.0 : 0;
+    axes_idx[2] = axes.at(5) == 'x' ? 0 : axes.at(5) == 'y' ? 1 : axes.at(5) == 'z' ? 2 : -1;
+    if(axes_idx[0]==-1 || axes_idx[1]==-1 || axes_idx[2]==-1 || axes_multiplier[0] == 0 || axes_multiplier[1] == 0 || axes_multiplier[2] == 0) {
+        ROS_ERROR_STREAM("[mower_comms] IMU axes (" << axes_param << " param) orientation foramt is incorrect. Example \"+x-y-z\" for upside-down configuration");
+        return 0;
+    }
+    return 1;
+}
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "mower_comms");
@@ -506,23 +528,11 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    std::string axes = "+x+y+z";
-    if(!paramNh.getParam("imu_axes",axes)){
-        ROS_ERROR_STREAM("[mower_comms] IMU axes (imu_axes param) orientation is not specified. Example \"+x-y-z\" for upside-down configuration");
+    if (!parseAxes(paramNh, imu_accel_multiplier, imu_accel_idx, "imy_accel_axes")) {
         return 1;
     }
-    if(axes.length()!=6) {
-        ROS_ERROR_STREAM("[mower_comms] IMU axes (imu_axes param) orientation foramt is incorrect. Example \"+x-y-z\" for upside-down configuration");
-        return 1;
-    }
-    imu_x_multiplier = axes.at(0) == '+' ? 1.0 : axes.at(0) == '-' ? -1.0 : 0;
-    imu_x_idx = axes.at(1) == 'x' ? 0 : axes.at(1) == 'y' ? 1 : axes.at(1) == 'z' ? 2 : -1;
-    imu_y_multiplier = axes.at(2) == '+' ? 1.0 : axes.at(2) == '-' ? -1.0 : 0;
-    imu_y_idx = axes.at(3) == 'x' ? 0 : axes.at(3) == 'y' ? 1 : axes.at(3) == 'z' ? 2 : -1;
-    imu_z_multiplier = axes.at(4) == '+' ? 1.0 : axes.at(4) == '-' ? -1.0 : 0;
-    imu_z_idx = axes.at(5) == 'x' ? 0 : axes.at(5) == 'y' ? 1 : axes.at(5) == 'z' ? 2 : -1;
-    if(imu_x_idx==-1 || imu_y_idx==-1 || imu_z_idx==-1 || imu_x_multiplier == 0 || imu_y_multiplier == 0 || imu_z_multiplier == 0) {
-        ROS_ERROR_STREAM("[mower_comms] IMU axes (imu_axes param) orientation foramt is incorrect. Example \"+x-y-z\" for upside-down configuration");
+
+    if (!parseAxes(paramNh, imu_gyro_multiplier , imu_gyro_idx , "imy_gyro_axes")) {
         return 1;
     }
 
