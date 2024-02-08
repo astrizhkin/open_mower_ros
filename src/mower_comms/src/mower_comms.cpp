@@ -528,11 +528,11 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    if (!parseAxes(paramNh, imu_accel_multiplier, imu_accel_idx, "imy_accel_axes")) {
+    if (!parseAxes(paramNh, imu_accel_multiplier, imu_accel_idx, "imu_accel_axes")) {
         return 1;
     }
 
-    if (!parseAxes(paramNh, imu_gyro_multiplier , imu_gyro_idx , "imy_gyro_axes")) {
+    if (!parseAxes(paramNh, imu_gyro_multiplier , imu_gyro_idx , "imu_gyro_axes")) {
         return 1;
     }
 
