@@ -10,6 +10,7 @@
         <rosparam unless="$(eval env('OM_MOWER')=='CUSTOM')" file="$(find open_mower)/params/hardware_specific/$(env OM_MOWER)/comms_$(env OM_MOWER_ESC_TYPE)_params.yaml"/>
         <rosparam if="$(eval env('OM_MOWER')=='CUSTOM')" file="$(env HOME)/mower_params/comms_params.yaml"/>
         <param name="wheel_radius_m" value="$(env OM_WHEEL_RADIUS_M)"/>
+        <!-- base_link right hand rule -->
         <param name="imu_accel_axes" value="+y+x-z" />
         <param name="imu_gyro_axes" value="+y-x-z" />
     </node>
