@@ -353,6 +353,15 @@ bool isGpsGood() {
     return last_pose.orientation_valid && last_pose.position_accuracy < last_config.max_position_accuracy && (last_pose.flags & xbot_msgs::AbsolutePose::FLAG_SENSOR_FUSION_RECENT_ABSOLUTE_POSE);
 }
 
+double getNormalGravityAngle() {
+    tf2::Vector3 normalGravityVector(0.0, 0.0, 9.81);
+    tf2::Quaternion q;
+    tf2::fromMsg(last_pose.pose.pose.orientation, q);
+    tf2::Vector3 actualGravityVector = tf2::quatRotate(q,normalGravityVector);
+    return normalGravityVector.angle(actualGravityVector);
+}
+
+
 /// @brief Called every 0.5s, used to control BLADE motor via mower_enabled variable and stop any movement in case of /odom and /mower/status outages
 /// @param timer_event 
 void checkSafety(const ros::TimerEvent &timer_event) {
@@ -393,7 +402,20 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     } else {
         //setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] pose values ok",ros::Duration::ZERO);
     }
- 
+
+    double normalGravityAngle = getNormalGravityAngle();
+    //convert to degree
+    normalGravityAngle *= 180 / M_PI;
+    if (normalGravityAngle > 25) {
+        ROS_WARN_STREAM_THROTTLE(5, "[mower_logic] EMERGENCY pose gravity angle is out of bound " << (ros::Time::now() - pose_time));
+        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] pose gravity angle is out of bound",ros::Duration::ZERO);
+        return;
+    } else {
+        if ( normalGravityAngle < 20 ) {
+            setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] pose gravity angle is ok",ros::Duration::ZERO);
+        }
+    }
+
     // check if status is current. if not, we have a problem since it contains wheel ticks and so on.
     // Since these should never drop out, we enter emergency instead of "only" stopping
     if ( ros::Time::now() - status_time > ros::Duration(3) ) {
