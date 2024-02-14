@@ -88,6 +88,10 @@ Behavior *IdleBehavior::execute() {
             return &AreaRecordingBehavior::INSTANCE;
         }
 
+        if(start_debug) {
+            return &DebugBehavior::INSTANCE;
+        }
+
         // This gets called if we need to refresh, e.g. on clearing maps
         if(aborted) {
             return &IdleBehavior::INSTANCE;
@@ -101,6 +105,7 @@ Behavior *IdleBehavior::execute() {
 
 void IdleBehavior::enter() {
     mower_enabled_flag = mower_enabled_flag_before_pause = false;
+    start_debug = false;
     start_area_recorder = false;
     // Reset the docking behavior, to allow docking
     DockingBehavior::INSTANCE.reset();
@@ -134,15 +139,18 @@ void IdleBehavior::command_home() {
 }
 
 void IdleBehavior::command_start() {
+    ROS_INFO_STREAM("[IdleBehavior] Got start_mowing command");
     manual_start_mowing = true;
 }
 
 void IdleBehavior::command_s1() {
+    ROS_INFO_STREAM("[IdleBehavior] Got start_area_recording command");
     start_area_recorder = true;
 }
 
 void IdleBehavior::command_s2() {
-    
+    ROS_INFO_STREAM("[IdleBehavior] Got start_debug command");
+    start_debug = true;
 }
 
 bool IdleBehavior::redirect_joystick() {
@@ -171,17 +179,23 @@ IdleBehavior::IdleBehavior() {
     start_area_recording_action.enabled = false;
     start_area_recording_action.action_name = "Start Area Recording";
 
+    xbot_msgs::ActionInfo start_debug_action;
+    start_area_recording_action.action_id = "start_debug";
+    start_area_recording_action.enabled = false;
+    start_area_recording_action.action_name = "Start Debug";
+
     actions.clear();
     actions.push_back(start_mowing_action);
     actions.push_back(start_area_recording_action);
+    actions.push_back(start_debug_action);
 }
 
 void IdleBehavior::handle_action(std::string action) {
     if(action == "mower_logic:idle/start_mowing") {
-        ROS_INFO_STREAM("[IdleBehavior] Got start_mowing command");
-        manual_start_mowing = true;
+        command_start();
     } else if(action == "mower_logic:idle/start_area_recording") {
-        ROS_INFO_STREAM("[IdleBehavior] Got start_area_recording command");
-        start_area_recorder = true;
+        command_s1();
+    } else if(action == "mower_logic:idle/start_debug") {
+        command_s2();
     }
 }

@@ -14,30 +14,34 @@
 // SOFTWARE.
 //
 //
-#ifndef SRC_IDLEBEHAVIOR_H
-#define SRC_IDLEBEHAVIOR_H
+#ifndef SRC_DEBUGBEHAVIOR_H
+#define SRC_DEBUGBEHAVIOR_H
 
+#include <actionlib/client/simple_action_client.h>
+#include <mbf_msgs/ExePathAction.h>
 #include "Behavior.h"
-#include "UndockingBehavior.h"
-#include "AreaRecordingBehavior.h"
-#include "DebugBehavior.h"
-#include <dynamic_reconfigure/server.h>
-#include "mower_map/GetMowingAreaSrv.h"
-#include <mower_map/GetDockingPointSrv.h>
-#include "xbot_msgs/ActionInfo.h"
+#include "IdleBehavior.h"
+#include "DockingBehavior.h"
+#include "ros/ros.h"
+#include <tf2/LinearMath/Transform.h>
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "MowingBehavior.h"
+#include "xbot_msgs/AbsolutePose.h"
 
-class IdleBehavior : public Behavior {
+
+class DebugBehavior : public Behavior {
+public:
+    static DebugBehavior INSTANCE;
+
+    DebugBehavior();
 private:
-    bool manual_start_mowing = false;
-    bool start_area_recorder = false;
-    bool start_debug = false;
-    std::vector<xbot_msgs::ActionInfo> actions;
+    geometry_msgs::PoseStamped docking_pose_stamped;
+    bool gpsRequired;
+
+    bool waitForGPS();
+
 
 public:
-    IdleBehavior();
-
-    static IdleBehavior INSTANCE;
-
     std::string state_name() override;
 
     Behavior *execute() override;
@@ -68,4 +72,4 @@ public:
 };
 
 
-#endif //SRC_IDLEBEHAVIOR_H
+#endif //SRC_DEBUGBEHAVIOR_H

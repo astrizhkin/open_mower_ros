@@ -168,6 +168,8 @@ add_executable(mower_logic
         src/mower_logic/behaviors/Behavior.h
         src/mower_logic/behaviors/DockingBehavior.h
         src/mower_logic/behaviors/DockingBehavior.cpp
+        src/mower_logic/behaviors/DebugBehavior.h
+        src/mower_logic/behaviors/DebugBehavior.cpp
         src/mower_logic/behaviors/UndockingBehavior.h
         src/mower_logic/behaviors/UndockingBehavior.cpp
         src/mower_logic/behaviors/IdleBehavior.h
