@@ -48,14 +48,18 @@ Behavior *DebugBehavior::execute() {
     nav_msgs::Path path;
 
     int point_count = 10;
-    //circle
+    int circles_count = 5;
     double circle_radius = 0.6;
-    for (int i = 0; i < point_count; i++) {
+    //circle
+    //ellipse
+    //eight
+
+    for (int i = 0; i <= (point_count * circles_count); i++) {
         geometry_msgs::PoseStamped docking_pose_stamped_front;
         docking_pose_stamped_front.pose = pose.pose.pose;
         docking_pose_stamped_front.header = pose.header;
-        docking_pose_stamped_front.pose.position.x = docking_pose_stamped_front.pose.position.x + cos(2 * M_PI * i / point_count) * circle_radius;
-        docking_pose_stamped_front.pose.position.y = docking_pose_stamped_front.pose.position.y + sin(2 * M_PI * i / point_count) * circle_radius;
+        docking_pose_stamped_front.pose.position.x += cos(2 * M_PI * i / point_count) * circle_radius;
+        docking_pose_stamped_front.pose.position.y += sin(2 * M_PI * i / point_count) * circle_radius;
         path.poses.push_back(docking_pose_stamped_front);
     }
 
