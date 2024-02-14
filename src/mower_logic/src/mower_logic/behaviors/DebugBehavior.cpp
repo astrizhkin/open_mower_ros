@@ -49,13 +49,13 @@ Behavior *DebugBehavior::execute() {
 
     int point_count = 10;
     //circle
-    double circle_radius = 0.75;
+    double circle_radius = 0.6;
     for (int i = 0; i < point_count; i++) {
         geometry_msgs::PoseStamped docking_pose_stamped_front;
         docking_pose_stamped_front.pose = pose.pose.pose;
         docking_pose_stamped_front.header = pose.header;
-        docking_pose_stamped_front.pose.position.x = docking_pose_stamped_front.pose.position.x + cos(2 * M_PI * 10/ i) * circle_radius;
-        docking_pose_stamped_front.pose.position.y = docking_pose_stamped_front.pose.position.y + sin(2 * M_PI * 10/ i) * circle_radius;
+        docking_pose_stamped_front.pose.position.x = docking_pose_stamped_front.pose.position.x + cos(2 * M_PI * i / point_count) * circle_radius;
+        docking_pose_stamped_front.pose.position.y = docking_pose_stamped_front.pose.position.y + sin(2 * M_PI * i / point_count) * circle_radius;
         path.poses.push_back(docking_pose_stamped_front);
     }
 
@@ -98,7 +98,7 @@ void DebugBehavior::enter() {
 
     // set the robot's position to the dock
     ROS_INFO_STREAM("[DebugBehavior] Always set pose to the docks pose.");
-    setRobotPose(docking_pose_stamped.pose, "undocking init");
+    setRobotPose(docking_pose_stamped.pose, "debug init");
 }
 
 void DebugBehavior::exit() {
