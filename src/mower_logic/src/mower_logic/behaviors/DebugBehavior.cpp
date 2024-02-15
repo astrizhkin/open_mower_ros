@@ -55,11 +55,13 @@ Behavior *DebugBehavior::execute() {
     //eight
 
     for (int i = 0; i <= (point_count * circles_count); i++) {
+        double angle = 2 * M_PI * i / point_count;
         geometry_msgs::PoseStamped docking_pose_stamped_front;
         docking_pose_stamped_front.pose = pose.pose.pose;
         docking_pose_stamped_front.header = pose.header;
-        docking_pose_stamped_front.pose.position.x += cos(2 * M_PI * i / point_count) * circle_radius;
-        docking_pose_stamped_front.pose.position.y += sin(2 * M_PI * i / point_count) * circle_radius;
+        docking_pose_stamped_front.pose.position.x += cos(angle) * circle_radius;
+        docking_pose_stamped_front.pose.position.y += sin(angle) * circle_radius;
+        docking_pose_stamped_front.pose.orientation = tf2::toMsg(tf2::Quaternion(0,0,angle+M_PI_2));
         path.poses.push_back(docking_pose_stamped_front);
     }
 
