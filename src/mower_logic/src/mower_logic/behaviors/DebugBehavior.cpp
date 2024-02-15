@@ -56,6 +56,9 @@ Behavior *DebugBehavior::execute() {
 
     for (int i = 0; i <= (point_count * circles_count); i++) {
         double angle = 2 * M_PI * i / point_count;
+        while(angle > M_PI) {
+            angle -= M_PI;
+        }
         geometry_msgs::PoseStamped docking_pose_stamped_front;
         docking_pose_stamped_front.pose = pose.pose.pose;
         docking_pose_stamped_front.header = pose.header;
