@@ -40,6 +40,10 @@ private:
 
     bool waitForGPS();
 
+    void circle(nav_msgs::Path &path, double radius);
+    void ellipse(nav_msgs::Path &path, double hRad, double vRad);
+    void eight(nav_msgs::Path &path);
+    void zigzag(nav_msgs::Path &path);
 
 public:
     std::string state_name() override;
@@ -69,6 +73,7 @@ public:
     uint8_t get_state() override;
 
     void handle_action(std::string action) override;
+
 };
 
 

@@ -32,29 +32,12 @@ std::string DebugBehavior::state_name() {
     return "DEBUG";
 }
 
-Behavior *DebugBehavior::execute() {
-
-    // get robot's current pose from odometry.
+void DebugBehavior::ellipse(nav_msgs::Path &path, double hRad, double vRad) {
     xbot_msgs::AbsolutePose pose = getPose();
-    tf2::Quaternion quat;
-    tf2::fromMsg(pose.pose.pose.orientation, quat);
-    tf2::Matrix3x3 m(quat);
-    double roll, pitch, yaw;
-    m.getRPY(roll, pitch, yaw);
 
+    int point_count = 12;
 
-    mbf_msgs::ExePathGoal exePathGoal;
-
-    nav_msgs::Path path;
-
-    int point_count = 10;
-    int circles_count = 5;
-    double circle_radius = 0.6;
-    //circle
-    //ellipse
-    //eight
-
-    for (int i = 0; i <= (point_count * circles_count); i++) {
+    for (int i = 0; i < point_count ; i++) {
         double angle = 2 * M_PI * i / point_count;
         while(angle > M_PI) {
             angle -= 2 * M_PI;
@@ -62,11 +45,46 @@ Behavior *DebugBehavior::execute() {
         geometry_msgs::PoseStamped docking_pose_stamped_front;
         docking_pose_stamped_front.pose = pose.pose.pose;
         docking_pose_stamped_front.header = pose.header;
-        docking_pose_stamped_front.pose.position.x += cos(angle) * circle_radius;
-        docking_pose_stamped_front.pose.position.y += sin(angle) * circle_radius;
-        docking_pose_stamped_front.pose.orientation = tf2::toMsg(tf2::Quaternion(0,0,angle+M_PI_2));
+        docking_pose_stamped_front.pose.position.x += cos(angle) * hRad;
+        docking_pose_stamped_front.pose.position.y += sin(angle) * vRad;
+        double tangentAngle = atan2(vRad * cos(angle), -hRad * sin(angle));
+        docking_pose_stamped_front.pose.orientation = tf2::toMsg(tf2::Quaternion(0,0,tangentAngle));
         path.poses.push_back(docking_pose_stamped_front);
     }
+
+}
+
+void DebugBehavior::circle(nav_msgs::Path &path, double radius) {
+    ellipse(path, radius, radius);
+}
+
+void DebugBehavior::eight(nav_msgs::Path &path) {
+
+}
+
+void DebugBehavior::zigzag(nav_msgs::Path &path) {
+
+}
+
+
+Behavior *DebugBehavior::execute() {
+
+    // get robot's current pose from odometry.
+
+    mbf_msgs::ExePathGoal exePathGoal;
+
+    nav_msgs::Path path;
+
+    //circle
+    //ellipse
+    //eight
+
+    circle(path, 0.6);
+    ellipse(path, 0.7, 0.4);
+    circle(path, 0.5);
+    ellipse(path, 0.7, 0.3);
+    circle(path, 0.4);
+    ellipse(path, 0.75, 0.2);
 
     exePathGoal.path = path;
     exePathGoal.angle_tolerance = 1.0 * (M_PI / 180.0);
