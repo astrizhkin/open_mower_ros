@@ -14,7 +14,20 @@ find_package(catkin REQUIRED COMPONENTS
         geometry_msgs
         mower_map
         slic3r_coverage_planner
+        tf
+        tf2
+        tf2_ros
+        tf2_geometry_msgs
+        nav_msgs
+        std_msgs
 )
+
+#find_package(catkin REQUIRED
+        #COMPONENTS
+            #costmap_2d
+            #nav_core
+            #
+        #)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -162,6 +175,11 @@ add_executable(xbot_pose_converter
         )
 add_dependencies(xbot_pose_converter ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(xbot_pose_converter ${catkin_LIBRARIES})
+add_executable(ftc_planner_test
+        src/ftc_planner_test.cpp
+        )
+add_dependencies(ftc_planner_test ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(ftc_planner_test ${catkin_LIBRARIES})
 #############
 ## Install ##
 #############

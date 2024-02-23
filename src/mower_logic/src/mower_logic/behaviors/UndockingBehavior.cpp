@@ -50,7 +50,7 @@ Behavior *UndockingBehavior::execute() {
 
 
     int undock_point_count = config.undock_distance * 10.0;
-    for (int i = 0; i < undock_point_count; i++) {
+    for (int i = 0; i <= undock_point_count; i++) {
         geometry_msgs::PoseStamped docking_pose_stamped_front;
         docking_pose_stamped_front.pose = pose.pose.pose;
         docking_pose_stamped_front.header = pose.header;

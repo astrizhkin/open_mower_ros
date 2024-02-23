@@ -84,7 +84,9 @@ Behavior *DebugBehavior::execute() {
     circle(path, 0.5);
     ellipse(path, 0.7, 0.3);
     circle(path, 0.4);
-    ellipse(path, 0.75, 0.2);
+    ellipse(path, 0.75, 0.25);
+    circle(path, 0.3);
+    ellipse(path, 0.8, 0.2);
 
     exePathGoal.path = path;
     exePathGoal.angle_tolerance = 1.0 * (M_PI / 180.0);
