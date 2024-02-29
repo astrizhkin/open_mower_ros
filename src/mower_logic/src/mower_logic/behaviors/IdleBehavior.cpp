@@ -180,9 +180,9 @@ IdleBehavior::IdleBehavior() {
     start_area_recording_action.action_name = "Start Area Recording";
 
     xbot_msgs::ActionInfo start_debug_action;
-    start_area_recording_action.action_id = "start_debug";
-    start_area_recording_action.enabled = false;
-    start_area_recording_action.action_name = "Start Debug";
+    start_debug_action.action_id = "start_debug";
+    start_debug_action.enabled = false;
+    start_debug_action.action_name = "Start Debug";
 
     actions.clear();
     actions.push_back(start_mowing_action);
