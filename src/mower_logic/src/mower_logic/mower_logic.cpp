@@ -370,7 +370,7 @@ bool isGpsGood() {
     std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
     // GPS is good if orientation is valid, we have low accuracy and we have a recent GPS update.
     // TODO: think about the "recent gps flag" since it only looks at the time. E.g. if we were standing still this would still pause even if no GPS updates are needed during standstill.
-    return last_pose2D.orientation_valid && last_pose2D.position_accuracy < last_config.max_position_accuracy && (last_pose.flags & xbot_msgs::AbsolutePose::FLAG_SENSOR_FUSION_RECENT_ABSOLUTE_POSE);
+    return last_pose2D.orientation_valid && last_pose2D.position_accuracy < last_config.max_position_accuracy && (last_pose2D.flags & xbot_msgs::AbsolutePose::FLAG_SENSOR_FUSION_RECENT_ABSOLUTE_POSE);
 }
 
 double getNormalGravityAngle() {
