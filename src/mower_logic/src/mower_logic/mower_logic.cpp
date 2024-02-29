@@ -292,7 +292,7 @@ bool setMowerEnabled(bool enabled) {
 /// @brief Halt all bot movement
 // it only temporary overrides autonomus velecity commands for a time configured in twist_mux config
 void stopMoving(std::string reason) {
-    ROS_WARN_STREAM("[mower_logic] stopMoving() - stopping bot movement with reason [" << reason << "]");
+    ROS_WARN_STREAM_THROTTLE(10,"[mower_logic] stopMoving() - stopping bot movement with reason [" << reason << "]");
     geometry_msgs::Twist stop;
     stop.angular.z = 0;
     stop.linear.x = 0;
