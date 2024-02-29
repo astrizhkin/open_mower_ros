@@ -28,7 +28,7 @@
 #include <tf2/LinearMath/Transform.h>
 #include "mbf_msgs/ExePathAction.h"
 #include "mbf_msgs/MoveBaseAction.h"
-#include "nav_msgs/Odometry.h"
+#include <nav_msgs/Odometry.h>
 #include "nav_msgs/Path.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "mower_msgs/Status.h"
@@ -67,7 +67,13 @@ mower_logic::MowerLogicConfig last_config;
 
 // store some values for safety checks
 ros::Time pose_time(0.0);
-xbot_msgs::AbsolutePose last_pose;
+//2D pose
+xbot_msgs::AbsolutePose last_pose2D;
+
+ros::Time odom_time(0.0);
+//3D pose
+nav_msgs::Odometry last_odom3D;
+
 ros::Time status_time(0.0);
 mower_msgs::Status last_status;
 
@@ -85,6 +91,10 @@ Behavior *currentBehavior = &IdleBehavior::INSTANCE;
 ros::Time getPoseTime() {
     std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
     return pose_time;
+}
+ros::Time getOdomTime() {
+    std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
+    return odom_time;
 }
 ros::Time getStatusTime() {
     std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
@@ -116,7 +126,7 @@ void setConfig(mower_logic::MowerLogicConfig c) {
 
 xbot_msgs::AbsolutePose getPose() {
     std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
-    return last_pose;
+    return last_pose2D;
 }
 
 void setEmergencyMode(bool set_reset, uint8_t emergency_bit, std::string reason, ros::Duration duration);
@@ -146,7 +156,7 @@ void setRobotPose(geometry_msgs::Pose &pose, std::string reason) {
     // set the robot pose internally as well. othwerise we need to wait for xbot_positioning to send a new one once it has updated the internal pose.
     {
         std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
-        last_pose.pose.pose = pose;
+        last_pose2D.pose.pose = pose;
     }
 
     xbot_positioning::SetPoseSrv pose_srv;
@@ -174,13 +184,23 @@ void setRobotPose(geometry_msgs::Pose &pose, std::string reason) {
 void poseReceived(const xbot_msgs::AbsolutePose::ConstPtr &msg) {
     std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
 
-    last_pose = *msg;
+    last_pose2D = *msg;
 
 #ifdef VERBOSE_DEBUG
     ROS_INFO("[mower_logic] pose received with accuracy %f", last_pose.position_accuracy);
 #endif
     pose_time = ros::Time::now();
 }
+
+void odomReceived(const nav_msgs::Odometry::ConstPtr &msg) {
+    std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
+
+    last_odom3D = *msg;
+
+    odom_time = ros::Time::now();
+}
+
+
 
 void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
     std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
@@ -292,7 +312,7 @@ bool setMowerEnabled(bool enabled) {
 /// @brief Halt all bot movement
 // it only temporary overrides autonomus velecity commands for a time configured in twist_mux config
 void stopMoving(std::string reason) {
-    ROS_WARN_STREAM_THROTTLE(10,"[mower_logic] stopMoving() - stopping bot movement with reason [" << reason << "]");
+    ROS_WARN_STREAM("[mower_logic] stopMoving() - stopping bot movement with reason [" << reason << "]");
     geometry_msgs::Twist stop;
     stop.angular.z = 0;
     stop.linear.x = 0;
@@ -350,13 +370,13 @@ bool isGpsGood() {
     std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
     // GPS is good if orientation is valid, we have low accuracy and we have a recent GPS update.
     // TODO: think about the "recent gps flag" since it only looks at the time. E.g. if we were standing still this would still pause even if no GPS updates are needed during standstill.
-    return last_pose.orientation_valid && last_pose.position_accuracy < last_config.max_position_accuracy && (last_pose.flags & xbot_msgs::AbsolutePose::FLAG_SENSOR_FUSION_RECENT_ABSOLUTE_POSE);
+    return last_pose2D.orientation_valid && last_pose2D.position_accuracy < last_config.max_position_accuracy && (last_pose.flags & xbot_msgs::AbsolutePose::FLAG_SENSOR_FUSION_RECENT_ABSOLUTE_POSE);
 }
 
 double getNormalGravityAngle() {
     tf2::Vector3 normalGravityVector(0.0, 0.0, 9.81);
     tf2::Quaternion q;
-    tf2::fromMsg(last_pose.pose.pose.orientation, q);
+    tf2::fromMsg(last_odom3D.pose.pose.orientation, q);
     tf2::Vector3 actualGravityVector = tf2::quatRotate(q,normalGravityVector);
     return normalGravityVector.angle(actualGravityVector);
 }
@@ -369,6 +389,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     const auto last_config = getConfig();
     const auto last_pose = getPose();
     const auto pose_time = getPoseTime();
+    const auto odom_time = getOdomTime();
     const auto status_time = getStatusTime();
     const auto last_good_gps = getLastGoodGPS();
 
@@ -392,12 +413,13 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     // TODO: Have a single point where we check for this timeout instead of twice (here and in the behavior)
     // check if odometry is current. If not, the GPS was bad so we stop moving.
     // Note that the mowing behavior will pause as well by itself.
-    if ( ros::Time::now() - pose_time > ros::Duration(1.0) ) {
+    if ( ros::Time::now() - pose_time > ros::Duration(1.0) || 
+         ros::Time::now() - odom_time > ros::Duration(1.0)) {
         //uncommet this if emerency is not triggered
         //setMowerEnabled(false);
         //stopMoving("pose values stopped");
-        ROS_WARN_STREAM_THROTTLE(5, "[mower_logic] EMERGENCY pose values stopped. dt was: " << (ros::Time::now() - pose_time));
-        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] pose values timout",ros::Duration::ZERO);
+        ROS_WARN_STREAM_THROTTLE(5, "[mower_logic] EMERGENCY pose/odom values stopped. pose dt: " << (ros::Time::now() - pose_time) << " odom dt: " << (ros::Time::now() - odom_time));
+        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] pose/odom values timout",ros::Duration::ZERO);
         return;
     } else {
         //setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] pose values ok",ros::Duration::ZERO);
@@ -633,6 +655,7 @@ int main(int argc, char **argv) {
 
     ros::Subscriber status_sub = n->subscribe("/mower/status", 0, statusReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber pose_sub = n->subscribe("/xbot_positioning/xb_pose", 0, poseReceived, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber odom_sub = n->subscribe("/xbot_positioning/odom_out", 0, odomReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber joy_cmd = n->subscribe("/joy_vel", 0, joyVelReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber action = n->subscribe("xbot/action", 0, actionReceived, ros::TransportHints().tcpNoDelay(true));
 
@@ -656,6 +679,16 @@ int main(int argc, char **argv) {
     }
     ROS_INFO("[mower_logic] Waiting for a pose message");
     while (pose_time == ros::Time(0.0)) {
+        if (!ros::ok()) {
+            delete (reconfigServer);
+            delete (mbfClient);
+            delete (mbfClientExePath);
+            return 1;
+        }
+        r.sleep();
+    }
+    ROS_INFO("[mower_logic] Waiting for a odom message");
+    while (odom_time == ros::Time(0.0)) {
         if (!ros::ok()) {
             delete (reconfigServer);
             delete (mbfClient);
