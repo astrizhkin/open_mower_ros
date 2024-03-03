@@ -25,3 +25,6 @@
 [submodule "src/lib/xbot_driver_gps"]
 	path = src/lib/xbot_driver_gps
 	url = https://github.com/astrizhkin/xbot_driver_gps.git
+[submodule "src/lib/xesc_ros"]
+	path = src/lib/xesc_ros
+	url = https://github.com/astrizhkin/xesc_ros.git
