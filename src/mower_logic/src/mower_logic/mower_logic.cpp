@@ -452,8 +452,9 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     if (    last_status.rear_right_esc_status.status <= mower_msgs::ESCStatus::ESC_STATUS_ERROR || 
             last_status.rear_left_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR || 
             last_status.front_right_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR || 
-            last_status.front_left_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR ) {
-        ROS_ERROR("[mower_logic] EMERGENCY: at least one motor control errored. errors RL: %d, RR: %d, FL: %d, FR: %d",last_status.rear_left_esc_status.status,last_status.rear_right_esc_status.status,last_status.front_left_esc_status.status,last_status.front_right_esc_status.status);
+            last_status.front_left_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR || 
+            last_status.mow_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR ) {
+        ROS_ERROR("[mower_logic] EMERGENCY: at least one motor control errored. errors RL: %d, RR: %d, FL: %d, FR: %d, MOW: %d",last_status.rear_left_esc_status.status,last_status.rear_right_esc_status.status,last_status.front_left_esc_status.status,last_status.front_right_esc_status.status,last_status.mow_esc_status.status);
         //set esc emergency
         setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC,"[mower_logic] motor control errored",ros::Duration::ZERO);
         return;
@@ -464,7 +465,8 @@ void checkSafety(const ros::TimerEvent &timer_event) {
         if (last_status.rear_right_esc_status.status == mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED || 
                 last_status.rear_left_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED || 
                 last_status.front_right_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED || 
-                last_status.front_left_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED) {
+                last_status.front_left_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED ||
+                last_status.mow_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED) {
             ROS_ERROR_STREAM(
                     "[mower_logic] EMERGENCY for 5 minutes: at least one motor or ESC is overheated");
             setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_TEMPERATURE,"[mower_logic] motor or ESC is overheated", ros::Duration(300.0));

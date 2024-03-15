@@ -175,9 +175,7 @@ void convertXescStatus(xesc_msgs::XescStateStamped &vesc_status, mower_msgs::ESC
     } else if(vesc_status.state.fault_code) {
         ROS_ERROR_STREAM_THROTTLE(1, "Motor controller fault code: " << vesc_status.state.fault_code);
         // ESC has a fault
-        //ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
-        //temporary disable hoverboard errors
-        ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
     } else {
         // ESC is OK but standing still
         ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
@@ -188,7 +186,7 @@ void convertXescStatus(xesc_msgs::XescStateStamped &vesc_status, mower_msgs::ESC
     ros_esc_status.temperature_pcb = vesc_status.state.temperature_pcb;
 }
 
-void convertStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardStateStamped &state_msg, mower_msgs::ESCStatus &ros_esc_left_status,mower_msgs::ESCStatus &ros_esc_right_status) {
+void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardStateStamped &state_msg, mower_msgs::ESCStatus &ros_esc_left_status,mower_msgs::ESCStatus &ros_esc_right_status) {
     uint8_t statusNoTemperatures = state_msg.state.status & ~(
             hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_WARN |
             hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_ERR |
@@ -208,8 +206,12 @@ void convertStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardS
     } else if(statusNoTemperatures) {
         ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Motor controller status code: " << state_msg.state.status);
         // ESC has a fault
-        ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
-        ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
+        
+        //temporary disable hoverboard errors
+        //ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
+        //ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
+        ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
     } else {
         // ESC is OK but we will check temperatures
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
@@ -316,8 +318,8 @@ void publishStatus() {
     }
 
     convertXescStatus(mow_status, status_msg.mow_esc_status);
-    convertStatus(status_msg, last_rear_status, status_msg.rear_left_esc_status, status_msg.rear_right_esc_status);
-    convertStatus(status_msg, last_front_status, status_msg.front_left_esc_status, status_msg.front_right_esc_status);
+    convertHoverboardStatus(status_msg, last_rear_status, status_msg.rear_left_esc_status, status_msg.rear_right_esc_status);
+    convertHoverboardStatus(status_msg, last_front_status, status_msg.front_left_esc_status, status_msg.front_right_esc_status);
 
     status_pub.publish(status_msg);
 
