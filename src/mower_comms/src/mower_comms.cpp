@@ -173,7 +173,7 @@ void convertXescStatus(xesc_msgs::XescStateStamped &vesc_status, mower_msgs::ESC
         // ESC is disconnected
         ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
     } else if(vesc_status.state.fault_code) {
-        ROS_ERROR_STREAM_THROTTLE(1, "Motor controller fault code: " << vesc_status.state.fault_code);
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] xESC controller fault code: " << vesc_status.state.fault_code);
         // ESC has a fault
         ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
     } else {
@@ -201,10 +201,11 @@ void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::H
         //&& vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED_INCOMPATIBLE_FW
         ) {
         // ESC is disconnected, the bad status that never should happen
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Hoverborad connection status: " << state_msg.state.connection_state);
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
     } else if(statusNoTemperatures) {
-        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Motor controller status code: " << state_msg.state.status);
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Hoverborad controller status code: " << state_msg.state.status);
         // ESC has a fault
         
         //temporary disable hoverboard errors
