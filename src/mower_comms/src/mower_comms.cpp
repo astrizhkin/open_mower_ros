@@ -168,18 +168,31 @@ void publishActuators() {
 
 
 void convertXescStatus(xesc_msgs::XescStateStamped &vesc_status, mower_msgs::ESCStatus &ros_esc_status) {
+    uint8_t statusNoTemperatures = vesc_status.state.fault_code & ~(
+            xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR |
+            xesc_msgs::XescState::XESC_FAULT_OVERTEMP_PCB );
+
     if (vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED &&
             vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED_INCOMPATIBLE_FW) {
         // ESC is disconnected
         ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
-    } else if(vesc_status.state.fault_code) {
+    } else if(statusNoTemperatures) {
         ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] xESC controller fault code: " << vesc_status.state.fault_code);
         // ESC has a fault
         ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
     } else {
-        // ESC is OK but standing still
+        // ESC is OK
         ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+
+        // If evrything looks ok at the moment, check temperatures
+        if (vesc_status.state.fault_code & xesc_msgs::XescState::XESC_FAULT_OVERTEMP_PCB) {
+            ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+        }
+        if (vesc_status.state.fault_code & xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR) {
+            ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+        }
     }
+
     ros_esc_status.tacho = vesc_status.state.tacho;
     ros_esc_status.current = vesc_status.state.current_input;
     ros_esc_status.temperature_motor = vesc_status.state.temperature_motor;
@@ -205,10 +218,10 @@ void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::H
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
     } else if(statusNoTemperatures) {
-        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Hoverborad controller status code: " << state_msg.state.status);
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] FIXME!!! Hoverborad controller status code: " << state_msg.state.status);
         // ESC has a fault
         
-        //temporary disable hoverboard errors
+        //FIXME!!! temporary disable hoverboard errors
         //ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
         //ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
@@ -217,20 +230,21 @@ void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::H
         // ESC is OK but we will check temperatures
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-    }
 
-    if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_WARN) {
-        ROS_WARN_STREAM("[mower_comms] Motor controller PCB temerature warning");
-    }
-    if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_ERR) {
-        ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
-        ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
-    }
-    if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_LEFT_MOTOR_TEMP_ERR) {
-        ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
-    }
-    if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR) {
-        ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+        // If evrything looks ok at the moment, check temperatures
+        if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_WARN) {
+            ROS_WARN_STREAM("[mower_comms] Motor controller PCB temerature warning");
+        }
+        if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_ERR) {
+            ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+            ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+        }
+        if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_LEFT_MOTOR_TEMP_ERR) {
+            ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+        }
+        if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR) {
+            ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+        }
     }
 
     if (abs(state_msg.state.cmdL - state_msg.state.speedL_meas) > state_msg.state.cmdL * 0.2 ) {
@@ -356,7 +370,7 @@ bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerCon
     mower_enabled = req.mow_enabled;
     mower_direction = req.mow_direction;
     if (mower_enabled && !isEmergency()) {
-        speed_mow = req.mow_direction ? 1 : -1;
+        speed_mow = req.mow_direction ? 0.25 : -0.25;
     } else {
         speed_mow = 0;
     }
