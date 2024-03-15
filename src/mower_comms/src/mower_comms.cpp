@@ -83,6 +83,7 @@ boost::crc_ccitt_type crc;
 xesc_driver::XescDriver *mow_xesc_interface;
 hoverboard_driver::HoverboardStateStamped last_rear_status;
 hoverboard_driver::HoverboardStateStamped last_front_status;
+xesc_msgs::XescStateStamped last_mow_status;
 
 std::mutex ll_status_mutex;
 struct ll_status last_ll_status = {0};
@@ -277,10 +278,15 @@ void publishStatus() {
     if(front_status_age_s_double > UINT8_MAX || last_front_status.state.connection_state == hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
         front_status_age_s_uint8_t = UINT8_MAX;
     }
+    double mow_status_age_s_double = (ros::Time::now() - last_mow_status.header.stamp).toSec();
+    uint8_t mow_status_age_s_uint8_t = mow_status_age_s_double;
+    if(mow_status_age_s_double > UINT8_MAX || last_mow_status.state.connection_state == xesc_msgs::XescState::XESC_CONNECTION_STATE_DISCONNECTED) {
+        mow_status_age_s_uint8_t = UINT8_MAX;
+    }
     struct ll_motor_state ll_motor_state = {
             .type = PACKET_ID_LL_MOTOR_STATE,
-            .status = {last_rear_status.state.status,last_front_status.state.status,0},
-            .status_age_s = {rear_status_age_s_uint8_t,front_status_age_s_uint8_t,0}
+            .status = {last_rear_status.state.status,last_front_status.state.status,last_mow_status.state.fault_code},
+            .status_age_s = {rear_status_age_s_uint8_t,front_status_age_s_uint8_t,mow_status_age_s_uint8_t}
     };
     sendLLMessage((uint8_t *)&ll_motor_state,sizeof(struct ll_motor_state));
 
@@ -324,15 +330,14 @@ void publishStatus() {
     status_msg.v_charge = last_ll_status.v_charge;
     status_msg.charge_current = last_ll_status.charging_current;
 
-
-    xesc_msgs::XescStateStamped mow_status;
     if(mow_xesc_interface) {
-        mow_xesc_interface->getStatus(mow_status);
+        mow_xesc_interface->getStatus(last_mow_status);
     } else {
-        mow_status.state.connection_state = xesc_msgs::XescState::XESC_CONNECTION_STATE_DISCONNECTED;
+        last_mow_status.header.stamp = ros::Time::now();
+        last_mow_status.state.connection_state = xesc_msgs::XescState::XESC_CONNECTION_STATE_DISCONNECTED;
     }
 
-    convertXescStatus(mow_status, status_msg.mow_esc_status);
+    convertXescStatus(last_mow_status, status_msg.mow_esc_status);
     convertHoverboardStatus(status_msg, last_rear_status, status_msg.rear_left_esc_status, status_msg.rear_right_esc_status);
     convertHoverboardStatus(status_msg, last_front_status, status_msg.front_left_esc_status, status_msg.front_right_esc_status);
 
