@@ -79,21 +79,13 @@ Behavior *DebugBehavior::execute() {
     //ellipse
     //eight
 
-    setMowerEnabled(true);
     circle(path, 0.6);
-    setMowerEnabled(false);
     ellipse(path, 0.7, 0.4);
-    setMowerEnabled(true);
     circle(path, 0.5);
-    setMowerEnabled(false);
     ellipse(path, 0.7, 0.3);
-    setMowerEnabled(true);
     circle(path, 0.4);
-    setMowerEnabled(false);
     ellipse(path, 0.75, 0.25);
-    setMowerEnabled(true);
     circle(path, 0.3);
-    setMowerEnabled(false);
     ellipse(path, 0.8, 0.2);
 
     exePathGoal.path = path;
@@ -102,7 +94,9 @@ Behavior *DebugBehavior::execute() {
     exePathGoal.tolerance_from_action = true;
     exePathGoal.controller = "FTCPlanner";
 
+    setMowerEnabled(true);
     auto result = mbfClientExePath->sendGoalAndWait(exePathGoal);
+    setMowerEnabled(false);
 
     bool success = result.state_ == actionlib::SimpleClientGoalState::SUCCEEDED;
 
