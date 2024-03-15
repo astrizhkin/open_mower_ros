@@ -458,8 +458,8 @@ void checkSafety(const ros::TimerEvent &timer_event) {
         setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC,"[mower_logic] motor control errored",ros::Duration::ZERO);
         return;
     } else {
-        //clear esc emergency
-        setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC,"[mower_logic] motor control ok",ros::Duration::ZERO);
+        //clear esc emergency?
+        //setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC,"[mower_logic] motor control ok",ros::Duration::ZERO);
 
         if (last_status.rear_right_esc_status.status == mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED || 
                 last_status.rear_left_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED || 

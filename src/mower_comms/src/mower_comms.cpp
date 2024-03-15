@@ -175,7 +175,9 @@ void convertXescStatus(xesc_msgs::XescStateStamped &vesc_status, mower_msgs::ESC
     } else if(vesc_status.state.fault_code) {
         ROS_ERROR_STREAM_THROTTLE(1, "Motor controller fault code: " << vesc_status.state.fault_code);
         // ESC has a fault
-        ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
+        //ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
+        //temporary disable hoverboard errors
+        ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
     } else {
         // ESC is OK but standing still
         ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
