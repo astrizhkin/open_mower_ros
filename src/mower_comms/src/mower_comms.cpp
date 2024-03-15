@@ -168,12 +168,15 @@ void publishActuators() {
 }
 
 
-void convertXescStatus(xesc_msgs::XescStateStamped &vesc_status, mower_msgs::ESCStatus &ros_esc_status) {
+void convertXescStatus(mower_msgs::Status &status_msg, xesc_msgs::XescStateStamped &vesc_status, mower_msgs::ESCStatus &ros_esc_status) {
     uint8_t statusNoTemperatures = vesc_status.state.fault_code & ~(
             xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR |
             xesc_msgs::XescState::XESC_FAULT_OVERTEMP_PCB );
 
-    if (vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED &&
+    if (!status_msg.esc_power || (ros::Time::now() - last_ll_status_esc_enabled).toSec() < 2.0) {
+        //report esc off status when disabled or started less than 2 seconds ago to prevent report disconnected status
+        ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
+    } else if (vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED &&
             vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED_INCOMPATIBLE_FW) {
         // ESC is disconnected
         ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
@@ -337,7 +340,7 @@ void publishStatus() {
         last_mow_status.state.connection_state = xesc_msgs::XescState::XESC_CONNECTION_STATE_DISCONNECTED;
     }
 
-    convertXescStatus(last_mow_status, status_msg.mow_esc_status);
+    convertXescStatus(status_msg, last_mow_status, status_msg.mow_esc_status);
     convertHoverboardStatus(status_msg, last_rear_status, status_msg.rear_left_esc_status, status_msg.rear_right_esc_status);
     convertHoverboardStatus(status_msg, last_front_status, status_msg.front_left_esc_status, status_msg.front_right_esc_status);
 
