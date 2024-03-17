@@ -173,7 +173,7 @@ void convertXescStatus(mower_msgs::Status &status_msg, xesc_msgs::XescStateStamp
             xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR |
             xesc_msgs::XescState::XESC_FAULT_OVERTEMP_PCB );
 
-    if (!status_msg.esc_power || (ros::Time::now() - last_ll_status_esc_enabled).toSec() < 3.0) {
+    if (!status_msg.esc_power || (ros::Time::now() - last_ll_status_esc_enabled).toSec() < 4.0) {
         //report esc off status when disabled or started less than 2 seconds ago to prevent report disconnected status
         ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
     } else if (vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED &&
