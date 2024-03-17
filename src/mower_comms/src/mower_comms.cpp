@@ -271,28 +271,6 @@ void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::H
 }
 
 void publishStatus() {
-    double rear_status_age_s_double = (ros::Time::now() - last_rear_status.header.stamp).toSec();
-    uint8_t rear_status_age_s_uint8_t = rear_status_age_s_double;
-    if(rear_status_age_s_double > UINT8_MAX || last_rear_status.state.connection_state == hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
-        rear_status_age_s_uint8_t = UINT8_MAX;
-    }
-    double front_status_age_s_double = (ros::Time::now() - last_front_status.header.stamp).toSec();
-    uint8_t front_status_age_s_uint8_t = front_status_age_s_double;
-    if(front_status_age_s_double > UINT8_MAX || last_front_status.state.connection_state == hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
-        front_status_age_s_uint8_t = UINT8_MAX;
-    }
-    double mow_status_age_s_double = (ros::Time::now() - last_mow_status.header.stamp).toSec();
-    uint8_t mow_status_age_s_uint8_t = mow_status_age_s_double;
-    if(mow_status_age_s_double > UINT8_MAX || last_mow_status.state.connection_state == xesc_msgs::XescState::XESC_CONNECTION_STATE_DISCONNECTED) {
-        mow_status_age_s_uint8_t = UINT8_MAX;
-    }
-    struct ll_motor_state ll_motor_state = {
-            .type = PACKET_ID_LL_MOTOR_STATE,
-            .status = {last_rear_status.state.status,last_front_status.state.status,last_mow_status.state.fault_code},
-            .status_age_s = {rear_status_age_s_uint8_t,front_status_age_s_uint8_t,mow_status_age_s_uint8_t}
-    };
-    sendLLMessage((uint8_t *)&ll_motor_state,sizeof(struct ll_motor_state));
-
     mower_msgs::Status status_msg;
     status_msg.stamp = ros::Time::now();
 
@@ -344,6 +322,30 @@ void publishStatus() {
     convertHoverboardStatus(status_msg, last_rear_status, status_msg.rear_left_esc_status, status_msg.rear_right_esc_status);
     convertHoverboardStatus(status_msg, last_front_status, status_msg.front_left_esc_status, status_msg.front_right_esc_status);
 
+    //publish LL message
+    double rear_status_age_s_double = (ros::Time::now() - last_rear_status.header.stamp).toSec();
+    uint8_t rear_status_age_s_uint8_t = rear_status_age_s_double;
+    if(rear_status_age_s_double > UINT8_MAX || last_rear_status.state.connection_state == hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
+        rear_status_age_s_uint8_t = UINT8_MAX;
+    }
+    double front_status_age_s_double = (ros::Time::now() - last_front_status.header.stamp).toSec();
+    uint8_t front_status_age_s_uint8_t = front_status_age_s_double;
+    if(front_status_age_s_double > UINT8_MAX || last_front_status.state.connection_state == hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
+        front_status_age_s_uint8_t = UINT8_MAX;
+    }
+    double mow_status_age_s_double = (ros::Time::now() - last_mow_status.header.stamp).toSec();
+    uint8_t mow_status_age_s_uint8_t = mow_status_age_s_double;
+    if(mow_status_age_s_double > UINT8_MAX || last_mow_status.state.connection_state == xesc_msgs::XescState::XESC_CONNECTION_STATE_DISCONNECTED) {
+        mow_status_age_s_uint8_t = UINT8_MAX;
+    }
+    struct ll_motor_state ll_motor_state = {
+            .type = PACKET_ID_LL_MOTOR_STATE,
+            .status = {last_rear_status.state.status,last_front_status.state.status,last_mow_status.state.fault_code},
+            .status_age_s = {rear_status_age_s_uint8_t,front_status_age_s_uint8_t,mow_status_age_s_uint8_t}
+    };
+    sendLLMessage((uint8_t *)&ll_motor_state,sizeof(struct ll_motor_state));
+
+    //publis topic status
     status_pub.publish(status_msg);
 
     xbot_msgs::WheelTick wheel_tick_msg;
