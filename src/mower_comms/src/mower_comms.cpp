@@ -231,14 +231,14 @@ void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::H
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
     } else if(statusNoTemperatures) {
-        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] FIXME!!! Hoverborad controller status code: " << state_msg.state.status);
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Hoverborad controller status code: " << state_msg.state.status);
         // ESC has a fault
         
+        ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
+        ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
         //FIXME!!! temporary disable hoverboard errors
-        //ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
-        //ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
-        ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-        ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        //ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        //ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
     } else {
         // ESC is OK but we will check temperatures
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
