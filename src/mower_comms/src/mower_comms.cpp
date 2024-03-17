@@ -123,7 +123,7 @@ void sendLLMessage(uint8_t *msg,size_t size) {
     }    
 }
 
-void publishActuators() {
+void updateEmergencyBits() {
     for (uint8_t bit = 0; bit<8; bit++) {
         if(emergency_high_level_bits & (1<<bit) && !emergency_high_level_end[bit].isZero() && emergency_high_level_end[bit] < ros::Time::now()) {
             ROS_WARN_STREAM("[mower_comms] Autoreset emergency bit " << bit << " having reason "<< emergency_high_level_reasons[bit]);
@@ -132,6 +132,18 @@ void publishActuators() {
         }
     }
 
+    if((last_ll_status.emergency_bitmask & EMERGENCY_BUTTON1_BIT) > 0 ) {
+        mower_msgs::EmergencyModeSrvRequest req;
+        mower_msgs::EmergencyModeSrvResponse res;
+        req.emergency_bit = mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC;
+        req.duration = ros::Duration::ZERO;
+        req.set_reset = false;
+        req.reason = "Emergency Button 1 pressed";
+        setEmergencyMode(req,res);
+    }
+}
+
+void publishActuators() {
     geometry_msgs::Twist execute_vel;
     execute_vel.linear.x = last_cmd_twist.linear.x;
     execute_vel.angular.z = last_cmd_twist.angular.z;
@@ -210,7 +222,7 @@ void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::H
             hoverboard_driver::HoverboardState::STATUS_LEFT_MOTOR_TEMP_ERR |
             hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR );
     
-    if (!status_msg.esc_power || (ros::Time::now() - last_ll_status_esc_enabled).toSec() < 2.0) {
+    if (!status_msg.esc_power || (ros::Time::now() - last_ll_status_esc_enabled).toSec() < 3.0) {
         //report esc off status when disabled or started less than 2 seconds ago to prevent report disconnected status
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
@@ -369,6 +381,7 @@ void publishStatus() {
 }
 
 void publishActuatorsTimerTask(const ros::TimerEvent &timer_event) {
+    updateEmergencyBits();
     publishActuators();
     publishStatus();
 }
