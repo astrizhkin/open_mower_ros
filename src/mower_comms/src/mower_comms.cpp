@@ -311,7 +311,7 @@ void publishStatus() {
     status_msg.v_charge = last_ll_status.v_charge;
     status_msg.charge_current = last_ll_status.charging_current;
 
-    if(mow_xesc_interface) {
+    if (mow_xesc_interface && status_msg.esc_power) {
         mow_xesc_interface->getStatus(last_mow_status);
     } else {
         last_mow_status.header.stamp = ros::Time::now();
