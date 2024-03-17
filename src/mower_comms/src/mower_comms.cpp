@@ -132,14 +132,11 @@ void updateEmergencyBits() {
         }
     }
 
-    if((last_ll_status.emergency_bitmask & EMERGENCY_BUTTON1_BIT) > 0 ) {
-        mower_msgs::EmergencyModeSrvRequest req;
-        mower_msgs::EmergencyModeSrvResponse res;
-        req.emergency_bit = mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC;
-        req.duration = ros::Duration::ZERO;
-        req.set_reset = false;
-        req.reason = "Emergency Button 1 pressed";
-        setEmergencyMode(req,res);
+    if( (last_ll_status.emergency_bitmask & EMERGENCY_BUTTON1_BIT) > 0 && 
+        (emergency_high_level_bits & (1<<mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC)) > 0) {
+        ROS_WARN_STREAM("[mower_comms] Autoreset ESC emergency due to Emergency Button 1 pressed");
+        emergency_high_level_bits &= ~(1<<mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC);
+        emergency_high_level_end[mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC] = ros::Time::ZERO;
     }
 }
 
