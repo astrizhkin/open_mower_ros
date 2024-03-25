@@ -13,6 +13,7 @@
         <!-- base_link right hand rule -->
         <param name="imu_accel_axes" value="+y+x-z" />
         <param name="imu_gyro_axes" value="+y-x-z" />
+        <param name="mower_esc_enabled" value="$(env OM_ENABLE_MOWER)"/>
     </node>
     
     <include file="$(find open_mower)/launch/include/_hoverboard4x4.launch" />

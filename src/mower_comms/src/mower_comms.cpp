@@ -71,6 +71,8 @@ uint8_t mower_direction = 0;
 // Ticks / m and wheel distance for this robot
 double wheel_radius_m = 0.0;
 
+bool mower_esc_enabled = false;
+
 // Serial port and buffer for the low level connection
 serial::Serial serial_port;
 uint8_t out_buf[1000];
@@ -589,6 +591,11 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    if(!paramNh.getParam("mower_esc_enabled",mower_esc_enabled)){
+        ROS_ERROR_STREAM("[mower_comms] Mower ESC enabled parameter is not specified. Quitting.");
+        return 1;
+    }
+
     if (!parseAxes(paramNh, imu_accel_multiplier, imu_accel_idx, "imu_accel_axes")) {
         return 1;
     }
@@ -604,7 +611,7 @@ int main(int argc, char **argv) {
     speed_mow = 0;
 
     // Setup XESC interfaces
-    if(mowerParamNh.hasParam("xesc_type")) {
+    if(mowerParamNh.hasParam("xesc_type") && mower_esc_enabled) {
         mow_xesc_interface = new xesc_driver::XescDriver(n, mowerParamNh);
     } else {
         mow_xesc_interface = nullptr;
