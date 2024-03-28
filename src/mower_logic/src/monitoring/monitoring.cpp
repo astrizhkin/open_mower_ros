@@ -34,9 +34,13 @@ xbot_msgs::SensorInfo si_v_battery;
 ros::Publisher si_v_battery_pub;
 ros::Publisher v_battery_data_pub;
 
-xbot_msgs::SensorInfo si_charge_current;
-ros::Publisher si_charge_current_pub;
-ros::Publisher charge_current_data_pub;
+xbot_msgs::SensorInfo si_battery_current;
+ros::Publisher si_battery_current_pub;
+ros::Publisher battery_current_data_pub;
+
+xbot_msgs::SensorInfo si_battery_soc;
+ros::Publisher si_battery_soc_pub;
+ros::Publisher battery_soc_data_pub;
 
 xbot_msgs::SensorInfo si_rear_left_esc_temp;
 ros::Publisher si_rear_left_esc_temp_pub;
@@ -90,8 +94,11 @@ void status(const mower_msgs::Status::ConstPtr &msg) {
     sensor_data.data = msg->v_battery;
     v_battery_data_pub.publish(sensor_data);
 
-    sensor_data.data = msg->charge_current;
-    charge_current_data_pub.publish(sensor_data);
+    sensor_data.data = msg->battery_current;
+    battery_current_data_pub.publish(sensor_data);
+
+    sensor_data.data = msg->battery_soc;
+    battery_soc_data_pub.publish(sensor_data);
 
     sensor_data.data = msg->rear_left_esc_status.temperature_pcb;
     rear_left_esc_temp_data_pub.publish(sensor_data);
@@ -159,14 +166,23 @@ void registerSensors() {
     v_battery_data_pub = n->advertise<xbot_msgs::SensorDataDouble>("xbot_monitoring/sensors/" + si_v_battery.sensor_id + "/data",10);
     si_v_battery_pub.publish(si_v_battery);
 
-    si_charge_current.sensor_id = "om_charge_current";
-    si_charge_current.sensor_name = "Charge Current";
-    si_charge_current.value_type = xbot_msgs::SensorInfo::TYPE_DOUBLE;
-    si_charge_current.value_description = xbot_msgs::SensorInfo::VALUE_DESCRIPTION_CURRENT;
-    si_charge_current.unit = "A";
-    si_charge_current_pub = n->advertise<xbot_msgs::SensorInfo>("xbot_monitoring/sensors/" + si_charge_current.sensor_id + "/info", 1, true);
-    charge_current_data_pub = n->advertise<xbot_msgs::SensorDataDouble>("xbot_monitoring/sensors/" + si_charge_current.sensor_id + "/data",10);
-    si_charge_current_pub.publish(si_charge_current);
+    si_battery_current.sensor_id = "om_battery_current";
+    si_battery_current.sensor_name = "Battery Current";
+    si_battery_current.value_type = xbot_msgs::SensorInfo::TYPE_DOUBLE;
+    si_battery_current.value_description = xbot_msgs::SensorInfo::VALUE_DESCRIPTION_CURRENT;
+    si_battery_current.unit = "A";
+    si_battery_current_pub = n->advertise<xbot_msgs::SensorInfo>("xbot_monitoring/sensors/" + si_battery_current.sensor_id + "/info", 1, true);
+    battery_current_data_pub = n->advertise<xbot_msgs::SensorDataDouble>("xbot_monitoring/sensors/" + si_battery_current.sensor_id + "/data",10);
+    si_battery_current_pub.publish(si_battery_current);
+
+    si_battery_soc.sensor_id = "om_battery_soc";
+    si_battery_soc.sensor_name = "Battery SOC";
+    si_battery_soc.value_type = xbot_msgs::SensorInfo::TYPE_DOUBLE;
+    si_battery_soc.value_description = xbot_msgs::SensorInfo::VALUE_DESCRIPTION_CURRENT;
+    si_battery_soc.unit = "%";
+    si_battery_soc_pub = n->advertise<xbot_msgs::SensorInfo>("xbot_monitoring/sensors/" + si_battery_soc.sensor_id + "/info", 1, true);
+    si_battery_soc_pub = n->advertise<xbot_msgs::SensorDataDouble>("xbot_monitoring/sensors/" + si_battery_soc.sensor_id + "/data",10);
+    si_battery_soc_pub.publish(si_battery_soc);
 
     si_rear_left_esc_temp.sensor_id = "om_rear_left_esc_temp";
     si_rear_left_esc_temp.sensor_name = "Rear Left ESC Temp";
@@ -239,8 +255,6 @@ void registerSensors() {
     si_gps_accuracy_pub = n->advertise<xbot_msgs::SensorInfo>("xbot_monitoring/sensors/" + si_gps_accuracy.sensor_id + "/info", 1, true);
     gps_accuracy_data_pub = n->advertise<xbot_msgs::SensorDataDouble>("xbot_monitoring/sensors/" + si_gps_accuracy.sensor_id + "/data",10);
     si_gps_accuracy_pub.publish(si_gps_accuracy);
-
-
 }
 
 int main(int argc, char **argv) {
@@ -254,9 +268,7 @@ int main(int argc, char **argv) {
     ros::Subscriber state_sub = n->subscribe("mower_logic/current_state", 10, high_level_status);
     ros::Subscriber status_sub = n->subscribe("mower/status", 10, status);
 
-
     state_pub = n->advertise<xbot_msgs::RobotState>("xbot_monitoring/robot_state", 10);
-
 
     ros::spin();
 

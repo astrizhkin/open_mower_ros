@@ -294,12 +294,13 @@ void publishStatus() {
     }
 
     status_msg.raspberry_pi_power = (last_ll_status.status_bitmask & (1<<STATUS_RASPI_POWER_BIT)) != 0;
-    status_msg.charging_allowed = (last_ll_status.status_bitmask & (1<<STATUS_CHARGING_ALLOWED_BIT)) != 0;
+    status_msg.charging = (last_ll_status.status_bitmask & (1<<STATUS_CHARGING_BIT)) != 0;
     status_msg.esc_power = (last_ll_status.status_bitmask & (1<<STATUS_ESC_ENABLED_BIT)) != 0;
     status_msg.rain_detected = (last_ll_status.status_bitmask & (1<<STATUS_RAIN_BIT)) != 0;
-    status_msg.uss_timeout = (last_ll_status.status_bitmask & (1<<STATUS_USS_BIT)) != 0;
-    status_msg.imu_timeout = (last_ll_status.status_bitmask & (1<<STATUS_IMU_BIT)) != 0;
+    status_msg.uss_timeout = (last_ll_status.status_bitmask & (1<<STATUS_USS_TIMEOUT_BIT)) != 0;
+    status_msg.imu_timeout = (last_ll_status.status_bitmask & (1<<STATUS_IMU_TIMEOUT_BIT)) != 0;
     status_msg.battery_empty = (last_ll_status.status_bitmask & (1<<STATUS_BATTERY_EMPTY_BIT)) != 0;
+    status_msg.bms_timeout = (last_ll_status.status_bitmask & (1<<STATUS_BMS_TIMEOUT_BIT)) != 0;
 
     for (uint8_t i = 0; i < 5; i++) {
         status_msg.uss_ranges[i] = last_ll_status.uss_ranges_m[i];
@@ -320,7 +321,8 @@ void publishStatus() {
 
     status_msg.v_battery = last_ll_status.v_system;
     status_msg.v_charge = last_ll_status.v_charge;
-    status_msg.charge_current = last_ll_status.charging_current;
+    status_msg.battery_current = last_ll_status.battery_current;
+    status_msg.battery_soc = last_ll_status.batt_percentage/100.0;
 
     if (mow_xesc_interface && status_msg.esc_power) {
         mow_xesc_interface->getStatus(last_mow_status);

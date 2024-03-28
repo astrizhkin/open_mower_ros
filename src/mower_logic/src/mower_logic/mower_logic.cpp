@@ -397,7 +397,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     setMowerEnabled(currentBehavior != nullptr && currentBehavior->mower_enabled());
 
     high_level_status.emergency = last_status.emergency;
-    high_level_status.is_charging = last_status.charging_allowed;
+    high_level_status.is_charging = last_status.charging;
 
     // send to idle if emergency and we're not recording
     if( last_status.emergency ) {
@@ -507,7 +507,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
         currentBehavior->setGoodGPS(!gpsTimeout);
     }
 
-    double battery_percent = (last_status.v_battery - last_config.battery_empty_voltage) / (last_config.battery_full_voltage - last_config.battery_empty_voltage);
+    double battery_percent = last_status.battery_soc;
     if(battery_percent > 1.0) {
         battery_percent = 1.0;
     } else if(battery_percent < 0.0) {
@@ -518,7 +518,8 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     // we are in non emergency, check if we should pause. This could be empty battery, rain or hot mower motor etc.
     bool dockingNeeded = false;
     if (    last_status.v_battery < last_config.battery_empty_voltage || 
-            last_status.mow_esc_status.temperature_motor >= last_config.motor_hot_temperature ||
+// no docking, we instead must make a pause
+//            last_status.mow_esc_status.temperature_motor >= last_config.motor_hot_temperature ||
             last_config.manual_pause_mowing ) {
         dockingNeeded = true;
     }
@@ -614,7 +615,6 @@ int main(int argc, char **argv) {
 
     ros::Publisher path_pub;
 
-
     path_pub = n->advertise<nav_msgs::Path>("mower_logic/mowing_path", 100, true);
     high_level_state_publisher = n->advertise<mower_msgs::HighLevelStatus>("mower_logic/current_state", 100, true);
 
@@ -650,10 +650,8 @@ int main(int argc, char **argv) {
             "mower_map_service/clear_nav_point");
 
 
-
     mbfClient = new actionlib::SimpleActionClient<mbf_msgs::MoveBaseAction>("/move_base_flex/move_base");
     mbfClientExePath = new actionlib::SimpleActionClient<mbf_msgs::ExePathAction>("/move_base_flex/exe_path");
-
 
     ros::Subscriber status_sub = n->subscribe("/mower/status", 0, statusReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber pose_sub = n->subscribe("/xbot_positioning/xb_pose", 0, poseReceived, ros::TransportHints().tcpNoDelay(true));
@@ -662,7 +660,6 @@ int main(int argc, char **argv) {
     ros::Subscriber action = n->subscribe("xbot/action", 0, actionReceived, ros::TransportHints().tcpNoDelay(true));
 
     ros::ServiceServer high_level_control_srv = n->advertiseService("mower_service/high_level_control", highLevelCommand);
-
 
     ros::AsyncSpinner asyncSpinner(1);
     asyncSpinner.start();
@@ -700,7 +697,6 @@ int main(int argc, char **argv) {
         r.sleep();
     }
 
-
     ROS_INFO("[mower_logic] Waiting for emergency service");
     if (!emergencyClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] Emergency server not found.");
@@ -711,7 +707,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-
     ROS_INFO("[mower_logic] Waiting for path server");
     if (!pathClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] Path service not found.");
@@ -719,16 +714,15 @@ int main(int argc, char **argv) {
         delete (mbfClient);
         delete (mbfClientExePath);
 
-
         return 1;
     }
+
     ROS_INFO("[mower_logic] Waiting for mower service");
     if (!mowClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] Mower service not found.");
         delete (reconfigServer);
         delete (mbfClient);
         delete (mbfClientExePath);
-
 
         return 1;
     }
@@ -742,6 +736,7 @@ int main(int argc, char **argv) {
 
         return 1;
     }
+
     ROS_INFO("[mower_logic] Waiting for positioning service");
     if (!positioningClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] positioning service not found.");
@@ -752,7 +747,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-
     ROS_INFO("[mower_logic] Waiting for map server");
     if (!mapClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] Map server service not found.");
@@ -761,6 +755,7 @@ int main(int argc, char **argv) {
         delete (mbfClientExePath);
         return 2;
     }
+
     ROS_INFO("[mower_logic] Waiting for docking point server");
     if (!dockingPointClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] Docking server service not found.");
@@ -769,6 +764,7 @@ int main(int argc, char **argv) {
         delete (mbfClientExePath);
         return 2;
     }
+
     ROS_INFO("[mower_logic] Waiting for nav point server");
     if (!setNavPointClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] Set Nav Point server service not found.");
@@ -777,6 +773,7 @@ int main(int argc, char **argv) {
         delete (mbfClientExePath);
         return 2;
     }
+    
     ROS_INFO("[mower_logic] Waiting for clear nav point server");
     if (!clearNavPointClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] Clear Nav Point server service not found.");

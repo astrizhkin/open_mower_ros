@@ -145,8 +145,7 @@ bool DockingBehavior::dock_straight() {
             case actionlib::SimpleClientGoalState::SUCCEEDED:
                 // we stopped moving because the path has ended. check, if we have docked successfully
                 ROS_INFO_STREAM(
-                        "[DockingBehavior] Docking stopped, because we reached end pose. Voltage was " << last_status.v_charge
-                                                                                     << " V.");
+                        "[DockingBehavior] Docking stopped, because we reached end pose. Voltage was " << last_status.v_charge<< " V.");
                 if (last_status.v_charge > 5.0) {
                     mbfClientExePath->cancelGoal();
                     dockingSuccess = true;
