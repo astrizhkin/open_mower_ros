@@ -215,12 +215,14 @@ void convertXescStatus(mower_msgs::Status &status_msg, xesc_msgs::XescStateStamp
 }
 
 void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardStateStamped &state_msg, mower_msgs::ESCStatus &ros_esc_left_status,mower_msgs::ESCStatus &ros_esc_right_status) {
-    uint8_t statusNoTemperatures = state_msg.state.status & ~(
+    uint8_t statusNoTemperaturesNoBattery = state_msg.state.status & ~(
             hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_WARN |
             hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_ERR |
             hoverboard_driver::HoverboardState::STATUS_LEFT_MOTOR_TEMP_ERR |
-            hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR );
-    
+            hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR |
+            hoverboard_driver::HoverboardState::STATUS_BATTERY_L1 |
+            hoverboard_driver::HoverboardState::STATUS_BATTERY_L2 );
+
     if (!status_msg.esc_power || (ros::Time::now() - last_ll_status_esc_enabled).toSec() < 3.0) {
         //report esc off status when disabled or started less than 2 seconds ago to prevent report disconnected status
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
@@ -232,10 +234,9 @@ void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::H
         ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Hoverborad connection status: " << (int)state_msg.state.connection_state << " status code: " << state_msg.state.status);
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
-    } else if(statusNoTemperatures) {
+    } else if(statusNoTemperaturesNoBattery) {
         ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Hoverborad controller status code: " << state_msg.state.status);
         // ESC has a fault
-        
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
         //FIXME!!! temporary disable hoverboard errors
@@ -259,6 +260,12 @@ void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::H
         }
         if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR) {
             ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+        }
+
+        //and log battery warings 
+        if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_BATTERY_L1 || 
+            state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_BATTERY_L2) {
+            ROS_WARN_STREAM("[mower_comms] Motor controller reports battery waring");
         }
     }
 
