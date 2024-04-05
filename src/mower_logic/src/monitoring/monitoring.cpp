@@ -181,7 +181,7 @@ void registerSensors() {
     si_battery_soc.value_description = xbot_msgs::SensorInfo::VALUE_DESCRIPTION_CURRENT;
     si_battery_soc.unit = "%";
     si_battery_soc_pub = n->advertise<xbot_msgs::SensorInfo>("xbot_monitoring/sensors/" + si_battery_soc.sensor_id + "/info", 1, true);
-    si_battery_soc_pub = n->advertise<xbot_msgs::SensorDataDouble>("xbot_monitoring/sensors/" + si_battery_soc.sensor_id + "/data",10);
+    battery_soc_data_pub = n->advertise<xbot_msgs::SensorDataDouble>("xbot_monitoring/sensors/" + si_battery_soc.sensor_id + "/data",10);
     si_battery_soc_pub.publish(si_battery_soc);
 
     si_rear_left_esc_temp.sensor_id = "om_rear_left_esc_temp";
