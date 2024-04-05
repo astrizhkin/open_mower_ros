@@ -12,6 +12,7 @@ bool rain_detected
 bool uss_timeout
 bool imu_timeout
 bool bms_timeout
+bool ll_timeout
 #internal status from LL
 bool battery_empty
 

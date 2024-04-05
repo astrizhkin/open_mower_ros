@@ -76,7 +76,7 @@ struct ll_status {
     // Bit 5: don't care
     // Bit 6: don't care
     // Bit 7: don't care
-    uint16_t status_bitmask;
+    uint8_t status_bitmask;
     // USS range in m
     float uss_ranges_m[5];
     // USS measurement age in ms (no more than UINT16_MAX)

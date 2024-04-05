@@ -292,6 +292,7 @@ void publishStatus() {
         // LL initializing
         status_msg.mower_status = mower_msgs::Status::MOWER_STATUS_INITIALIZING;
     }
+    double llAge = (status_msg.stamp - last_ll_status_time).toSec();
 
     status_msg.raspberry_pi_power = (last_ll_status.status_bitmask & (1<<STATUS_RASPI_POWER_BIT)) != 0;
     status_msg.charging = (last_ll_status.status_bitmask & (1<<STATUS_CHARGING_BIT)) != 0;
@@ -301,6 +302,7 @@ void publishStatus() {
     status_msg.imu_timeout = (last_ll_status.status_bitmask & (1<<STATUS_IMU_TIMEOUT_BIT)) != 0;
     status_msg.battery_empty = (last_ll_status.status_bitmask & (1<<STATUS_BATTERY_EMPTY_BIT)) != 0;
     status_msg.bms_timeout = (last_ll_status.status_bitmask & (1<<STATUS_BMS_TIMEOUT_BIT)) != 0;
+    status_msg.ll_timeout = llAge > 1.0;
 
     for (uint8_t i = 0; i < 5; i++) {
         status_msg.uss_ranges[i] = last_ll_status.uss_ranges_m[i];
@@ -310,7 +312,7 @@ void publishStatus() {
     // overwrite emergency with the LL value.
     emergency_low_level = last_ll_status.emergency_bitmask > 0;
     if (emergency_low_level) {
-        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Low Level Emergency. Bitmask: " << (int)last_ll_status.emergency_bitmask << " Age " << (status_msg.stamp - last_ll_status_time).toSec() << "s");
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Low Level Emergency. Bitmask: " << (int)last_ll_status.emergency_bitmask << " Age " << llAge << "s");
     }
     if (emergency_high_level_bits > 0) {
         ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] High Level Emergency. Bitmask: " << (int)emergency_high_level_bits);

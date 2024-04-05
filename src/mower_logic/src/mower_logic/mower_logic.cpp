@@ -200,8 +200,6 @@ void odomReceived(const nav_msgs::Odometry::ConstPtr &msg) {
     odom_time = ros::Time::now();
 }
 
-
-
 void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
     std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
 
@@ -243,7 +241,6 @@ bool setGPS(bool enabled, std::string reason) {
 
     return success;
 }
-
 
 /// @brief If the BLADE Motor is not in the requested status (enabled),we call the 
 ///        the mower_service/mow_enabled service to enable/disable. TODO: get feedback about spinup and delay if needed
@@ -440,9 +437,9 @@ void checkSafety(const ros::TimerEvent &timer_event) {
 
     // check if status is current. if not, we have a problem since it contains wheel ticks and so on.
     // Since these should never drop out, we enter emergency instead of "only" stopping
-    if ( ros::Time::now() - status_time > ros::Duration(3) ) {
+    if ( ros::Time::now() - status_time > ros::Duration(3) || last_status.ll_timeout) {
         ROS_WARN_STREAM_THROTTLE(5, "[mower_logic] EMERGENCY /mower/status values stopped. dt was: " << (ros::Time::now() - status_time));
-        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_STATUS_TIMEOUT,"[mower_logic] /mower/status values timout",ros::Duration::ZERO);
+        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_STATUS_TIMEOUT,"[mower_logic] /mower/status or LL timout",ros::Duration::ZERO);
         return;
     } else {
         //setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_STATUS_TIMEOUT,"[mower_logic] /mower/status values ok",ros::Duration::ZERO);
