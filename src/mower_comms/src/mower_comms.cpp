@@ -702,7 +702,7 @@ int main(int argc, char **argv) {
                                 if (data_size == sizeof(struct ll_status)) {
                                     handleLowLevelStatus((struct ll_status *) buffer_decoded);
                                 } else {
-                                    ROS_INFO_STREAM(
+                                    ROS_WARN_STREAM(
                                             "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was STATUS");
                                 }
                                 break;
@@ -710,7 +710,7 @@ int main(int argc, char **argv) {
                                 if (data_size == sizeof(struct ll_imu)) {
                                     handleLowLevelIMU((struct ll_imu *) buffer_decoded);
                                 } else {
-                                    ROS_INFO_STREAM(
+                                    ROS_WARN_STREAM(
                                             "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was IMU");
                                 }
                                 break;
@@ -718,16 +718,16 @@ int main(int argc, char **argv) {
                                 if(data_size == sizeof(struct ll_ui_event)) {
                                     handleLowLevelUIEvent((struct ll_ui_event*) buffer_decoded);
                                 } else {
-                                    ROS_INFO_STREAM(
+                                    ROS_WARN_STREAM(
                                             "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was UI_EVENT");
                                 }
                                 break;
                             default:
-                                ROS_INFO_STREAM("[mower_comms] Got unknown packet from Low Level Board");
+                                ROS_WARN_STREAM("[mower_comms] Got unknown packet from Low Level Board");
                                 break;
                         }
                     } else {
-                        ROS_INFO_STREAM("[mower_comms] Got invalid checksum from Low Level Board");
+                        ROS_WARN_STREAM("[mower_comms] Got invalid checksum from Low Level Board");
                     }
 
                 }
