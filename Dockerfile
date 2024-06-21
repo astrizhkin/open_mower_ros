@@ -47,8 +47,6 @@ RUN rosdep install --from-paths src --ignore-src --simulate | \
     cat apt-install_list && \
     apt-get update && apt-get install --no-install-recommends --yes $(cat apt-install_list) && \
     rm -rf /var/lib/apt/lists/* apt-install_list
-#RUN mkdir -p ~/.ssh && ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-#RUN git config --global http.postBuffer 524288000
 RUN bash -c "source /opt/ros/$ROS_DISTRO/setup.bash && catkin_make"
 RUN bash -c "source /opt/ros/$ROS_DISTRO/setup.bash && source /opt/slic3r_coverage_planner_workspace/devel/setup.bash && catkin_make -DCMAKE_INSTALL_PREFIX=/opt/prebuilt/slic3r_coverage_planner install"
 
