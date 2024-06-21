@@ -17,7 +17,7 @@ teleop:
   mower:
     type: topic
     message_type: std_msgs/Float32
-    topic_name: mower_power
+    topic_name: joy_mower
     deadman_buttons: [0]
     axis_mappings:
       -

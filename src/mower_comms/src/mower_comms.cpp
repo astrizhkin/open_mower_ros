@@ -403,7 +403,7 @@ bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerCon
     mower_enabled = req.mow_enabled;
     mower_direction = req.mow_direction;
     if (mower_enabled && !isEmergency()) {
-        speed_mow = req.mow_direction ? 0.25 : -0.25;
+        speed_mow = req.mow_direction ? req.mow_power : -req.mow_power;
     } else {
         speed_mow = 0;
     }

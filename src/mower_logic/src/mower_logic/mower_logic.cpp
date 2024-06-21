@@ -43,6 +43,7 @@
 #include "behaviors/AreaRecordingBehavior.h"
 #include "mower_msgs/HighLevelControlSrv.h"
 #include "std_msgs/String.h"
+#include "std_msgs/Float32.h"
 #include "mower_msgs/HighLevelStatus.h"
 #include "mower_map/ClearMapSrv.h"
 #include "xbot_msgs/AbsolutePose.h"
@@ -247,6 +248,12 @@ bool setGPS(bool enabled, std::string reason) {
 /// @param enabled 
 /// @return 
 bool setMowerEnabled(bool enabled) {
+    ros::Time started = ros::Time::now();
+    bool direction = started.sec & 0x1; // Randomize mower direction on second
+    return setMowerEnabled(enabled, 0.25, direction);
+}
+
+bool setMowerEnabled(bool enabled, float power, bool direction) {
     const auto last_config = getConfig();
 
     if ( !last_config.enable_mower && enabled ) {
@@ -254,10 +261,10 @@ bool setMowerEnabled(bool enabled) {
         enabled = false;
     }
     
-    ros::Time started = ros::Time::now();
     mower_msgs::MowerControlSrv mow_srv;
     mow_srv.request.mow_enabled = enabled;
-    mow_srv.request.mow_direction = started.sec & 0x1; // Randomize mower direction on second
+    mow_srv.request.mow_power = power;
+    mow_srv.request.mow_direction = direction;
 
     ros::Rate retry_delay(1);
     bool success = false;
@@ -597,6 +604,14 @@ void joyVelReceived(const geometry_msgs::Twist::ConstPtr &joy_vel) {
     }
 }
 
+void joyMowerReceived(const std_msgs::Float32::ConstPtr &joy_mower) {
+    if (currentBehavior && currentBehavior->redirect_joystick()) {
+        ROS_INFO_STREAM("[mower_logic] joy mower cmd " << joy_mower->data);
+        float power = (joy_mower->data + 1.0)/2.0;
+        setMowerEnabled(true, power, true);
+    }
+}
+
 int main(int argc, char **argv) {
     ros::init(argc, argv, "mower_logic");
 
@@ -653,7 +668,8 @@ int main(int argc, char **argv) {
     ros::Subscriber status_sub = n->subscribe("/mower/status", 0, statusReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber pose_sub = n->subscribe("/xbot_positioning/xb_pose", 0, poseReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber odom_sub = n->subscribe("/xbot_positioning/odom_out", 0, odomReceived, ros::TransportHints().tcpNoDelay(true));
-    ros::Subscriber joy_cmd = n->subscribe("/joy_vel", 0, joyVelReceived, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber joy_move_cmd = n->subscribe("/joy_vel", 0, joyVelReceived, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber joy_mower_cmd = n->subscribe("/joy_mower", 0, joyMowerReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber action = n->subscribe("xbot/action", 0, actionReceived, ros::TransportHints().tcpNoDelay(true));
 
     ros::ServiceServer high_level_control_srv = n->advertiseService("mower_service/high_level_control", highLevelCommand);

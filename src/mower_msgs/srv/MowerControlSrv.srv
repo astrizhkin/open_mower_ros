@@ -1,3 +1,4 @@
 uint8 mow_enabled
+float32 mow_power
 uint8 mow_direction
 ---
