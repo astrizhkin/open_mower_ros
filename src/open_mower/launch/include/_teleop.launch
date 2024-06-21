@@ -1,5 +1,5 @@
 <launch>
-    <group if="$(eval env('OM_MOWER_GAMEPAD') == 'xbox360')">
+    <!--group if="$(eval env('OM_MOWER_GAMEPAD') == 'xbox360')">
         <node name="joy" pkg="joy" type="joy_node" required="true">
             <param name="~autorepeat_rate" value="10.0"/>
             <param name="~coalesce_interval" value="0.06"/>
@@ -13,9 +13,10 @@
             <param name="~scale_angular_turbo" value="3.0"/>
             <param name="~enable_turbo_button" value="4"/>
         </node>
-    </group>
+    </group-->
+    
 
-    <group unless="$(eval env('OM_MOWER_GAMEPAD') == 'xbox360')">
+    <!--group unless="$(eval env('OM_MOWER_GAMEPAD') == 'xbox360')"-->
         <node name="joy" pkg="joy" type="joy_node" required="true" >
             <remap from="/joy" to="/teleop_joy"/>
             <param name="~coalesce_interval" value="0.06"/>
@@ -26,5 +27,5 @@
         <node name="joy_teleop" pkg="joy_teleop" type="joy_teleop.py" required="true">
             <remap from="/joy" to="/teleop_joy"/>
         </node>
-    </group>
+    <!--/group-->
 </launch>
