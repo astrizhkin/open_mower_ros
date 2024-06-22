@@ -395,8 +395,11 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     const auto status_time = getStatusTime();
     const auto last_good_gps = getLastGoodGPS();
 
-    // call the mower
-    setMowerEnabled(currentBehavior != nullptr && currentBehavior->mower_enabled());
+    // only disable mower if not allowed
+    if(currentBehavior != nullptr && !currentBehavior->mower_enabled()){
+        setMowerEnabled(false);
+    }
+    
 
     high_level_status.emergency = last_status.emergency;
     high_level_status.is_charging = last_status.charging;
