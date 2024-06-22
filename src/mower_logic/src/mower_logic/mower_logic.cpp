@@ -247,12 +247,6 @@ bool setGPS(bool enabled, std::string reason) {
 ///        the mower_service/mow_enabled service to enable/disable. TODO: get feedback about spinup and delay if needed
 /// @param enabled 
 /// @return 
-bool setMowerEnabled(bool enabled) {
-    ros::Time started = ros::Time::now();
-    bool direction = started.sec & 0x1; // Randomize mower direction on second
-    return setMowerEnabledEx(enabled, 0.25, direction);
-}
-
 bool setMowerEnabledEx(bool enabled, float power, bool direction) {
     const auto last_config = getConfig();
 
@@ -311,7 +305,11 @@ bool setMowerEnabledEx(bool enabled, float power, bool direction) {
     return true;
 }
 
-
+bool setMowerEnabled(bool enabled) {
+    ros::Time started = ros::Time::now();
+    bool direction = started.sec & 0x1; // Randomize mower direction on second
+    return setMowerEnabledEx(enabled, 0.25, direction);
+}
 
 /// @brief Halt all bot movement
 // it only temporary overrides autonomus velecity commands for a time configured in twist_mux config
