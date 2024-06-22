@@ -250,10 +250,10 @@ bool setGPS(bool enabled, std::string reason) {
 bool setMowerEnabled(bool enabled) {
     ros::Time started = ros::Time::now();
     bool direction = started.sec & 0x1; // Randomize mower direction on second
-    return setMowerEnabled(enabled, 0.25, direction);
+    return setMowerEnabledEx(enabled, 0.25, direction);
 }
 
-bool setMowerEnabled(bool enabled, float power, bool direction) {
+bool setMowerEnabledEx(bool enabled, float power, bool direction) {
     const auto last_config = getConfig();
 
     if ( !last_config.enable_mower && enabled ) {
@@ -608,7 +608,7 @@ void joyMowerReceived(const std_msgs::Float32::ConstPtr &joy_mower) {
     if (currentBehavior && currentBehavior->redirect_joystick()) {
         ROS_INFO_STREAM("[mower_logic] joy mower cmd " << joy_mower->data);
         float power = (joy_mower->data + 1.0)/2.0;
-        setMowerEnabled(true, power, true);
+        setMowerEnabledEx(true, power, true);
     }
 }
 
