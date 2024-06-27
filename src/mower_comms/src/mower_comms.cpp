@@ -249,7 +249,7 @@ void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::H
 
         // If evrything looks ok at the moment, check temperatures
         if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_WARN) {
-            ROS_WARN_STREAM("[mower_comms] Motor controller PCB temerature warning");
+            ROS_WARN_STREAM_THROTTLE(10,"[mower_comms] Motor controller PCB temerature warning");
         }
         if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_ERR) {
             ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
