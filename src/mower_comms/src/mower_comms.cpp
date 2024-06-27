@@ -256,16 +256,18 @@ void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::H
             ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
         }
         if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_LEFT_MOTOR_TEMP_ERR) {
-            ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+            ROS_WARN_STREAM_THROTTLE(10,"[mower_comms] Left Motor temerature error: " << state_msg.state.motorL_temp);
+            //ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
         }
         if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR) {
-            ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+            ROS_WARN_STREAM_THROTTLE(10,"[mower_comms] Right Motor temerature error: " << state_msg.state.motorR_temp);
+            //ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
         }
 
         //and log battery warings 
         if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_BATTERY_L1 || 
             state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_BATTERY_L2) {
-            ROS_WARN_STREAM("[mower_comms] Motor controller reports battery waring");
+            ROS_WARN_STREAM("[mower_comms] Motor controller reports battery warning");
         }
     }
 
