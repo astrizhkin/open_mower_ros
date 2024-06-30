@@ -29,6 +29,12 @@ enum eAutoMode {
     AUTO = 2
 };
 
+enum ePauseReason {
+    PAUSE_FORCE = 0,
+    PAUSE_MANUAL = 1,
+    PAUSE_AUTO = 2
+};
+
 struct sSharedState {
     bool active_semiautomatic_task;
 };
@@ -44,6 +50,7 @@ private:
 protected:
     std::atomic<bool> aborted;
     std::atomic<bool> paused;
+    std::atomic<ePauseReason> requested_pause_reason;
 
     std::atomic<bool> mower_enabled_flag;
     std::atomic<bool> mower_enabled_flag_before_pause;
@@ -81,12 +88,21 @@ public:
         isGPSGood = isGood;
     }
 
-    void requestContinue() {
+    void requestContinue(ePauseReason reason) {
+        if(!paused || !requested_pause_flag) {
+            return;
+        }
+        if(requested_pause_reason != reason && reason!=ePauseReason::PAUSE_FORCE) {
+            ROS_WARN_STREAM("[Behavior] Can not reset pause with reason ["<< reason <<"] different from pause set reason [" << requested_pause_reason <<"]");
+            return;
+        }
         requested_continue_flag = true;
     }
 
-    void requestPause() {
+    void requestPause(ePauseReason reason) {
+        ROS_WARN_STREAM("[Behavior] Request pause with reason ["<< reason <<"]");
         requested_pause_flag = true;
+        requested_pause_reason = reason;
     }
 
     void setPause() {

@@ -484,7 +484,7 @@ bool MowingBehavior::execute_mowing_plan() {
 void MowingBehavior::command_home() {
     if (paused) {
         // Request continue to wait for odom
-        this->requestContinue();
+        this->requestContinue(ePauseReason::PAUSE_FORCE);
         // Then instantly abort i.e. go to dock.
     }
     this->abort();
@@ -492,12 +492,12 @@ void MowingBehavior::command_home() {
 
 void MowingBehavior::command_start() {
     ROS_INFO_STREAM("[MowingBehavior] MANUAL CONTINUE");
-    this->requestContinue();
+    this->requestContinue(ePauseReason::PAUSE_MANUAL);
 }
 
 void MowingBehavior::command_s1() {
     ROS_INFO_STREAM("[MowingBehavior] MANUAL PAUSED");
-    this->requestPause();
+    this->requestPause(ePauseReason::PAUSE_MANUAL);
 }
 
 void MowingBehavior::command_s2() {
@@ -554,15 +554,15 @@ MowingBehavior::MowingBehavior() {
 void MowingBehavior::handle_action(std::string action) {
     if (action == "mower_logic:mowing/pause") {
         ROS_INFO_STREAM("[MowingBehavior] got pause command");
-        this->requestPause();
+        this->requestPause(ePauseReason::PAUSE_MANUAL);
     } else if (action == "mower_logic:mowing/continue") {
         ROS_INFO_STREAM("[MowingBehavior] got continue command");
-        this->requestContinue();
+        this->requestContinue(ePauseReason::PAUSE_MANUAL);
     } else if (action == "mower_logic:mowing/abort_mowing") {
         ROS_INFO_STREAM("[MowingBehavior] got abort mowing command");
         if (paused) {
             // Request continue to wait for odom
-            this->requestContinue();
+            this->requestContinue(ePauseReason::PAUSE_FORCE);
             // Then instantly abort i.e. go to dock.
         }
         this->abort();

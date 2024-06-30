@@ -19,6 +19,7 @@ bool battery_empty
 float32[5] uss_ranges
 uint16[5] uss_age_ms
 bool emergency
+bool temporary_emergency
 #percent 0-100
 float32 battery_soc
 float32 v_charge

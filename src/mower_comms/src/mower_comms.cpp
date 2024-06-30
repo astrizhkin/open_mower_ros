@@ -101,10 +101,6 @@ int imu_accel_idx[] = {-1, -1, -1};
 
 ros::ServiceClient highLevelClient;
 
-bool isEmergency() {
-    return emergency_high_level_bits>0 || emergency_low_level;
-}
-
 void sendLLMessage(uint8_t *msg,size_t size) {
     crc.reset();
     crc.process_bytes(msg, size - 2);
@@ -123,6 +119,19 @@ void sendLLMessage(uint8_t *msg,size_t size) {
             ROS_ERROR_STREAM("[mower_comms] Error writing to serial port");
         }
     }    
+}
+
+bool isEmergency() {
+    return emergency_high_level_bits>0 || emergency_low_level;
+}
+
+bool isTemporaryEmergency() {
+    for (uint8_t bit = 0; bit<8; bit++) {
+        if(emergency_high_level_bits & (1<<bit) && emergency_high_level_end[bit].isZero()) {
+            return false;
+        }
+    }
+    return true && !emergency_low_level;
 }
 
 void updateEmergencyBits() {
@@ -329,6 +338,7 @@ void publishStatus() {
 
     // True, if high or low level emergency condition is present
     status_msg.emergency = isEmergency();
+    status_msg.temporary_emergency = isTemporaryEmergency();
 
     status_msg.v_battery = last_ll_status.v_system;
     status_msg.v_charge = last_ll_status.v_charge;

@@ -212,7 +212,8 @@ void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
 }
 
 // Abort the currently running behaviour
-void abortExecution() {
+void abortExecution(std::string reason) {
+    ROS_WARN_STREAM_THROTTLE(1,"[mower_logic] Abort current behavior with reason: "<<reason);
     if (currentBehavior != nullptr) {
         currentBehavior->abort();
     }
@@ -396,8 +397,8 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     const auto last_good_gps = getLastGoodGPS();
 
     // only disable mower if not allowed
-    if(currentBehavior != nullptr && !currentBehavior->mower_enabled()){
-        setMowerEnabled(false);
+    if(currentBehavior != nullptr && !currentBehavior->redirect_joystick()){
+        setMowerEnabled(currentBehavior->mower_enabled());
     }
     
 
@@ -407,11 +408,19 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     // send to idle if emergency and we're not recording
     if( last_status.emergency ) {
         if( currentBehavior != &AreaRecordingBehavior::INSTANCE && currentBehavior != &IdleBehavior::INSTANCE ) {
-            abortExecution();
+            if(last_status.temporary_emergency) {
+                currentBehavior->requestPause(ePauseReason::PAUSE_AUTO);
+            } else {
+                abortExecution("emergency received");
+            }
         } else if( last_status.v_charge > 5.0 ) {
             // emergency and docked and idle or area recording, so it's safe to reset the emergency mode, reset it. 
             // It's safe since we won't start moving in this mode.
             setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_LOW_BATTERY,"[mower_logic] Docked and charger battery reset",ros::Duration::ZERO);
+        }
+    } else {
+        if(currentBehavior != nullptr) {
+            currentBehavior->requestContinue(ePauseReason::PAUSE_AUTO);
         }
     }
 
@@ -532,8 +541,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     if (    dockingNeeded &&
             currentBehavior != &DockingBehavior::INSTANCE &&
             currentBehavior != &UndockingBehavior::RETRY_INSTANCE ) {
-        ROS_WARN_STREAM_THROTTLE(1,"[mower_logic] About current behavior due to battery level or mower temperature or manual input");
-        abortExecution();
+        abortExecution("battery level or mower temperature or manual input");
     }
 }
 
