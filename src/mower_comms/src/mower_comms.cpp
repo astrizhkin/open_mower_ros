@@ -56,7 +56,7 @@ std::string emergency_high_level_reasons[] = {"", "", "", "", "", "", "", ""};
 ros::Time emergency_high_level_end[] = {ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO};
 
 // True, if the LL board thinks there should be an emergency
-bool emergency_low_level = false;
+uint8_t emergency_low_level_bits = 0;
 
 // True, if we can send to the low level board
 bool allow_send = false;
@@ -122,7 +122,7 @@ void sendLLMessage(uint8_t *msg,size_t size) {
 }
 
 bool isEmergency() {
-    return emergency_high_level_bits>0 || emergency_low_level;
+    return emergency_high_level_bits>0 || emergency_low_level_bits>0;
 }
 
 bool isTemporaryEmergency() {
@@ -131,7 +131,7 @@ bool isTemporaryEmergency() {
             return false;
         }
     }
-    return true && !emergency_low_level;
+    return true && (emergency_low_level_bits==EMERGENCY_HIGH_LEVEL || emergency_low_level_bits==0);
 }
 
 void updateEmergencyBits() {
@@ -328,8 +328,8 @@ void publishStatus() {
     }
 
     // overwrite emergency with the LL value.
-    emergency_low_level = last_ll_status.emergency_bitmask > 0;
-    if (emergency_low_level) {
+    emergency_low_level_bits = last_ll_status.emergency_bitmask;
+    if (emergency_low_level_bits > 0) {
         ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Low Level Emergency. Bitmask: " << (int)last_ll_status.emergency_bitmask << " Age " << llAge << "s");
     }
     if (emergency_high_level_bits > 0) {
