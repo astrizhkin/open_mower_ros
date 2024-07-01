@@ -308,8 +308,8 @@ bool setMowerEnabledEx(bool enabled, float power, bool direction) {
 
 bool setMowerEnabled(bool enabled) {
     ros::Time started = ros::Time::now();
-    bool direction = started.sec & 0x1; // Randomize mower direction on second
-    return setMowerEnabledEx(enabled, 0.25, direction);
+    bool reverseDirection = (started.sec & 0b11) == 0b11; // Randomize mower direction on second
+    return setMowerEnabledEx(enabled, 0.5, !reverseDirection);
 }
 
 /// @brief Halt all bot movement
