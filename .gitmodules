@@ -1,6 +1,6 @@
 [submodule "src/lib/ftc_local_planner"]
 	path = src/lib/ftc_local_planner
-	url = https://github.com/ClemensElflein/ftc_local_planner.git
+	url = https://github.com/astrizhkin/ftc_local_planner.git
 [submodule "src/lib/slic3r_coverage_planner"]
 	path = src/lib/slic3r_coverage_planner
 	url = https://github.com/ClemensElflein/slic3r_coverage_planner.git
@@ -25,3 +25,6 @@
 [submodule "src/lib/xbot_driver_gps"]
 	path = src/lib/xbot_driver_gps
 	url = https://github.com/astrizhkin/xbot_driver_gps.git
+[submodule "src/lib/xesc_ros"]
+	path = src/lib/xesc_ros
+	url = https://github.com/astrizhkin/xesc_ros.git

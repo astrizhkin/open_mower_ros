@@ -14,7 +14,7 @@
 // SOFTWARE.
 //
 //
-#include "UndockingBehavior.h"
+#include "DebugBehavior.h"
 
 extern ros::ServiceClient dockingPointClient;
 extern actionlib::SimpleActionClient<mbf_msgs::ExePathAction> *mbfClientExePath;
@@ -26,72 +26,97 @@ extern void stopMoving(std::string reason);
 extern bool isGpsGood();
 extern bool setGPS(bool enabled, std::string reason);
 
-UndockingBehavior UndockingBehavior::INSTANCE(&MowingBehavior::INSTANCE);
-UndockingBehavior UndockingBehavior::RETRY_INSTANCE(&DockingBehavior::INSTANCE);
+DebugBehavior DebugBehavior::INSTANCE;
 
-std::string UndockingBehavior::state_name() {
-    return "UNDOCKING";
+std::string DebugBehavior::state_name() {
+    return "DEBUG";
 }
 
-Behavior *UndockingBehavior::execute() {
+void DebugBehavior::ellipse(nav_msgs::Path &path, double hRad, double vRad) {
+    xbot_msgs::AbsolutePose pose = getPose();
+
+    int point_count = 12;
+
+    for (int i = 0; i < point_count ; i++) {
+        double angle = 2 * M_PI * i / point_count;
+        while(angle > M_PI) {
+            angle -= 2 * M_PI;
+        }
+        geometry_msgs::PoseStamped docking_pose_stamped_front;
+        docking_pose_stamped_front.pose = pose.pose.pose;
+        docking_pose_stamped_front.header = pose.header;
+        docking_pose_stamped_front.pose.position.x += cos(angle) * hRad;
+        docking_pose_stamped_front.pose.position.y += sin(angle) * vRad;
+        double tangentAngle = atan2(vRad * cos(angle), -hRad * sin(angle));
+        docking_pose_stamped_front.pose.orientation = tf2::toMsg(tf2::Quaternion(0,0,tangentAngle));
+        path.poses.push_back(docking_pose_stamped_front);
+    }
+
+}
+
+void DebugBehavior::circle(nav_msgs::Path &path, double radius) {
+    ellipse(path, radius, radius);
+}
+
+void DebugBehavior::eight(nav_msgs::Path &path) {
+
+}
+
+void DebugBehavior::zigzag(nav_msgs::Path &path) {
+
+}
+
+
+Behavior *DebugBehavior::execute() {
 
     // get robot's current pose from odometry.
-    xbot_msgs::AbsolutePose pose = getPose();
-    tf2::Quaternion quat;
-    tf2::fromMsg(pose.pose.pose.orientation, quat);
-    tf2::Matrix3x3 m(quat);
-    double roll, pitch, yaw;
-    m.getRPY(roll, pitch, yaw);
-
 
     mbf_msgs::ExePathGoal exePathGoal;
 
     nav_msgs::Path path;
 
+    //circle
+    //ellipse
+    //eight
 
-    int undock_point_count = config.undock_distance * 10.0;
-    for (int i = 0; i <= undock_point_count; i++) {
-        geometry_msgs::PoseStamped docking_pose_stamped_front;
-        docking_pose_stamped_front.pose = pose.pose.pose;
-        docking_pose_stamped_front.header = pose.header;
-        docking_pose_stamped_front.pose.position.x -= cos(yaw) * (i / 10.0);
-        docking_pose_stamped_front.pose.position.y -= sin(yaw) * (i / 10.0);
-        path.poses.push_back(docking_pose_stamped_front);
-    }
+    circle(path, 0.6);
+    ellipse(path, 0.7, 0.4);
+    circle(path, 0.5);
+    ellipse(path, 0.7, 0.3);
+    circle(path, 0.4);
+    ellipse(path, 0.75, 0.25);
+    circle(path, 0.3);
+    ellipse(path, 0.8, 0.2);
 
     exePathGoal.path = path;
     exePathGoal.angle_tolerance = 1.0 * (M_PI / 180.0);
     exePathGoal.dist_tolerance = 0.1;
     exePathGoal.tolerance_from_action = true;
-    exePathGoal.controller = "DockingFTCPlanner";
+    exePathGoal.controller = "FTCPlanner";
 
+    setMowerEnabled(true);
     auto result = mbfClientExePath->sendGoalAndWait(exePathGoal);
+    setMowerEnabled(false);
 
     bool success = result.state_ == actionlib::SimpleClientGoalState::SUCCEEDED;
 
     // stop the bot for now
-    stopMoving("undocking safety stop");
+    stopMoving("debug safety stop");
 
     if (!success) {
-        ROS_ERROR_STREAM("[UndockingBehavior] Error during undock. MBF/FTCPlanner state is " << result.toString());
-        return &IdleBehavior::INSTANCE;
+        ROS_ERROR_STREAM("[DebugBehavior] Error during undock. MBF/FTCPlanner state is " << result.toString());
     }
 
+    ROS_INFO_STREAM("[DebugBehavior] Debug finished.");
+    //bool hasGps = waitForGPS();
 
-    ROS_INFO_STREAM("[UndockingBehavior] Undock success. Waiting for GPS.");
-    bool hasGps = waitForGPS();
-
-    if (!hasGps) {
-        ROS_ERROR_STREAM("[UndockingBehavior] Could not get GPS.");
-        return &IdleBehavior::INSTANCE;
-    }
-
-    // TODO return mow area
-    return nextBehavior;
-
+    //if (!hasGps) {
+    //    ROS_ERROR_STREAM("[DebugBehavior] Could not get GPS.");
+    //}
+    return &IdleBehavior::INSTANCE;
 }
 
-void UndockingBehavior::enter() {
+void DebugBehavior::enter() {
     reset();
     mower_enabled_flag_before_pause = mower_enabled_flag = paused = aborted = false;
 
@@ -102,35 +127,33 @@ void UndockingBehavior::enter() {
     docking_pose_stamped.header.frame_id = "map";
     docking_pose_stamped.header.stamp = ros::Time::now();
 
-    // set the robot's position to the dock if we're actually docked
-    if(getStatus().v_charge > 5.0) {
-        ROS_INFO_STREAM("[UndockingBehavior] Currently inside the docking station, we set the robot's pose to the docks pose.");
-        setRobotPose(docking_pose_stamped.pose, "undocking init");
-    }
+    // set the robot's position to the dock
+    ROS_INFO_STREAM("[DebugBehavior] Always set pose to the docks pose.");
+    setRobotPose(docking_pose_stamped.pose, "debug init");
 }
 
-void UndockingBehavior::exit() {
+void DebugBehavior::exit() {
 
 }
 
-void UndockingBehavior::reset() {
+void DebugBehavior::reset() {
     gpsRequired = false;
 }
 
-bool UndockingBehavior::needs_gps() {
+bool DebugBehavior::needs_gps() {
     return gpsRequired;
 }
 
-bool UndockingBehavior::waitForGPS() {
+bool DebugBehavior::waitForGPS() {
     gpsRequired = false;
     setGPS(true,"undocking finished");
     ros::Rate odom_rate(1.0);
     while (ros::ok() && !aborted) {
         if (isGpsGood()) {
-            ROS_INFO("[UndockingBehavior] Got good gps, let's go");
+            ROS_INFO("[DebugBehavior] Got good gps, let's go");
             break;
         } else {
-            ROS_INFO_STREAM("[UndockingBehavior] waiting for gps. current accuracy: " << getPose().position_accuracy);
+            ROS_INFO_STREAM("[DebugBehavior] waiting for gps. current accuracy: " << getPose().position_accuracy);
             odom_rate.sleep();
         }
     }
@@ -147,38 +170,37 @@ bool UndockingBehavior::waitForGPS() {
     return true;
 }
 
-UndockingBehavior::UndockingBehavior(Behavior* next) {
-    this->nextBehavior = next;
+DebugBehavior::DebugBehavior() {
 }
 
-void UndockingBehavior::command_home() {
-
-}
-
-void UndockingBehavior::command_start() {
+void DebugBehavior::command_home() {
 
 }
 
-void UndockingBehavior::command_s1() {
+void DebugBehavior::command_start() {
 
 }
 
-void UndockingBehavior::command_s2() {
+void DebugBehavior::command_s1() {
 
 }
 
-bool UndockingBehavior::redirect_joystick() {
+void DebugBehavior::command_s2() {
+
+}
+
+bool DebugBehavior::redirect_joystick() {
     return false;
 }
 
 
-uint8_t UndockingBehavior::get_sub_state() {
+uint8_t DebugBehavior::get_sub_state() {
     return 2;
 
 }
-uint8_t UndockingBehavior::get_state() {
+uint8_t DebugBehavior::get_state() {
     return mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_AUTONOMOUS;
 }
 
-void UndockingBehavior::handle_action(std::string action) {
+void DebugBehavior::handle_action(std::string action) {
 }

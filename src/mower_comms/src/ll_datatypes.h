@@ -29,14 +29,15 @@
 
 #define STATUS_INIT_BIT 0
 #define STATUS_RASPI_POWER_BIT 1
-#define STATUS_CHARGING_ALLOWED_BIT 2
+#define STATUS_CHARGING_BIT 2
 #define STATUS_ESC_ENABLED_BIT 3
 #define STATUS_RAIN_BIT 4
-#define STATUS_USS_BIT 5
-#define STATUS_IMU_BIT 6
+#define STATUS_USS_TIMEOUT_BIT 5
+#define STATUS_IMU_TIMEOUT_BIT 6
 #define STATUS_BATTERY_EMPTY_BIT 7
+#define STATUS_BMS_TIMEOUT_BIT 8
 
-#define EMERGENCY_BUTTON1_BIT 1
+#define EMERGENCY_BUTTON1_BIT 1 //primary emergency button
 #define EMERGENCY_BUTTON2_BIT 2
 #define EMERGENCY_LIFT1_BIT 3
 #define EMERGENCY_LIFT2_BIT 4
@@ -75,7 +76,7 @@ struct ll_status {
     // Bit 5: don't care
     // Bit 6: don't care
     // Bit 7: don't care
-    uint8_t status_bitmask;
+    uint16_t status_bitmask;
     // USS range in m
     float uss_ranges_m[5];
     // USS measurement age in ms (no more than UINT16_MAX)
@@ -95,7 +96,7 @@ struct ll_status {
     // System voltage
     float v_system;
     // Charge current
-    float charging_current;
+    float battery_current;
     uint8_t batt_percentage;
     uint16_t crc;
 } __attribute__((packed));

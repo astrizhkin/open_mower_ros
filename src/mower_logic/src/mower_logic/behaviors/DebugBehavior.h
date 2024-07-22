@@ -14,42 +14,38 @@
 // SOFTWARE.
 //
 //
-#ifndef SRC_DOCKINGBEHAVIOR_H
-#define SRC_DOCKINGBEHAVIOR_H
+#ifndef SRC_DEBUGBEHAVIOR_H
+#define SRC_DEBUGBEHAVIOR_H
 
 #include <actionlib/client/simple_action_client.h>
 #include <mbf_msgs/ExePathAction.h>
-#include <mbf_msgs/MoveBaseAction.h>
-#include <nav_msgs/Odometry.h>
 #include "Behavior.h"
 #include "IdleBehavior.h"
 #include "DockingBehavior.h"
 #include "ros/ros.h"
 #include <tf2/LinearMath/Transform.h>
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
-#include "mower_msgs/Status.h"
-#include <mower_map/GetDockingPointSrv.h>
-#include "xbot_msgs/ActionInfo.h"
+#include "MowingBehavior.h"
+#include "xbot_msgs/AbsolutePose.h"
 
 
-class DockingBehavior : public Behavior {
+class DebugBehavior : public Behavior {
 public:
-    static DockingBehavior INSTANCE;
+    static DebugBehavior INSTANCE;
+
+    DebugBehavior();
 private:
-    std::vector<xbot_msgs::ActionInfo> actions;
-
-    uint retryCount;
-    bool inApproachMode;
     geometry_msgs::PoseStamped docking_pose_stamped;
+    bool gpsRequired;
 
-    bool approach_docking_point();
+    bool waitForGPS();
 
-    bool dock_straight();
+    void circle(nav_msgs::Path &path, double radius);
+    void ellipse(nav_msgs::Path &path, double hRad, double vRad);
+    void eight(nav_msgs::Path &path);
+    void zigzag(nav_msgs::Path &path);
 
-    void update_actions();
 public:
-    DockingBehavior();
-
     std::string state_name() override;
 
     Behavior *execute() override;
@@ -77,8 +73,8 @@ public:
     uint8_t get_state() override;
 
     void handle_action(std::string action) override;
+
 };
 
 
-#endif //SRC_DOCKINGBEHAVIOR_H
-
+#endif //SRC_DEBUGBEHAVIOR_H

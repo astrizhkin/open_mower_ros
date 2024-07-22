@@ -28,7 +28,7 @@
 #include <tf2/LinearMath/Transform.h>
 #include "mbf_msgs/ExePathAction.h"
 #include "mbf_msgs/MoveBaseAction.h"
-#include "nav_msgs/Odometry.h"
+#include <nav_msgs/Odometry.h>
 #include "nav_msgs/Path.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "mower_msgs/Status.h"
@@ -43,6 +43,7 @@
 #include "behaviors/AreaRecordingBehavior.h"
 #include "mower_msgs/HighLevelControlSrv.h"
 #include "std_msgs/String.h"
+#include "std_msgs/Float32.h"
 #include "mower_msgs/HighLevelStatus.h"
 #include "mower_map/ClearMapSrv.h"
 #include "xbot_msgs/AbsolutePose.h"
@@ -67,7 +68,13 @@ mower_logic::MowerLogicConfig last_config;
 
 // store some values for safety checks
 ros::Time pose_time(0.0);
-xbot_msgs::AbsolutePose last_pose;
+//2D pose
+xbot_msgs::AbsolutePose last_pose2D;
+
+ros::Time odom_time(0.0);
+//3D pose
+nav_msgs::Odometry last_odom3D;
+
 ros::Time status_time(0.0);
 mower_msgs::Status last_status;
 
@@ -85,6 +92,10 @@ Behavior *currentBehavior = &IdleBehavior::INSTANCE;
 ros::Time getPoseTime() {
     std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
     return pose_time;
+}
+ros::Time getOdomTime() {
+    std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
+    return odom_time;
 }
 ros::Time getStatusTime() {
     std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
@@ -116,7 +127,7 @@ void setConfig(mower_logic::MowerLogicConfig c) {
 
 xbot_msgs::AbsolutePose getPose() {
     std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
-    return last_pose;
+    return last_pose2D;
 }
 
 void setEmergencyMode(bool set_reset, uint8_t emergency_bit, std::string reason, ros::Duration duration);
@@ -146,7 +157,7 @@ void setRobotPose(geometry_msgs::Pose &pose, std::string reason) {
     // set the robot pose internally as well. othwerise we need to wait for xbot_positioning to send a new one once it has updated the internal pose.
     {
         std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
-        last_pose.pose.pose = pose;
+        last_pose2D.pose.pose = pose;
     }
 
     xbot_positioning::SetPoseSrv pose_srv;
@@ -174,12 +185,20 @@ void setRobotPose(geometry_msgs::Pose &pose, std::string reason) {
 void poseReceived(const xbot_msgs::AbsolutePose::ConstPtr &msg) {
     std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
 
-    last_pose = *msg;
+    last_pose2D = *msg;
 
 #ifdef VERBOSE_DEBUG
     ROS_INFO("[mower_logic] pose received with accuracy %f", last_pose.position_accuracy);
 #endif
     pose_time = ros::Time::now();
+}
+
+void odomReceived(const nav_msgs::Odometry::ConstPtr &msg) {
+    std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
+
+    last_odom3D = *msg;
+
+    odom_time = ros::Time::now();
 }
 
 void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
@@ -193,7 +212,8 @@ void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
 }
 
 // Abort the currently running behaviour
-void abortExecution() {
+void abortExecution(std::string reason) {
+    ROS_WARN_STREAM_THROTTLE(1,"[mower_logic] Abort current behavior with reason: "<<reason);
     if (currentBehavior != nullptr) {
         currentBehavior->abort();
     }
@@ -224,12 +244,11 @@ bool setGPS(bool enabled, std::string reason) {
     return success;
 }
 
-
 /// @brief If the BLADE Motor is not in the requested status (enabled),we call the 
 ///        the mower_service/mow_enabled service to enable/disable. TODO: get feedback about spinup and delay if needed
 /// @param enabled 
 /// @return 
-bool setMowerEnabled(bool enabled) {
+bool setMowerEnabledEx(bool enabled, float power, bool direction) {
     const auto last_config = getConfig();
 
     if ( !last_config.enable_mower && enabled ) {
@@ -237,10 +256,10 @@ bool setMowerEnabled(bool enabled) {
         enabled = false;
     }
     
-    ros::Time started = ros::Time::now();
     mower_msgs::MowerControlSrv mow_srv;
     mow_srv.request.mow_enabled = enabled;
-    mow_srv.request.mow_direction = started.sec & 0x1; // Randomize mower direction on second
+    mow_srv.request.mow_power = power;
+    mow_srv.request.mow_direction = direction;
 
     ros::Rate retry_delay(1);
     bool success = false;
@@ -287,12 +306,16 @@ bool setMowerEnabled(bool enabled) {
     return true;
 }
 
-
+bool setMowerEnabled(bool enabled) {
+    ros::Time started = ros::Time::now();
+    bool reverseDirection = (started.sec & 0b11) == 0b11; // Randomize mower direction on second
+    return setMowerEnabledEx(enabled, 0.5, !reverseDirection);
+}
 
 /// @brief Halt all bot movement
 // it only temporary overrides autonomus velecity commands for a time configured in twist_mux config
 void stopMoving(std::string reason) {
-    ROS_WARN_STREAM("[mower_logic] stopMoving() - stopping bot movement with reason [" << reason << "]");
+    ROS_WARN_STREAM_THROTTLE(10,"[mower_logic] stopMoving() - stopping bot movement with reason [" << reason << "]");
     geometry_msgs::Twist stop;
     stop.angular.z = 0;
     stop.linear.x = 0;
@@ -350,8 +373,17 @@ bool isGpsGood() {
     std::lock_guard<std::recursive_mutex> lk{mower_logic_mutex};
     // GPS is good if orientation is valid, we have low accuracy and we have a recent GPS update.
     // TODO: think about the "recent gps flag" since it only looks at the time. E.g. if we were standing still this would still pause even if no GPS updates are needed during standstill.
-    return last_pose.orientation_valid && last_pose.position_accuracy < last_config.max_position_accuracy && (last_pose.flags & xbot_msgs::AbsolutePose::FLAG_SENSOR_FUSION_RECENT_ABSOLUTE_POSE);
+    return last_pose2D.orientation_valid && last_pose2D.position_accuracy < last_config.max_position_accuracy && (last_pose2D.flags & xbot_msgs::AbsolutePose::FLAG_SENSOR_FUSION_RECENT_ABSOLUTE_POSE);
 }
+
+double getNormalGravityAngle() {
+    tf2::Vector3 normalGravityVector(0.0, 0.0, 9.81);
+    tf2::Quaternion q;
+    tf2::fromMsg(last_odom3D.pose.pose.orientation, q);
+    tf2::Vector3 actualGravityVector = tf2::quatRotate(q,normalGravityVector);
+    return normalGravityVector.angle(actualGravityVector);
+}
+
 
 /// @brief Called every 0.5s, used to control BLADE motor via mower_enabled variable and stop any movement in case of /odom and /mower/status outages
 /// @param timer_event 
@@ -360,45 +392,71 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     const auto last_config = getConfig();
     const auto last_pose = getPose();
     const auto pose_time = getPoseTime();
+    const auto odom_time = getOdomTime();
     const auto status_time = getStatusTime();
     const auto last_good_gps = getLastGoodGPS();
 
-    // call the mower
-    setMowerEnabled(currentBehavior != nullptr && currentBehavior->mower_enabled());
+    // only disable mower if not allowed
+    if(currentBehavior != nullptr && !currentBehavior->redirect_joystick()){
+        setMowerEnabled(currentBehavior->mower_enabled());
+    }
+    
 
     high_level_status.emergency = last_status.emergency;
-    high_level_status.is_charging = last_status.charging_allowed;
+    high_level_status.is_charging = last_status.charging;
 
     // send to idle if emergency and we're not recording
     if( last_status.emergency ) {
         if( currentBehavior != &AreaRecordingBehavior::INSTANCE && currentBehavior != &IdleBehavior::INSTANCE ) {
-            abortExecution();
+            if(last_status.temporary_emergency) {
+                currentBehavior->requestPause(ePauseReason::PAUSE_AUTO);
+            } else {
+                abortExecution("emergency received");
+            }
         } else if( last_status.v_charge > 5.0 ) {
             // emergency and docked and idle or area recording, so it's safe to reset the emergency mode, reset it. 
             // It's safe since we won't start moving in this mode.
             setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_LOW_BATTERY,"[mower_logic] Docked and charger battery reset",ros::Duration::ZERO);
+        }
+    } else {
+        if(currentBehavior != nullptr) {
+            currentBehavior->requestContinue(ePauseReason::PAUSE_AUTO);
         }
     }
 
     // TODO: Have a single point where we check for this timeout instead of twice (here and in the behavior)
     // check if odometry is current. If not, the GPS was bad so we stop moving.
     // Note that the mowing behavior will pause as well by itself.
-    if ( ros::Time::now() - pose_time > ros::Duration(1.0) ) {
+    if ( ros::Time::now() - pose_time > ros::Duration(1.0) || 
+         ros::Time::now() - odom_time > ros::Duration(1.0)) {
         //uncommet this if emerency is not triggered
         //setMowerEnabled(false);
         //stopMoving("pose values stopped");
-        ROS_WARN_STREAM_THROTTLE(5, "[mower_logic] EMERGENCY pose values stopped. dt was: " << (ros::Time::now() - pose_time));
-        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] pose values timout",ros::Duration::ZERO);
+        ROS_WARN_STREAM_THROTTLE(5, "[mower_logic] EMERGENCY pose/odom values stopped. pose dt: " << (ros::Time::now() - pose_time) << " odom dt: " << (ros::Time::now() - odom_time));
+        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] pose/odom values timout",ros::Duration::ZERO);
         return;
     } else {
         //setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] pose values ok",ros::Duration::ZERO);
     }
- 
+
+    double normalGravityAngle = getNormalGravityAngle();
+    //convert to degree
+    normalGravityAngle *= 180 / M_PI;
+    if (normalGravityAngle > 30) {
+        ROS_WARN_STREAM_THROTTLE(5, "[mower_logic] EMERGENCY pose gravity angle is out of bound " << (ros::Time::now() - pose_time));
+        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] pose gravity angle is out of bound",ros::Duration::ZERO);
+        return;
+    } else {
+        if ( normalGravityAngle < 25 ) {
+            setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,"[mower_logic] pose gravity angle is ok",ros::Duration::ZERO);
+        }
+    }
+
     // check if status is current. if not, we have a problem since it contains wheel ticks and so on.
     // Since these should never drop out, we enter emergency instead of "only" stopping
-    if ( ros::Time::now() - status_time > ros::Duration(3) ) {
+    if ( ros::Time::now() - status_time > ros::Duration(3) || last_status.ll_timeout) {
         ROS_WARN_STREAM_THROTTLE(5, "[mower_logic] EMERGENCY /mower/status values stopped. dt was: " << (ros::Time::now() - status_time));
-        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_STATUS_TIMEOUT,"[mower_logic] /mower/status values timout",ros::Duration::ZERO);
+        setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_STATUS_TIMEOUT,"[mower_logic] /mower/status or LL timout",ros::Duration::ZERO);
         return;
     } else {
         //setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_STATUS_TIMEOUT,"[mower_logic] /mower/status values ok",ros::Duration::ZERO);
@@ -408,19 +466,21 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     if (    last_status.rear_right_esc_status.status <= mower_msgs::ESCStatus::ESC_STATUS_ERROR || 
             last_status.rear_left_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR || 
             last_status.front_right_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR || 
-            last_status.front_left_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR ) {
-        ROS_ERROR("[mower_logic] EMERGENCY: at least one motor control errored. errors RL: %d, RR: %d, FL: %d, FR: %d",last_status.rear_left_esc_status.status,last_status.rear_right_esc_status.status,last_status.front_left_esc_status.status,last_status.front_right_esc_status.status);
+            last_status.front_left_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR || 
+            (last_config.enable_mower && last_status.mow_esc_status.status <= mower_msgs::ESCStatus ::ESC_STATUS_ERROR) ) {
+        ROS_ERROR("[mower_logic] EMERGENCY: at least one motor control errored. errors RL: %d, RR: %d, FL: %d, FR: %d, MOW: %d",last_status.rear_left_esc_status.status,last_status.rear_right_esc_status.status,last_status.front_left_esc_status.status,last_status.front_right_esc_status.status,last_status.mow_esc_status.status);
         //set esc emergency
         setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC,"[mower_logic] motor control errored",ros::Duration::ZERO);
         return;
     } else {
-        //clear esc emergency
-        setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC,"[mower_logic] motor control ok",ros::Duration::ZERO);
+        //clear esc emergency?
+        //setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC,"[mower_logic] motor control ok",ros::Duration::ZERO);
 
         if (last_status.rear_right_esc_status.status == mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED || 
                 last_status.rear_left_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED || 
                 last_status.front_right_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED || 
-                last_status.front_left_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED) {
+                last_status.front_left_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED ||
+                last_status.mow_esc_status.status == mower_msgs::ESCStatus ::ESC_STATUS_OVERHEATED) {
             ROS_ERROR_STREAM(
                     "[mower_logic] EMERGENCY for 5 minutes: at least one motor or ESC is overheated");
             setEmergencyMode(true,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_TEMPERATURE,"[mower_logic] motor or ESC is overheated", ros::Duration(300.0));
@@ -461,7 +521,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
         currentBehavior->setGoodGPS(!gpsTimeout);
     }
 
-    double battery_percent = (last_status.v_battery - last_config.battery_empty_voltage) / (last_config.battery_full_voltage - last_config.battery_empty_voltage);
+    double battery_percent = last_status.battery_soc;
     if(battery_percent > 1.0) {
         battery_percent = 1.0;
     } else if(battery_percent < 0.0) {
@@ -472,7 +532,8 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     // we are in non emergency, check if we should pause. This could be empty battery, rain or hot mower motor etc.
     bool dockingNeeded = false;
     if (    last_status.v_battery < last_config.battery_empty_voltage || 
-            last_status.mow_esc_status.temperature_motor >= last_config.motor_hot_temperature ||
+// no docking, we instead must make a pause
+//            last_status.mow_esc_status.temperature_motor >= last_config.motor_hot_temperature ||
             last_config.manual_pause_mowing ) {
         dockingNeeded = true;
     }
@@ -480,8 +541,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     if (    dockingNeeded &&
             currentBehavior != &DockingBehavior::INSTANCE &&
             currentBehavior != &UndockingBehavior::RETRY_INSTANCE ) {
-        ROS_WARN_STREAM_THROTTLE(1,"[mower_logic] About current behavior due to battery level or mower temperature or manual input");
-        abortExecution();
+        abortExecution("battery level or mower temperature or manual input");
     }
 }
 
@@ -553,6 +613,14 @@ void joyVelReceived(const geometry_msgs::Twist::ConstPtr &joy_vel) {
     }
 }
 
+void joyMowerReceived(const std_msgs::Float32::ConstPtr &joy_mower) {
+    if (currentBehavior && currentBehavior->redirect_joystick()) {
+        ROS_INFO_STREAM("[mower_logic] joy mower cmd " << joy_mower->data);
+        float power = (joy_mower->data + 1.0)/2.0;
+        setMowerEnabledEx(true, power, true);
+    }
+}
+
 int main(int argc, char **argv) {
     ros::init(argc, argv, "mower_logic");
 
@@ -567,7 +635,6 @@ int main(int argc, char **argv) {
     cmd_vel_pub = n->advertise<geometry_msgs::Twist>("/logic_vel", 1);
 
     ros::Publisher path_pub;
-
 
     path_pub = n->advertise<nav_msgs::Path>("mower_logic/mowing_path", 100, true);
     high_level_state_publisher = n->advertise<mower_msgs::HighLevelStatus>("mower_logic/current_state", 100, true);
@@ -604,18 +671,17 @@ int main(int argc, char **argv) {
             "mower_map_service/clear_nav_point");
 
 
-
     mbfClient = new actionlib::SimpleActionClient<mbf_msgs::MoveBaseAction>("/move_base_flex/move_base");
     mbfClientExePath = new actionlib::SimpleActionClient<mbf_msgs::ExePathAction>("/move_base_flex/exe_path");
 
-
     ros::Subscriber status_sub = n->subscribe("/mower/status", 0, statusReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber pose_sub = n->subscribe("/xbot_positioning/xb_pose", 0, poseReceived, ros::TransportHints().tcpNoDelay(true));
-    ros::Subscriber joy_cmd = n->subscribe("/joy_vel", 0, joyVelReceived, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber odom_sub = n->subscribe("/xbot_positioning/odom_out", 0, odomReceived, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber joy_move_cmd = n->subscribe("/joy_vel", 0, joyVelReceived, ros::TransportHints().tcpNoDelay(true));
+    ros::Subscriber joy_mower_cmd = n->subscribe("/joy_mower", 0, joyMowerReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber action = n->subscribe("xbot/action", 0, actionReceived, ros::TransportHints().tcpNoDelay(true));
 
     ros::ServiceServer high_level_control_srv = n->advertiseService("mower_service/high_level_control", highLevelCommand);
-
 
     ros::AsyncSpinner asyncSpinner(1);
     asyncSpinner.start();
@@ -642,7 +708,16 @@ int main(int argc, char **argv) {
         }
         r.sleep();
     }
-
+    ROS_INFO("[mower_logic] Waiting for a odom message");
+    while (odom_time == ros::Time(0.0)) {
+        if (!ros::ok()) {
+            delete (reconfigServer);
+            delete (mbfClient);
+            delete (mbfClientExePath);
+            return 1;
+        }
+        r.sleep();
+    }
 
     ROS_INFO("[mower_logic] Waiting for emergency service");
     if (!emergencyClient.waitForExistence(ros::Duration(60.0, 0.0))) {
@@ -654,7 +729,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-
     ROS_INFO("[mower_logic] Waiting for path server");
     if (!pathClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] Path service not found.");
@@ -662,16 +736,15 @@ int main(int argc, char **argv) {
         delete (mbfClient);
         delete (mbfClientExePath);
 
-
         return 1;
     }
+
     ROS_INFO("[mower_logic] Waiting for mower service");
     if (!mowClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] Mower service not found.");
         delete (reconfigServer);
         delete (mbfClient);
         delete (mbfClientExePath);
-
 
         return 1;
     }
@@ -685,6 +758,7 @@ int main(int argc, char **argv) {
 
         return 1;
     }
+
     ROS_INFO("[mower_logic] Waiting for positioning service");
     if (!positioningClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] positioning service not found.");
@@ -695,7 +769,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-
     ROS_INFO("[mower_logic] Waiting for map server");
     if (!mapClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] Map server service not found.");
@@ -704,6 +777,7 @@ int main(int argc, char **argv) {
         delete (mbfClientExePath);
         return 2;
     }
+
     ROS_INFO("[mower_logic] Waiting for docking point server");
     if (!dockingPointClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] Docking server service not found.");
@@ -712,6 +786,7 @@ int main(int argc, char **argv) {
         delete (mbfClientExePath);
         return 2;
     }
+
     ROS_INFO("[mower_logic] Waiting for nav point server");
     if (!setNavPointClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] Set Nav Point server service not found.");
@@ -720,6 +795,7 @@ int main(int argc, char **argv) {
         delete (mbfClientExePath);
         return 2;
     }
+    
     ROS_INFO("[mower_logic] Waiting for clear nav point server");
     if (!clearNavPointClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("[mower_logic] Clear Nav Point server service not found.");

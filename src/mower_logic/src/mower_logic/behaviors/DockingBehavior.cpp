@@ -24,7 +24,19 @@ extern mower_msgs::Status getStatus();
 extern void stopMoving(std::string reason);
 extern bool setGPS(bool enabled, std::string reason);
 
+extern void registerActions(std::string prefix, const std::vector<xbot_msgs::ActionInfo> &actions);
+
 DockingBehavior DockingBehavior::INSTANCE;
+
+DockingBehavior::DockingBehavior(){
+    xbot_msgs::ActionInfo abort_docking_action;
+    abort_docking_action.action_id = "abort_docking";
+    abort_docking_action.enabled = false;
+    abort_docking_action.action_name = "Stop Docking";
+
+    actions.clear();
+    actions.push_back(abort_docking_action);
+}
 
 bool DockingBehavior::approach_docking_point() {
     ROS_INFO_STREAM("[DockingBehavior] Calculating approach path");
@@ -145,8 +157,7 @@ bool DockingBehavior::dock_straight() {
             case actionlib::SimpleClientGoalState::SUCCEEDED:
                 // we stopped moving because the path has ended. check, if we have docked successfully
                 ROS_INFO_STREAM(
-                        "[DockingBehavior] Docking stopped, because we reached end pose. Voltage was " << last_status.v_charge
-                                                                                     << " V.");
+                        "[DockingBehavior] Docking stopped, because we reached end pose. Voltage was " << last_status.v_charge<< " V.");
                 if (last_status.v_charge > 5.0) {
                     mbfClientExePath->cancelGoal();
                     dockingSuccess = true;
@@ -238,6 +249,8 @@ void DockingBehavior::enter() {
     docking_pose_stamped.pose = get_docking_point_srv.response.docking_pose;
     docking_pose_stamped.header.frame_id = "map";
     docking_pose_stamped.header.stamp = ros::Time::now();
+
+    update_actions();
 }
 
 void DockingBehavior::exit() {
@@ -283,6 +296,17 @@ uint8_t DockingBehavior::get_state() {
 }
 
 void DockingBehavior::handle_action(std::string action) {
+    if (action == "mower_logic:docking/abort_docking") {
+        ROS_INFO_STREAM("[DockingBehavior] got abort docking command");
+        this->abort();
+    }
+}
 
+void DockingBehavior::update_actions() {
+    for(auto& a : actions) {
+        a.enabled = true;
+    }
+
+    registerActions("mower_logic:docking", actions);
 }
 

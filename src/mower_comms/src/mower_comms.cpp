@@ -33,6 +33,8 @@
 #include "sensor_msgs/Imu.h"
 #include "sensor_msgs/MagneticField.h"
 
+#include <xesc_driver/xesc_driver.h>
+#include <xesc_msgs/XescStateStamped.h>
 #include <hoverboard_driver/HoverboardStateStamped.h>
 #include <xbot_msgs/WheelTick.h>
 #include "mower_msgs/HighLevelStatus.h"
@@ -54,7 +56,7 @@ std::string emergency_high_level_reasons[] = {"", "", "", "", "", "", "", ""};
 ros::Time emergency_high_level_end[] = {ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO};
 
 // True, if the LL board thinks there should be an emergency
-bool emergency_low_level = false;
+uint8_t emergency_low_level_bits = 0;
 
 // True, if we can send to the low level board
 bool allow_send = false;
@@ -62,12 +64,14 @@ bool allow_send = false;
 // Current speeds (duty cycle) for the three ESCs
 geometry_msgs::Twist last_cmd_twist;
 ros::Time last_cmd_twist_time(0.0);
-//float speed_mow = 0;
+float speed_mow = 0;
 uint8_t mower_enabled = 0;
 uint8_t mower_direction = 0;
 
 // Ticks / m and wheel distance for this robot
 double wheel_radius_m = 0.0;
+
+bool mower_esc_enabled = false;
 
 // Serial port and buffer for the low level connection
 serial::Serial serial_port;
@@ -78,8 +82,10 @@ boost::crc_ccitt_type crc;
 //mower_msgs::HighLevelStatus last_high_level_status;
 //ros::Time last_high_level_status_time(0.0);
 
+xesc_driver::XescDriver *mow_xesc_interface;
 hoverboard_driver::HoverboardStateStamped last_rear_status;
 hoverboard_driver::HoverboardStateStamped last_front_status;
+xesc_msgs::XescStateStamped last_mow_status;
 
 std::mutex ll_status_mutex;
 struct ll_status last_ll_status = {0};
@@ -88,12 +94,12 @@ ros::Time last_ll_status_esc_enabled(0.0);
 
 sensor_msgs::MagneticField sensor_mag_msg;
 sensor_msgs::Imu sensor_imu_msg;
-double imu_x_multiplier = 0.0,imu_y_multiplier = 0.0,imu_z_multiplier = 0.0;
-int imu_x_idx = -1, imu_y_idx = -1, imu_z_idx = -1;
-
+double imu_gyro_multiplier[] = {0.0, 0.0, 0.0};
+int imu_gyro_idx[] = {-1, -1, -1};
+double imu_accel_multiplier[] = {0.0, 0.0, 0.0};
+int imu_accel_idx[] = {-1, -1, -1};
 
 ros::ServiceClient highLevelClient;
-
 
 void sendLLMessage(uint8_t *msg,size_t size) {
     crc.reset();
@@ -116,10 +122,19 @@ void sendLLMessage(uint8_t *msg,size_t size) {
 }
 
 bool isEmergency() {
-    return emergency_high_level_bits>0 || emergency_low_level;
+    return emergency_high_level_bits>0 || emergency_low_level_bits>0;
 }
 
-void publishActuators() {
+bool isTemporaryEmergency() {
+    for (uint8_t bit = 0; bit<8; bit++) {
+        if(emergency_high_level_bits & (1<<bit) && emergency_high_level_end[bit].isZero()) {
+            return false;
+        }
+    }
+    return true && (emergency_low_level_bits==EMERGENCY_HIGH_LEVEL || emergency_low_level_bits==0);
+}
+
+void updateEmergencyBits() {
     for (uint8_t bit = 0; bit<8; bit++) {
         if(emergency_high_level_bits & (1<<bit) && !emergency_high_level_end[bit].isZero() && emergency_high_level_end[bit] < ros::Time::now()) {
             ROS_WARN_STREAM("[mower_comms] Autoreset emergency bit " << bit << " having reason "<< emergency_high_level_reasons[bit]);
@@ -128,6 +143,15 @@ void publishActuators() {
         }
     }
 
+    if( (last_ll_status.emergency_bitmask & (1<<EMERGENCY_BUTTON1_BIT)) > 0 && 
+        (emergency_high_level_bits & (1<<mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC)) > 0) {
+        ROS_WARN_STREAM("[mower_comms] Autoreset ESC emergency due to Emergency Button 1 pressed");
+        emergency_high_level_bits &= ~(1<<mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC);
+        emergency_high_level_end[mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC] = ros::Time::ZERO;
+    }
+}
+
+void publishActuators() {
     geometry_msgs::Twist execute_vel;
     execute_vel.linear.x = last_cmd_twist.linear.x;
     execute_vel.angular.z = last_cmd_twist.angular.z;
@@ -136,7 +160,7 @@ void publishActuators() {
         //TODO: publish speed topic?
         execute_vel.linear.x = 0;
         execute_vel.angular.z = 0;
-        //speed_mow = 0;
+        speed_mow = 0;
     }
     if (ros::Time::now() - last_cmd_twist_time > ros::Duration(1.0)) {
         //TODO: publish speed topic?
@@ -147,12 +171,12 @@ void publishActuators() {
         //TODO: publish speed topic?
         execute_vel.linear.x = 0;
         execute_vel.angular.z = 0;
-        //speed_mow = 0;
+        speed_mow = 0;
     }
 
-    //if(mow_xesc_interface) {
-        //mow_xesc_interface->setDutyCycle(speed_mow);
-    //}
+    if(mow_xesc_interface) {
+        mow_xesc_interface->setDutyCycle(speed_mow);
+    }
     cmd_vel_safe_pub.publish(execute_vel);
 
     struct ll_heartbeat heartbeat = {
@@ -164,14 +188,51 @@ void publishActuators() {
 }
 
 
-void convertStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardStateStamped &state_msg, mower_msgs::ESCStatus &ros_esc_left_status,mower_msgs::ESCStatus &ros_esc_right_status) {
-    uint8_t statusNoTemperatures = state_msg.state.status & ~(
+void convertXescStatus(mower_msgs::Status &status_msg, xesc_msgs::XescStateStamped &vesc_status, mower_msgs::ESCStatus &ros_esc_status) {
+    uint8_t statusNoTemperatures = vesc_status.state.fault_code & ~(
+            xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR |
+            xesc_msgs::XescState::XESC_FAULT_OVERTEMP_PCB );
+
+    if (!status_msg.esc_power || (ros::Time::now() - last_ll_status_esc_enabled).toSec() < 5.0) {
+        //report esc off status when disabled or started less than 5 seconds ago to prevent report disconnected status
+        ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
+    } else if (vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED &&
+            vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED_INCOMPATIBLE_FW) {
+        // ESC is disconnected
+        ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
+    } else if(statusNoTemperatures) {
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] xESC controller fault code: " << vesc_status.state.fault_code);
+        // ESC has a fault
+        ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
+    } else {
+        // ESC is OK
+        ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+
+        // If evrything looks ok at the moment, check temperatures
+        if (vesc_status.state.fault_code & xesc_msgs::XescState::XESC_FAULT_OVERTEMP_PCB) {
+            ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+        }
+        if (vesc_status.state.fault_code & xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR) {
+            ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+        }
+    }
+
+    ros_esc_status.tacho = vesc_status.state.tacho;
+    ros_esc_status.current = vesc_status.state.current_input;
+    ros_esc_status.temperature_motor = vesc_status.state.temperature_motor;
+    ros_esc_status.temperature_pcb = vesc_status.state.temperature_pcb;
+}
+
+void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardStateStamped &state_msg, mower_msgs::ESCStatus &ros_esc_left_status,mower_msgs::ESCStatus &ros_esc_right_status) {
+    uint8_t statusNoTemperaturesNoBattery = state_msg.state.status & ~(
             hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_WARN |
             hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_ERR |
             hoverboard_driver::HoverboardState::STATUS_LEFT_MOTOR_TEMP_ERR |
-            hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR );
-    
-    if (!status_msg.esc_power || (ros::Time::now() - last_ll_status_esc_enabled).toSec() < 2.0) {
+            hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR |
+            hoverboard_driver::HoverboardState::STATUS_BATTERY_L1 |
+            hoverboard_driver::HoverboardState::STATUS_BATTERY_L2 );
+
+    if (!status_msg.esc_power || (ros::Time::now() - last_ll_status_esc_enabled).toSec() < 3.0) {
         //report esc off status when disabled or started less than 2 seconds ago to prevent report disconnected status
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
@@ -179,31 +240,44 @@ void convertStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardS
         //&& vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED_INCOMPATIBLE_FW
         ) {
         // ESC is disconnected, the bad status that never should happen
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Hoverborad connection status: " << (int)state_msg.state.connection_state << " status code: " << state_msg.state.status);
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
-    } else if(statusNoTemperatures) {
-        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Motor controller status code: " << state_msg.state.status);
+    } else if(statusNoTemperaturesNoBattery) {
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Hoverborad controller status code: " << state_msg.state.status);
         // ESC has a fault
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
+        //FIXME!!! temporary disable hoverboard errors
+        //ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+        //ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
     } else {
         // ESC is OK but we will check temperatures
         ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
         ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-    }
 
-    if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_WARN) {
-        ROS_WARN_STREAM("[mower_comms] Motor controller PCB temerature warning");
-    }
-    if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_ERR) {
-        ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
-        ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
-    }
-    if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_LEFT_MOTOR_TEMP_ERR) {
-        ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
-    }
-    if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR) {
-        ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+        // If evrything looks ok at the moment, check temperatures
+        if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_WARN) {
+            ROS_WARN_STREAM_THROTTLE(10,"[mower_comms] Motor controller PCB temerature warning");
+        }
+        if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_ERR) {
+            ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+            ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+        }
+        if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_LEFT_MOTOR_TEMP_ERR) {
+            ROS_WARN_STREAM_THROTTLE(10,"[mower_comms] Left Motor temerature error: " << state_msg.state.motorL_temp);
+            //ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+        }
+        if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR) {
+            ROS_WARN_STREAM_THROTTLE(10,"[mower_comms] Right Motor temerature error: " << state_msg.state.motorR_temp);
+            //ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+        }
+
+        //and log battery warings 
+        if(state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_BATTERY_L1 || 
+            state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_BATTERY_L2) {
+            ROS_WARN_STREAM("[mower_comms] Motor controller reports battery warning");
+        }
     }
 
     if (abs(state_msg.state.cmdL - state_msg.state.speedL_meas) > state_msg.state.cmdL * 0.2 ) {
@@ -226,23 +300,6 @@ void convertStatus(mower_msgs::Status &status_msg,hoverboard_driver::HoverboardS
 }
 
 void publishStatus() {
-    double rear_status_age_s_double = (ros::Time::now() - last_rear_status.header.stamp).toSec();
-    uint8_t rear_status_age_s_uint8_t = rear_status_age_s_double;
-    if(rear_status_age_s_double > UINT8_MAX || last_rear_status.state.connection_state == hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
-        rear_status_age_s_uint8_t = UINT8_MAX;
-    }
-    double front_status_age_s_double = (ros::Time::now() - last_front_status.header.stamp).toSec();
-    uint8_t front_status_age_s_uint8_t = front_status_age_s_double;
-    if(front_status_age_s_double > UINT8_MAX || last_front_status.state.connection_state == hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
-        front_status_age_s_uint8_t = UINT8_MAX;
-    }
-    struct ll_motor_state ll_motor_state = {
-            .type = PACKET_ID_LL_MOTOR_STATE,
-            .status = {last_rear_status.state.status,last_front_status.state.status,0},
-            .status_age_s = {rear_status_age_s_uint8_t,front_status_age_s_uint8_t,0}
-    };
-    sendLLMessage((uint8_t *)&ll_motor_state,sizeof(struct ll_motor_state));
-
     mower_msgs::Status status_msg;
     status_msg.stamp = ros::Time::now();
 
@@ -253,14 +310,17 @@ void publishStatus() {
         // LL initializing
         status_msg.mower_status = mower_msgs::Status::MOWER_STATUS_INITIALIZING;
     }
+    double llAge = (status_msg.stamp - last_ll_status_time).toSec();
 
     status_msg.raspberry_pi_power = (last_ll_status.status_bitmask & (1<<STATUS_RASPI_POWER_BIT)) != 0;
-    status_msg.charging_allowed = (last_ll_status.status_bitmask & (1<<STATUS_CHARGING_ALLOWED_BIT)) != 0;
+    status_msg.charging = (last_ll_status.status_bitmask & (1<<STATUS_CHARGING_BIT)) != 0;
     status_msg.esc_power = (last_ll_status.status_bitmask & (1<<STATUS_ESC_ENABLED_BIT)) != 0;
     status_msg.rain_detected = (last_ll_status.status_bitmask & (1<<STATUS_RAIN_BIT)) != 0;
-    status_msg.uss_timeout = (last_ll_status.status_bitmask & (1<<STATUS_USS_BIT)) != 0;
-    status_msg.imu_timeout = (last_ll_status.status_bitmask & (1<<STATUS_IMU_BIT)) != 0;
+    status_msg.uss_timeout = (last_ll_status.status_bitmask & (1<<STATUS_USS_TIMEOUT_BIT)) != 0;
+    status_msg.imu_timeout = (last_ll_status.status_bitmask & (1<<STATUS_IMU_TIMEOUT_BIT)) != 0;
     status_msg.battery_empty = (last_ll_status.status_bitmask & (1<<STATUS_BATTERY_EMPTY_BIT)) != 0;
+    status_msg.bms_timeout = (last_ll_status.status_bitmask & (1<<STATUS_BMS_TIMEOUT_BIT)) != 0;
+    status_msg.ll_timeout = llAge > 1.0;
 
     for (uint8_t i = 0; i < 5; i++) {
         status_msg.uss_ranges[i] = last_ll_status.uss_ranges_m[i];
@@ -268,9 +328,9 @@ void publishStatus() {
     }
 
     // overwrite emergency with the LL value.
-    emergency_low_level = last_ll_status.emergency_bitmask > 0;
-    if (emergency_low_level) {
-        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Low Level Emergency. Bitmask: " << (int)last_ll_status.emergency_bitmask << " Age " << (status_msg.stamp - last_ll_status_time).toSec() << "s");
+    emergency_low_level_bits = last_ll_status.emergency_bitmask;
+    if (emergency_low_level_bits > 0) {
+        ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Low Level Emergency. Bitmask: " << (int)last_ll_status.emergency_bitmask << " Age " << llAge << "s");
     }
     if (emergency_high_level_bits > 0) {
         ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] High Level Emergency. Bitmask: " << (int)emergency_high_level_bits);
@@ -278,23 +338,48 @@ void publishStatus() {
 
     // True, if high or low level emergency condition is present
     status_msg.emergency = isEmergency();
+    status_msg.temporary_emergency = isTemporaryEmergency();
 
     status_msg.v_battery = last_ll_status.v_system;
     status_msg.v_charge = last_ll_status.v_charge;
-    status_msg.charge_current = last_ll_status.charging_current;
+    status_msg.battery_current = last_ll_status.battery_current;
+    status_msg.battery_soc = last_ll_status.batt_percentage/100.0;
 
+    if (mow_xesc_interface && status_msg.esc_power) {
+        mow_xesc_interface->getStatus(last_mow_status);
+    } else {
+        last_mow_status.header.stamp = ros::Time::now();
+        last_mow_status.state.connection_state = xesc_msgs::XescState::XESC_CONNECTION_STATE_DISCONNECTED;
+    }
 
-    //xesc_msgs::XescStateStamped mow_status;
-    //if(mow_xesc_interface) {
-    //    mow_xesc_interface->getStatus(mow_status);
-    //} else {
-    //    mow_status.state.connection_state = xesc_msgs::XescState::XESC_CONNECTION_STATE_DISCONNECTED;
-    //}
+    convertXescStatus(status_msg, last_mow_status, status_msg.mow_esc_status);
+    convertHoverboardStatus(status_msg, last_rear_status, status_msg.rear_left_esc_status, status_msg.rear_right_esc_status);
+    convertHoverboardStatus(status_msg, last_front_status, status_msg.front_left_esc_status, status_msg.front_right_esc_status);
 
-    //convertStatus(mow_status, status_msg.mow_esc_status);
-    convertStatus(status_msg, last_rear_status, status_msg.rear_left_esc_status, status_msg.rear_right_esc_status);
-    convertStatus(status_msg, last_front_status, status_msg.front_left_esc_status, status_msg.front_right_esc_status);
+    //publish LL message
+    double rear_status_age_s_double = (ros::Time::now() - last_rear_status.header.stamp).toSec();
+    uint8_t rear_status_age_s_uint8_t = rear_status_age_s_double;
+    if(rear_status_age_s_double > UINT8_MAX || last_rear_status.state.connection_state == hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
+        rear_status_age_s_uint8_t = UINT8_MAX;
+    }
+    double front_status_age_s_double = (ros::Time::now() - last_front_status.header.stamp).toSec();
+    uint8_t front_status_age_s_uint8_t = front_status_age_s_double;
+    if(front_status_age_s_double > UINT8_MAX || last_front_status.state.connection_state == hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
+        front_status_age_s_uint8_t = UINT8_MAX;
+    }
+    double mow_status_age_s_double = (ros::Time::now() - last_mow_status.header.stamp).toSec();
+    uint8_t mow_status_age_s_uint8_t = mow_status_age_s_double;
+    if(mow_status_age_s_double > UINT8_MAX || last_mow_status.state.connection_state == xesc_msgs::XescState::XESC_CONNECTION_STATE_DISCONNECTED) {
+        mow_status_age_s_uint8_t = UINT8_MAX;
+    }
+    struct ll_motor_state ll_motor_state = {
+            .type = PACKET_ID_LL_MOTOR_STATE,
+            .status = {last_rear_status.state.status,last_front_status.state.status,last_mow_status.state.fault_code},
+            .status_age_s = {rear_status_age_s_uint8_t,front_status_age_s_uint8_t,mow_status_age_s_uint8_t}
+    };
+    sendLLMessage((uint8_t *)&ll_motor_state,sizeof(struct ll_motor_state));
 
+    //publis topic status
     status_pub.publish(status_msg);
 
     xbot_msgs::WheelTick wheel_tick_msg;
@@ -318,6 +403,7 @@ void publishStatus() {
 }
 
 void publishActuatorsTimerTask(const ros::TimerEvent &timer_event) {
+    updateEmergencyBits();
     publishActuators();
     publishStatus();
 }
@@ -329,9 +415,9 @@ bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerCon
     mower_enabled = req.mow_enabled;
     mower_direction = req.mow_direction;
     if (mower_enabled && !isEmergency()) {
-        //speed_mow = req.mow_direction ? 1 : -1;
+        speed_mow = req.mow_direction ? req.mow_power : -req.mow_power;
     } else {
-        //speed_mow = 0;
+        speed_mow = 0;
     }
 //    ROS_INFO_STREAM("[mower_comms] Setting mow enabled to " << speed_mow);
     return true;
@@ -469,17 +555,39 @@ void handleLowLevelIMU(struct ll_imu *imu) {
     sensor_imu_msg.header.stamp = ros::Time::now();
     sensor_imu_msg.header.seq++;
     sensor_imu_msg.header.frame_id = "base_link";
-    sensor_imu_msg.linear_acceleration.x = imu->acceleration_mss[imu_x_idx] * imu_x_multiplier;
-    sensor_imu_msg.linear_acceleration.y = imu->acceleration_mss[imu_y_idx] * imu_y_multiplier;
-    sensor_imu_msg.linear_acceleration.z = imu->acceleration_mss[imu_z_idx] * imu_z_multiplier;
-    sensor_imu_msg.angular_velocity.x = imu->gyro_rads[imu_x_idx] * imu_x_multiplier;
-    sensor_imu_msg.angular_velocity.y = imu->gyro_rads[imu_y_idx] * imu_y_multiplier;
-    sensor_imu_msg.angular_velocity.z = imu->gyro_rads[imu_z_idx] * imu_z_multiplier;
+    sensor_imu_msg.linear_acceleration.x = imu->acceleration_mss[imu_accel_idx[0]] * imu_accel_multiplier[0];
+    sensor_imu_msg.linear_acceleration.y = imu->acceleration_mss[imu_accel_idx[1]] * imu_accel_multiplier[1];
+    sensor_imu_msg.linear_acceleration.z = imu->acceleration_mss[imu_accel_idx[2]] * imu_accel_multiplier[2];
+    sensor_imu_msg.angular_velocity.x = imu->gyro_rads[imu_gyro_idx[0]] * imu_gyro_multiplier[0];
+    sensor_imu_msg.angular_velocity.y = imu->gyro_rads[imu_gyro_idx[1]] * imu_gyro_multiplier[1];
+    sensor_imu_msg.angular_velocity.z = imu->gyro_rads[imu_gyro_idx[2]] * imu_gyro_multiplier[2];
  
     sensor_imu_pub.publish(sensor_imu_msg);
     sensor_mag_pub.publish(sensor_mag_msg);
 }
 
+int parseAxes(ros::NodeHandle& paramNh, double* axes_multiplier, int* axes_idx, const std::string& axes_param) {
+    std::string axes = "+x+y+z";
+    if(!paramNh.getParam(axes_param,axes)){
+        ROS_ERROR_STREAM("[mower_comms] IMU axes (" << axes_param << " param) orientation is not specified. Example \"+x-y-z\" for upside-down configuration");
+        return 0;
+    }
+    if(axes.length()!=6) {
+        ROS_ERROR_STREAM("[mower_comms] IMU axes (" << axes_param <<" param) orientation foramt is incorrect. Example \"+x-y-z\" for upside-down configuration");
+        return 0;
+    }
+    axes_multiplier[0] = axes.at(0) == '+' ? 1.0 : axes.at(0) == '-' ? -1.0 : 0;
+    axes_idx[0] = axes.at(1) == 'x' ? 0 : axes.at(1) == 'y' ? 1 : axes.at(1) == 'z' ? 2 : -1;
+    axes_multiplier[1] = axes.at(2) == '+' ? 1.0 : axes.at(2) == '-' ? -1.0 : 0;
+    axes_idx[1] = axes.at(3) == 'x' ? 0 : axes.at(3) == 'y' ? 1 : axes.at(3) == 'z' ? 2 : -1;
+    axes_multiplier[2] = axes.at(4) == '+' ? 1.0 : axes.at(4) == '-' ? -1.0 : 0;
+    axes_idx[2] = axes.at(5) == 'x' ? 0 : axes.at(5) == 'y' ? 1 : axes.at(5) == 'z' ? 2 : -1;
+    if(axes_idx[0]==-1 || axes_idx[1]==-1 || axes_idx[2]==-1 || axes_multiplier[0] == 0 || axes_multiplier[1] == 0 || axes_multiplier[2] == 0) {
+        ROS_ERROR_STREAM("[mower_comms] IMU axes (" << axes_param << " param) orientation foramt is incorrect. Example \"+x-y-z\" for upside-down configuration");
+        return 0;
+    }
+    return 1;
+}
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "mower_comms");
@@ -489,7 +597,7 @@ int main(int argc, char **argv) {
 
     ros::NodeHandle n;
     ros::NodeHandle paramNh("~");
-    //ros::NodeHandle mowerParamNh("~/mower_xesc");
+    ros::NodeHandle mowerParamNh("~/mower_xesc");
 
     highLevelClient = n.serviceClient<mower_msgs::HighLevelControlSrv>(
             "mower_service/high_level_control");
@@ -506,23 +614,16 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    std::string axes = "+x+y+z";
-    if(!paramNh.getParam("imu_axes",axes)){
-        ROS_ERROR_STREAM("[mower_comms] IMU axes (imu_axes param) orientation is not specified. Example \"+x-y-z\" for upside-down configuration");
+    if(!paramNh.getParam("mower_esc_enabled",mower_esc_enabled)){
+        ROS_ERROR_STREAM("[mower_comms] Mower ESC enabled parameter is not specified. Quitting.");
         return 1;
     }
-    if(axes.length()!=6) {
-        ROS_ERROR_STREAM("[mower_comms] IMU axes (imu_axes param) orientation foramt is incorrect. Example \"+x-y-z\" for upside-down configuration");
+
+    if (!parseAxes(paramNh, imu_accel_multiplier, imu_accel_idx, "imu_accel_axes")) {
         return 1;
     }
-    imu_x_multiplier = axes.at(0) == '+' ? 1.0 : axes.at(0) == '-' ? -1.0 : 0;
-    imu_x_idx = axes.at(1) == 'x' ? 0 : axes.at(1) == 'y' ? 1 : axes.at(1) == 'z' ? 2 : -1;
-    imu_y_multiplier = axes.at(2) == '+' ? 1.0 : axes.at(2) == '-' ? -1.0 : 0;
-    imu_y_idx = axes.at(3) == 'x' ? 0 : axes.at(3) == 'y' ? 1 : axes.at(3) == 'z' ? 2 : -1;
-    imu_z_multiplier = axes.at(4) == '+' ? 1.0 : axes.at(4) == '-' ? -1.0 : 0;
-    imu_z_idx = axes.at(5) == 'x' ? 0 : axes.at(5) == 'y' ? 1 : axes.at(5) == 'z' ? 2 : -1;
-    if(imu_x_idx==-1 || imu_y_idx==-1 || imu_z_idx==-1 || imu_x_multiplier == 0 || imu_y_multiplier == 0 || imu_z_multiplier == 0) {
-        ROS_ERROR_STREAM("[mower_comms] IMU axes (imu_axes param) orientation foramt is incorrect. Example \"+x-y-z\" for upside-down configuration");
+
+    if (!parseAxes(paramNh, imu_gyro_multiplier , imu_gyro_idx , "imu_gyro_axes")) {
         return 1;
     }
 
@@ -530,14 +631,14 @@ int main(int argc, char **argv) {
 
     last_cmd_twist.linear.x = 0;
     last_cmd_twist.angular.z = 0;
-    //speed_mow = 0;
+    speed_mow = 0;
 
     // Setup XESC interfaces
-    //if(mowerParamNh.hasParam("xesc_type")) {
-    //    mow_xesc_interface = new xesc_driver::XescDriver(n, mowerParamNh);
-    //} else {
-    //    mow_xesc_interface = nullptr;
-    //}
+    if(mowerParamNh.hasParam("xesc_type") && mower_esc_enabled) {
+        mow_xesc_interface = new xesc_driver::XescDriver(n, mowerParamNh);
+    } else {
+        mow_xesc_interface = nullptr;
+    }
 
     status_pub = n.advertise<mower_msgs::Status>("mower/status", 1);
     wheel_tick_pub = n.advertise<xbot_msgs::WheelTick>("mower/wheel_ticks", 1);
@@ -620,7 +721,7 @@ int main(int argc, char **argv) {
                                 if (data_size == sizeof(struct ll_status)) {
                                     handleLowLevelStatus((struct ll_status *) buffer_decoded);
                                 } else {
-                                    ROS_INFO_STREAM(
+                                    ROS_WARN_STREAM(
                                             "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was STATUS");
                                 }
                                 break;
@@ -628,7 +729,7 @@ int main(int argc, char **argv) {
                                 if (data_size == sizeof(struct ll_imu)) {
                                     handleLowLevelIMU((struct ll_imu *) buffer_decoded);
                                 } else {
-                                    ROS_INFO_STREAM(
+                                    ROS_WARN_STREAM(
                                             "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was IMU");
                                 }
                                 break;
@@ -636,16 +737,16 @@ int main(int argc, char **argv) {
                                 if(data_size == sizeof(struct ll_ui_event)) {
                                     handleLowLevelUIEvent((struct ll_ui_event*) buffer_decoded);
                                 } else {
-                                    ROS_INFO_STREAM(
+                                    ROS_WARN_STREAM(
                                             "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was UI_EVENT");
                                 }
                                 break;
                             default:
-                                ROS_INFO_STREAM("[mower_comms] Got unknown packet from Low Level Board");
+                                ROS_WARN_STREAM("[mower_comms] Got unknown packet from Low Level Board");
                                 break;
                         }
                     } else {
-                        ROS_INFO_STREAM("[mower_comms] Got invalid checksum from Low Level Board");
+                        ROS_WARN_STREAM("[mower_comms] Got invalid checksum from Low Level Board");
                     }
 
                 }
@@ -659,20 +760,19 @@ int main(int argc, char **argv) {
 
     spinner.stop();
 
-
-    //if(mow_xesc_interface) {
-    //    mow_xesc_interface->setDutyCycle(0.0);
-    //    mow_xesc_interface->stop();
-    //}
+    if(mow_xesc_interface) {
+        mow_xesc_interface->setDutyCycle(0.0);
+        mow_xesc_interface->stop();
+    }
     last_cmd_twist.linear.x = 0;
     last_cmd_twist.angular.z = 0;
     publishActuators();
     //left_xesc_interface->stop();
     //right_xesc_interface->stop();
 
-    //if(mow_xesc_interface) {
-    //    delete mow_xesc_interface;
-    //}
+    if(mow_xesc_interface) {
+        delete mow_xesc_interface;
+    }
 
     return 0;
 }
