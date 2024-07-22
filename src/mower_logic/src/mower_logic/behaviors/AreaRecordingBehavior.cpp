@@ -98,7 +98,7 @@ Behavior *AreaRecordingBehavior::execute() {
         }
 
         if(!error && has_outline && finished_all && area_type!=mower_map::MapArea::AREA_NONE) {
-            ROS_INFO_STREAM("[AreaRecordingBehavior] Area recording completed. Adding area type " << area_type);
+            ROS_INFO_STREAM("[AreaRecordingBehavior] Area recording completed. Adding area type " << static_cast<int>(area_type));
             mower_map::AddMowingAreaSrv srv;
             srv.request.area = result;
             srv.request.area.area_type = area_type;
@@ -184,7 +184,7 @@ void AreaRecordingBehavior::pose_received(const xbot_msgs::AbsolutePose::ConstPt
 }
 
 void AreaRecordingBehavior::finish_area(uint8_t areaType, std::string reason) {
-    ROS_INFO_STREAM("[AreaRecordingBehavior] Begin save area type " << areaType << " with reason " << reason);
+    ROS_INFO_STREAM("[AreaRecordingBehavior] Begin save area type " << static_cast<int>(areaType) << " with reason " << reason);
     area_type = areaType;
     // stop current poly recording
     poly_recording_enabled = false;

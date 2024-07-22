@@ -422,15 +422,19 @@ bool addMowingArea(mower_map::AddMowingAreaSrvRequest &req, mower_map::AddMowing
                 sameTypeAreas++;
             }
         }
+        std::ostringstream newName;
+        
+        std::string query(s.str());
         if(req.area.area_type==mower_map::MapArea::AREA_NAVIGATION){
-            req.area.name = "Nav-" + sameTypeAreas;
+            newName << "nav-" << sameTypeAreas;
         }else if(req.area.area_type == mower_map::MapArea::AREA_MOWING){
-            req.area.name = "Mow-" + sameTypeAreas;
+            newName << "mow-" << sameTypeAreas;
         }else if(req.area.area_type == mower_map::MapArea::AREA_PROHIBITED){
-            req.area.name = "Proh-" + sameTypeAreas;
+            newName << "pro-" << sameTypeAreas;
         }else{
-            req.area.name = "Unk-" + sameTypeAreas;
+            newName << "unk-" << sameTypeAreas;
         }
+        req.area.name = newName.str();
         ROS_INFO_STREAM("[mower_map_service] New area name " << req.area.name);
     }
     areas.push_back(req.area);
