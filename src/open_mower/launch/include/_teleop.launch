@@ -19,6 +19,7 @@
     <group unless="$(eval env('OM_MOWER_GAMEPAD') == 'xbox360')">
         <node name="joy" pkg="joy" type="joy_node" required="true" >
             <remap from="/joy" to="/teleop_joy"/>
+            <param name="~autorepeat_rate" value="10.0"/>
             <param name="~coalesce_interval" value="0.06"/>
         </node>
         

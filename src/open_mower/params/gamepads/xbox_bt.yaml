@@ -8,11 +8,11 @@ teleop:
       -
         axis: 1
         target: linear.x
-        scale: 0.5
+        scale: 1.0
       -
         axis: 0
         target: angular.z
-        scale: 1.5
+        scale: 3.0
 
   mower:
     type: topic
