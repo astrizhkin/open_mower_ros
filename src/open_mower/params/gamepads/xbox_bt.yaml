@@ -48,18 +48,30 @@ teleop:
       -
         axis: 0
         target: angular.z
-        scale: 3.0
+        scale: 2.5
 
   mower:
     type: topic
     message_type: std_msgs/Float32
     topic_name: joy_mower
-    deadman_buttons: [0, 4]
+    deadman_buttons: [0]
     axis_mappings:
       -
         axis: 4
         target: data
         scale: -1.0
+
+  mower_turbo:
+    type: topic
+    message_type: std_msgs/Float32
+    topic_name: joy_mower
+    deadman_buttons: [4]
+    axis_mappings:
+      -
+        axis: 4
+        target: data
+        scale: -1.0
+
 
   # record_polygon:
   #   type: topic
