@@ -204,7 +204,7 @@ void AreaRecordingBehavior::joy_received(const sensor_msgs::Joy &joy_msg) {
         finish_area(mower_map::MapArea::AREA_NAVIGATION,"joystick Y + UP PRESSED");
     }
     // Y + left was pressed, we finish the recording for a navigation area
-    if ((joy_msg.buttons[3] && joy_msg.axes[8] < -0.5) && !(last_joy.buttons[3] && last_joy.axes[8] < -0.5)) {
+    if ((joy_msg.buttons[3] && joy_msg.axes[6] < -0.5) && !(last_joy.buttons[3] && last_joy.axes[6] < -0.5)) {
         finish_area(mower_map::MapArea::AREA_PROHIBITED,"joystick Y + LEFT PRESSED");
     }
     // Y + down was pressed, we finish the recording for a navigation area
