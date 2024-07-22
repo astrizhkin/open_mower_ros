@@ -424,7 +424,6 @@ bool addMowingArea(mower_map::AddMowingAreaSrvRequest &req, mower_map::AddMowing
         }
         std::ostringstream newName;
         
-        std::string query(s.str());
         if(req.area.area_type==mower_map::MapArea::AREA_NAVIGATION){
             newName << "nav-" << sameTypeAreas;
         }else if(req.area.area_type == mower_map::MapArea::AREA_MOWING){
