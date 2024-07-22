@@ -61,10 +61,8 @@ ros::Publisher map_server_viz_array_pub;
 // Publishes map for monitoring
 ros::Publisher xbot_monitoring_map_pub;
 
-// We store navigation_areas (i.e. robot is allowed to move here) and
-// mowing_areas (i.e. grass needs to be cut here)
-std::vector<mower_map::MapArea> navigation_areas;
-std::vector<mower_map::MapArea> mowing_areas;
+// We store areas (i.e. navigation where robot is allowed to move and mowing where grass needs to be cut)
+std::vector<mower_map::MapArea> areas;
 
 // The recorded docking pose. Note that this is the pose from which the docking attempt is started
 // I.e. the robot will drive to this pose and then drive forward
@@ -115,19 +113,12 @@ void publishMapMonitoring() {
     m.getRPY(unused1, unused2, yaw);
     xb_map.dockHeading = yaw;
 
-    for(const auto& area:navigation_areas) {
+    for(const auto& area:areas) {
         xbot_msgs::MapArea xb_area;
         xb_area.name = area.name;
         xb_area.area = area.area;
-        xb_area.obstacles = area.obstacles;
-        xb_map.navigationAreas.push_back(xb_area);
-    }
-    for(const auto& area:mowing_areas) {
-        xbot_msgs::MapArea xb_area;
-        xb_area.name = area.name;
-        xb_area.area = area.area;
-        xb_area.obstacles = area.obstacles;
-        xb_map.workingArea.push_back(xb_area);
+        xb_area.area_type = area.area_type;
+        xb_map.areas.push_back(xb_area);
     }
 
     xbot_monitoring_map_pub.publish(xb_map);
@@ -149,19 +140,22 @@ void visualizeAreas() {
 
     grid_map::Polygon p;
 
-    for(const auto& navigationArea:navigation_areas) {
-        mapAreas.navigationAreas.push_back(navigationArea);
-    }
-
-    for (auto mowingArea: mowing_areas) {
+    for (auto area: areas) {
         // Push it to mapAreas
-        mapAreas.mowingAreas.push_back(mowingArea);
+        mapAreas.areas.push_back(area);
         {
             // Create a marker
-            fromMessage(mowingArea.area, p);
+            fromMessage(area.area, p);
             std_msgs::ColorRGBA color;
-            color.g = 1.0;
-            color.a = 1.0;
+            if(area.area_type == mower_map::MapArea::AREA_MOWING) {
+                color.g = 1.0;
+                color.a = 1.0;
+            } else if (area.area_type == mower_map::MapArea::AREA_PROHIBITED) {
+                color.r = 1.0;
+                color.a = 1.0;
+            } else if (area.area_type == mower_map::MapArea::AREA_NAVIGATION) {
+            } else {
+            }
             visualization_msgs::Marker marker;
             grid_map::PolygonRosConverter::toLineMarker(p, color, 0.05, 0, marker);
 
@@ -171,22 +165,6 @@ void visualizeAreas() {
             marker.frame_locked = true;
             marker.pose.orientation.w = 1.0;
 
-            markerArray.markers.push_back(marker);
-        }
-        for (auto obstacle: mowingArea.obstacles) {
-            fromMessage(obstacle, p);
-            std_msgs::ColorRGBA color;
-            color.r = 1.0;
-            color.a = 1.0;
-            visualization_msgs::Marker marker;
-            grid_map::PolygonRosConverter::toLineMarker(p, color, 0.05, 0, marker);
-
-            marker.header.frame_id = "map";
-            marker.ns = "mower_map_service";
-            marker.id = markerArray.markers.size();
-            marker.frame_locked = true;
-
-            marker.pose.orientation.w = 1.0;
             markerArray.markers.push_back(marker);
         }
     }
@@ -211,7 +189,6 @@ void visualizeAreas() {
         marker.id = markerArray.markers.size() + 1;
         marker.frame_locked = true;
         markerArray.markers.push_back(marker);
-
     }
 
     map_server_viz_array_pub.publish(markerArray);
@@ -219,11 +196,11 @@ void visualizeAreas() {
 }
 
 /**
- * Uses the polygons stored in navigation_areas and mowing_areas to build the final occupancy grid.
+ * Uses the polygons stored in areas to build the final occupancy grid.
  *
- * First, the map is marked as completely occupied. Then navigation_areas and mowing_areas are marked as free.
+ * First, the map is marked as completely occupied. Then navigation areas and mowing areas are marked as free.
  *
- * Then, all obstacles are marked as occupied.
+ * All obstacles are marked as occupied.
  *
  * Finally, a blur is applied to the map so that it is expensive, but not completely forbidden to drive near boundaries.
  */
@@ -236,36 +213,12 @@ void buildMap() {
     float maxY = FLT_MIN;
 
     // loop through all areas and calculate a size where everything fits
-    for (const auto &area: mowing_areas) {
+    for (const auto &area: areas) {
         for (auto pt: area.area.points) {
             minX = std::min(minX, pt.x);
             maxX = std::max(maxX, pt.x);
             minY = std::min(minY, pt.y);
             maxY = std::max(maxY, pt.y);
-        }
-        for (const auto &obstacle: area.obstacles) {
-            for (const auto &pt: obstacle.points) {
-                minX = std::min(minX, pt.x);
-                maxX = std::max(maxX, pt.x);
-                minY = std::min(minY, pt.y);
-                maxY = std::max(maxY, pt.y);
-            }
-        }
-    }
-    for (const auto &area: navigation_areas) {
-        for (auto pt: area.area.points) {
-            minX = std::min(minX, pt.x);
-            maxX = std::max(maxX, pt.x);
-            minY = std::min(minY, pt.y);
-            maxY = std::max(maxY, pt.y);
-        }
-        for (const auto &obstacle: area.obstacles) {
-            for (const auto &pt: obstacle.points) {
-                minX = std::min(minX, pt.x);
-                maxX = std::max(maxX, pt.x);
-                minY = std::min(minY, pt.y);
-                maxY = std::max(maxY, pt.y);
-            }
         }
     }
 
@@ -277,7 +230,7 @@ void buildMap() {
     minY -= 1.0;
 
     // Check, if the map was empty. If so, we'd create a huge map. Therefore we build an empty 10x10m map instead.
-    if (mowing_areas.empty() && navigation_areas.empty()) {
+    if (areas.empty()) {
         maxX = 5.0;
         minX = -5.0;
         maxY = 5.0;
@@ -297,35 +250,26 @@ void buildMap() {
     map.setTimestamp(ros::Time::now().toNSec());
 
     map.clearAll();
+    //mark all map as occupied (1.0)
     map["navigation_area"].setConstant(1.0);
 
     grid_map::Matrix &data = map["navigation_area"];
-    for (auto mowingArea: navigation_areas) {
+    //mark navigation and mowing as free (0.0)
+    for (auto area: areas) {
         grid_map::Polygon poly;
-        fromMessage(mowingArea.area, poly);
-
-        for (grid_map::PolygonIterator iterator(map, poly); !iterator.isPastEnd(); ++iterator) {
-            const grid_map::Index index(*iterator);
-            data(index[0], index[1]) = 0.0;
-        }
-        for (auto obstacle: mowingArea.obstacles) {
-            fromMessage(obstacle, poly);
+        fromMessage(area.area, poly);
+        if(area.area_type == mower_map::MapArea::AREA_MOWING || area.area_type == mower_map::MapArea::AREA_NAVIGATION){
             for (grid_map::PolygonIterator iterator(map, poly); !iterator.isPastEnd(); ++iterator) {
                 const grid_map::Index index(*iterator);
-                data(index[0], index[1]) = 1.0;
+                data(index[0], index[1]) = 0.0;
             }
         }
     }
-    for (auto mowingArea: mowing_areas) {
+    //then mark prohibited as occupied (1.0)
+    for (auto area: areas) {
         grid_map::Polygon poly;
-        fromMessage(mowingArea.area, poly);
-
-        for (grid_map::PolygonIterator iterator(map, poly); !iterator.isPastEnd(); ++iterator) {
-            const grid_map::Index index(*iterator);
-            data(index[0], index[1]) = 0.0;
-        }
-        for (auto obstacle: mowingArea.obstacles) {
-            fromMessage(obstacle, poly);
+        fromMessage(area.area, poly);
+        if(area.area_type == mower_map::MapArea::AREA_PROHIBITED){
             for (grid_map::PolygonIterator iterator(map, poly); !iterator.isPastEnd(); ++iterator) {
                 const grid_map::Index index(*iterator);
                 data(index[0], index[1]) = 1.0;
@@ -411,11 +355,8 @@ void saveMapToFile() {
     rosbag::Bag bag;
     bag.open("map.bag", rosbag::bagmode::Write);
 
-    for (auto &area: mowing_areas) {
-        bag.write("mowing_areas", ros::Time::now(), area);
-    }
-    for (auto &area: navigation_areas) {
-        bag.write("navigation_areas", ros::Time::now(), area);
+    for (auto &area: areas) {
+        bag.write("areas", ros::Time::now(), area);
     }
 
     if(has_docking_point) {
@@ -433,8 +374,7 @@ void saveMapToFile() {
  */
 void readMapFromFile(const std::string& filename, bool append = false) {
     if (!append) {
-        mowing_areas.clear();
-        navigation_areas.clear();
+        areas.clear();
     }
     rosbag::Bag bag;
     try {
@@ -445,19 +385,11 @@ void readMapFromFile(const std::string& filename, bool append = false) {
     }
 
     {
-        rosbag::View view(bag, rosbag::TopicQuery("mowing_areas"));
+        rosbag::View view(bag, rosbag::TopicQuery("areas"));
 
         for (rosbag::MessageInstance const m: view) {
             auto area = m.instantiate<mower_map::MapArea>();
-            mowing_areas.push_back(*area);
-        }
-    }
-    {
-        rosbag::View view(bag, rosbag::TopicQuery("navigation_areas"));
-
-        for (rosbag::MessageInstance const m: view) {
-            auto area = m.instantiate<mower_map::MapArea>();
-            navigation_areas.push_back(*area);
+            areas.push_back(*area);
         }
     }
 
@@ -477,18 +409,31 @@ void readMapFromFile(const std::string& filename, bool append = false) {
         }
     }
 
-    ROS_INFO_STREAM("[mower_map_service] Loaded " << mowing_areas.size() << " mowing areas and " << navigation_areas.size()
-                              << " navigation areas from file.");
+    ROS_INFO_STREAM("[mower_map_service] Loaded " << areas.size()<< " areas from file.");
 }
 
 bool addMowingArea(mower_map::AddMowingAreaSrvRequest &req, mower_map::AddMowingAreaSrvResponse &res) {
     ROS_INFO_STREAM("[mower_map_service] Got addMowingArea call");
 
-    if(req.isNavigationArea) {
-        navigation_areas.push_back(req.area);
-    } else {
-        mowing_areas.push_back(req.area);
+    if(req.area.name.empty()){
+        int sameTypeAreas = 0;
+        for (auto &area: areas) {
+            if(area.area_type == req.area.area_type) {
+                sameTypeAreas++;
+            }
+        }
+        if(req.area.area_type==mower_map::MapArea::AREA_NAVIGATION){
+            req.area.name = "Nav-" + sameTypeAreas;
+        }else if(req.area.area_type == mower_map::MapArea::AREA_MOWING){
+            req.area.name = "Mow-" + sameTypeAreas;
+        }else if(req.area.area_type == mower_map::MapArea::AREA_PROHIBITED){
+            req.area.name = "Proh-" + sameTypeAreas;
+        }else{
+            req.area.name = "Unk-" + sameTypeAreas;
+        }
+        ROS_INFO_STREAM("[mower_map_service] New area name " << req.area.name);
     }
+    areas.push_back(req.area);
 
     saveMapToFile();
     buildMap();
@@ -498,26 +443,39 @@ bool addMowingArea(mower_map::AddMowingAreaSrvRequest &req, mower_map::AddMowing
 bool getMowingArea(mower_map::GetMowingAreaSrvRequest &req, mower_map::GetMowingAreaSrvResponse &res) {
     ROS_INFO_STREAM("[mower_map_service] Got getMowingArea call with index: " << req.index);
 
-    if (req.index >= mowing_areas.size()) {
+    int mowingAreaIndex = 0;
+    bool found = false;
+    for (auto &area: areas) {
+        if(area.area_type == mower_map::MapArea::AREA_MOWING) {
+            if(mowingAreaIndex==req.index) {
+                res.area = area;
+                found = true;
+            }
+            mowingAreaIndex++;
+        } else if(area.area_type == mower_map::MapArea::AREA_PROHIBITED) {
+            res.prohibited_areas.push_back(area.area);
+        }
+    }
+
+    if (!found) {
         ROS_ERROR_STREAM("[mower_map_service] No mowing area with index: " << req.index);
         return false;
     }
-
-    res.area = mowing_areas.at(req.index);
+    
 
     return true;
 }
 
 bool
 deleteMowingArea(mower_map::DeleteMowingAreaSrvRequest &req, mower_map::DeleteMowingAreaSrvResponse &res) {
-    ROS_INFO_STREAM("[mower_map_service] Got delete mowing area call with index: " << req.index);
+    ROS_INFO_STREAM("[mower_map_service] Got delete area call with index: " << req.index);
 
-    if (req.index >= mowing_areas.size()) {
-        ROS_ERROR_STREAM("[mower_map_service] No mowing area with index: " << req.index);
+    if (req.index >= areas.size()) {
+        ROS_ERROR_STREAM("[mower_map_service] No area with index: " << req.index);
         return false;
     }
 
-    mowing_areas.erase(mowing_areas.begin() + req.index);
+    areas.erase(areas.begin() + req.index);
 
     saveMapToFile();
     buildMap();
@@ -530,14 +488,12 @@ convertToNavigationArea(mower_map::ConvertToNavigationAreaSrvRequest &req,
                         mower_map::ConvertToNavigationAreaSrvResponse &res) {
     ROS_INFO_STREAM("[mower_map_service] Got convert to nav area call with index: " << req.index);
 
-    if (req.index >= mowing_areas.size()) {
+    if (req.index >= areas.size()) {
         ROS_ERROR_STREAM("[mower_map_service] No mowing area with index: " << req.index);
         return false;
     }
 
-    navigation_areas.push_back(mowing_areas[req.index]);
-
-    mowing_areas.erase(mowing_areas.begin() + req.index);
+    areas[req.index].area_type = mower_map::MapArea::AREA_NAVIGATION;
 
     saveMapToFile();
     buildMap();
@@ -600,8 +556,7 @@ bool clearNavPoint(mower_map::ClearNavPointSrvRequest &req, mower_map::ClearNavP
 bool clearMap(mower_map::ClearMapSrvRequest &req, mower_map::ClearMapSrvResponse &res) {
     ROS_INFO_STREAM("[mower_map_service] Clearing Map");
 
-    mowing_areas.clear();
-    navigation_areas.clear();
+    areas.clear();
     has_docking_point = false;
 
     saveMapToFile();

@@ -614,7 +614,7 @@ void joyVelReceived(const geometry_msgs::Twist::ConstPtr &joy_vel) {
 }
 
 void joyMowerReceived(const std_msgs::Float32::ConstPtr &joy_mower) {
-    if (currentBehavior && currentBehavior->redirect_joystick()) {
+    if (currentBehavior && currentBehavior->redirect_joystick() && currentBehavior->mower_enabled()) {
         ROS_INFO_STREAM("[mower_logic] joy mower cmd " << joy_mower->data);
         float power = (joy_mower->data + 1.0)/2.0;
         setMowerEnabledEx(true, power, true);

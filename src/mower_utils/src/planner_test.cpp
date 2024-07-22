@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
     pathSrv.request.angle = 0;
     pathSrv.request.outline_count = 1;
     pathSrv.request.outline = mapSrv.response.area.area;
-    pathSrv.request.holes = mapSrv.response.area.obstacles;
+    pathSrv.request.holes = mapSrv.response.prohibited_areas;
     pathSrv.request.fill_type = slic3r_coverage_planner::PlanPathRequest::FILL_LINEAR;
     pathSrv.request.distance = 1.0;
 

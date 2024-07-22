@@ -176,7 +176,7 @@ bool MowingBehavior::create_mowing_plan(int area_index) {
     pathSrv.request.angle = angle;
     pathSrv.request.outline_count = config.outline_count;
     pathSrv.request.outline = mapSrv.response.area.area;
-    pathSrv.request.holes = mapSrv.response.area.obstacles;
+    pathSrv.request.holes = mapSrv.response.prohibited_areas;
     pathSrv.request.fill_type = slic3r_coverage_planner::PlanPathRequest::FILL_LINEAR;
     pathSrv.request.outer_offset = config.outline_offset;
     pathSrv.request.distance = config.tool_width;
