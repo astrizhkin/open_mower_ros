@@ -16,7 +16,13 @@ RUN apt-get update && apt-get install --yes \
 # Install our configs
 COPY --link ./assets/mosquitto.conf /etc/mosquitto/mosquitto.conf
 COPY --link ./assets/nginx.conf /etc/nginx/conf.d/default.conf
-RUN openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout /etc/ssl/private/openmower-selfsigned.key -out /etc/ssl/certs/openmower-selfsigned.crt -subj "/C=RU/ST=NW/L=SPb/O=OS/CN=10.42.0.1"
+
+#Generate self-signed certificate
+RUN openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+    -keyout /etc/ssl/private/openmower-selfsigned.key \
+    -out /etc/ssl/certs/openmower-selfsigned.crt \
+    -subj "/C=RU/ST=NW/L=SPb/O=OS/CN=10.42.0.1"
+#RUN openssl dhparam -out /etc/nginx/dhparam.pem 4096
 
 # Update rosdep
 RUN rosdep update --rosdistro $ROS_DISTRO
