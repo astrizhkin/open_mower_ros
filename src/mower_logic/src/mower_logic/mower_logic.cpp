@@ -622,10 +622,13 @@ void joyMowerReceived(const std_msgs::Float32::ConstPtr &joy_mower) {
 }
 
 int main(int argc, char **argv) {
+    ROS_INFO("[mower_logic] Main");
     ros::init(argc, argv, "mower_logic");
 
     n = new ros::NodeHandle();
     paramNh = new ros::NodeHandle("~");
+
+    ROS_INFO("[mower_logic] Start initialization");
 
     boost::recursive_mutex mutex;
 
@@ -669,6 +672,7 @@ int main(int argc, char **argv) {
             "mower_map_service/set_nav_point");
     clearNavPointClient = n->serviceClient<mower_map::ClearNavPointSrv>(
             "mower_map_service/clear_nav_point");
+    ROS_INFO("[mower_logic] Got all services");
 
 
     mbfClient = new actionlib::SimpleActionClient<mbf_msgs::MoveBaseAction>("/move_base_flex/move_base");
@@ -681,6 +685,7 @@ int main(int argc, char **argv) {
     ros::Subscriber joy_mower_cmd = n->subscribe("/joy_mower", 0, joyMowerReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber action = n->subscribe("xbot/action", 0, actionReceived, ros::TransportHints().tcpNoDelay(true));
 
+    ROS_INFO("[mower_logic] Subscribed to all topics");
     ros::ServiceServer high_level_control_srv = n->advertiseService("mower_service/high_level_control", highLevelCommand);
 
     ros::AsyncSpinner asyncSpinner(1);
