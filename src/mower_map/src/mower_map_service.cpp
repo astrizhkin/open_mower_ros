@@ -497,24 +497,35 @@ bool addMowingArea(mower_map::AddMowingAreaSrvRequest &req, mower_map::AddMowing
     ROS_INFO_STREAM("[mower_map_service] Got addMowingArea call");
 
     if(req.area.name.empty()){
-        int sameTypeAreas = 0;
-        for (auto &area: areas) {
-            if(area.area_type == req.area.area_type) {
-                sameTypeAreas++;
-            }
-        }
-        std::ostringstream newName;
         
-        if(req.area.area_type==mower_map::MapArea::AREA_NAVIGATION){
-            newName << "nav-" << sameTypeAreas;
-        }else if(req.area.area_type == mower_map::MapArea::AREA_MOWING){
-            newName << "mow-" << sameTypeAreas;
-        }else if(req.area.area_type == mower_map::MapArea::AREA_PROHIBITED){
-            newName << "pro-" << sameTypeAreas;
-        }else{
-            newName << "unk-" << sameTypeAreas;
-        }
-        req.area.name = newName.str();
+        int areaNameIndex = -1;
+        bool nameIsBusy;
+        std::string newNameStr;
+
+        do {
+            areaNameIndex++;
+            nameIsBusy = false;
+            std::ostringstream newName;
+            if(req.area.area_type==mower_map::MapArea::AREA_NAVIGATION){
+                newName << "nav-" << areaNameIndex;
+            }else if(req.area.area_type == mower_map::MapArea::AREA_MOWING){
+                newName << "mow-" << areaNameIndex;
+            }else if(req.area.area_type == mower_map::MapArea::AREA_PROHIBITED){
+                newName << "pro-" << areaNameIndex;
+            }else{
+                newName << "unk-" << areaNameIndex;
+            }
+            newNameStr = newName.str();
+
+            for (auto &area: areas) {
+                if(area.name==newNameStr) {
+                    nameIsBusy=true;
+                    break;
+                }
+            }
+        } while (nameIsBusy);
+
+        req.area.name = newNameStr;
         ROS_INFO_STREAM("[mower_map_service] New area name " << req.area.name);
     }
     areas.push_back(req.area);
