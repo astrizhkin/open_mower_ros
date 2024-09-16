@@ -412,6 +412,87 @@ void readMapFromFile(const std::string& filename, bool append = false) {
     ROS_INFO_STREAM("[mower_map_service] Loaded " << areas.size()<< " areas from file.");
 }
 
+void generateTestMap() {
+    areas.clear();
+
+    double nav_hRad = 12.0;
+    double nav_vRad = 11.0;
+
+    double mowing_hRad = 7.0;
+    double mowing_vRad = 6.0;
+    double prohibited_hRad = 2.0;
+    double prohibited_vRad = 2.0;
+    double prohibited1_h_offset = 10;//<=4 inside, 5 touch outline inside, 6-8 cross, 9 touch outline outside, >=10 outside
+    double prohibited1_v_offset = 0;
+
+    double prohibited2_h_offset = 6;//<=4 inside, 5 touch outline inside, 6-8 cross, 9 touch outline outside, >=10 outside
+    double prohibited2_v_offset = 0;
+
+    int point_count = 20;
+
+    {
+        
+        mower_map::MapArea nav_area;
+        nav_area.area_type = mower_map::MapArea::AREA_NAVIGATION;
+        nav_area.name = "nav1";
+
+        mower_map::MapArea mowing_area;
+        mowing_area.area_type = mower_map::MapArea::AREA_MOWING;
+        mowing_area.name = "mowing1";
+
+        mower_map::MapArea prohibited1_area;
+        prohibited1_area.area_type = mower_map::MapArea::AREA_PROHIBITED;
+        prohibited1_area.name = "prohibited1";
+
+        mower_map::MapArea prohibited2_area;
+        prohibited2_area.area_type = mower_map::MapArea::AREA_PROHIBITED;
+        prohibited2_area.name = "prohibited2";
+
+        for (int i = 0; i < point_count ; i++) {
+            double angle = 2 * M_PI * i / point_count;
+            while(angle > M_PI) {
+                angle -= 2 * M_PI;
+            }
+            geometry_msgs::Point32 navPt;
+            geometry_msgs::Point32 mowingPt;
+            geometry_msgs::Point32 prohibited1Pt;
+            geometry_msgs::Point32 prohibited2Pt;
+
+            navPt.x = cos(angle) * nav_hRad;
+            navPt.y = sin(angle) * nav_vRad;
+
+            mowingPt.x = cos(angle) * mowing_hRad;
+            mowingPt.y = sin(angle) * mowing_vRad;
+
+            prohibited1Pt.x = cos(angle) * prohibited_hRad + prohibited1_h_offset;
+            prohibited1Pt.y = sin(angle) * prohibited_vRad + prohibited1_v_offset;
+
+            prohibited2Pt.x = cos(angle) * prohibited_hRad + prohibited2_h_offset;
+            prohibited2Pt.y = sin(angle) * prohibited_vRad + prohibited2_v_offset;
+
+            //double tangentAngle = atan2(vRad * cos(angle), -hRad * sin(angle));
+            //docking_pose_stamped_front.pose.orientation = tf2::toMsg(tf2::Quaternion(0,0,tangentAngle));
+
+            nav_area.area.points.push_back(navPt);
+            mowing_area.area.points.push_back(mowingPt);
+            prohibited1_area.area.points.push_back(prohibited1Pt);
+            prohibited2_area.area.points.push_back(prohibited2Pt);
+        }
+      
+        geometry_msgs::Pose dockingPt;
+        dockingPt.position.x = 0;
+        dockingPt.position.y = 0;
+
+        docking_point = dockingPt;
+        areas.push_back(nav_area);
+        areas.push_back(mowing_area);
+        areas.push_back(prohibited1_area);
+        areas.push_back(prohibited2_area);
+    }
+
+    ROS_INFO_STREAM("[mower_map_service] Generated test map");
+}
+
 bool addMowingArea(mower_map::AddMowingAreaSrvRequest &req, mower_map::AddMowingAreaSrvResponse &res) {
     ROS_INFO_STREAM("[mower_map_service] Got addMowingArea call");
 
@@ -577,6 +658,7 @@ int main(int argc, char **argv) {
 
     // Load the default map file
     readMapFromFile("map.bag");
+    //generateTestMap();
 
     buildMap();
 
