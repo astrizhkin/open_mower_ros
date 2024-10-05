@@ -242,6 +242,10 @@ bool MowingBehavior::execute_mowing_plan() {
             update_actions();
             while (!requested_continue_flag) // while not asked to continue, we wait
             {
+                if (aborted) {
+                    ROS_INFO_STREAM("[MowingBehavior] PAUSED ABORT was requested");
+                    return false;
+                }
                 ROS_INFO_STREAM("[MowingBehavior] PAUSED (waiting for CONTINUE)");
                 ros::Rate r(1.0);
                 r.sleep();
@@ -251,6 +255,10 @@ bool MowingBehavior::execute_mowing_plan() {
         if (paused) {   
             paused_time = ros::Time::now();
             while (!this->hasGoodGPS()) { // while no good GPS we wait
+                if (aborted) {
+                    ROS_INFO_STREAM("[MowingBehavior] PAUSED ABORT was requested");
+                    return false;
+                }
                 ROS_INFO_STREAM("[MowingBehavior] PAUSED (" << (ros::Time::now()-paused_time).toSec() << "s) (waiting for /odom)");
                 ros::Rate r(1.0);
                 r.sleep();
