@@ -611,9 +611,13 @@ void joyVelReceived(const geometry_msgs::Twist::ConstPtr &joy_vel) {
         ROS_INFO_STREAM("[mower_logic] redirect joystic cmd " << joy_vel->linear.x << ", " << joy_vel->angular.z);
         if(joy_vel->linear.x < 0){
             //reverse angular speed for more intuitive reverse contol
-            joy_vel->angular.z = -joy_vel->angular.z;
+            geometry_msgs::Twist reverse_joy_vel;
+            reverse_joy_vel.linear.x = joy_vel->linear.x;
+            reverse_joy_vel.angular.z = -joy_vel->angular.z;
+            cmd_vel_pub.publish(reverse_joy_vel);
+        }else{
+            cmd_vel_pub.publish(joy_vel);
         }
-        cmd_vel_pub.publish(joy_vel);
     }
 }
 
