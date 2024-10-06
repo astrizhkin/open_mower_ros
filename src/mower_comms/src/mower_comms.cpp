@@ -70,6 +70,7 @@ uint8_t mower_direction = 0;
 
 // Ticks / m and wheel distance for this robot
 double wheel_radius_m = 0.0;
+double cmd_vel_timout = 0.0;
 
 bool mower_esc_enabled = false;
 
@@ -162,7 +163,7 @@ void publishActuators() {
         execute_vel.angular.z = 0;
         speed_mow = 0;
     }
-    if (ros::Time::now() - last_cmd_twist_time > ros::Duration(1.0)) {
+    if (ros::Time::now() - last_cmd_twist_time > ros::Duration(cmd_vel_timout)) {
         //TODO: publish speed topic?
         execute_vel.linear.x = 0;
         execute_vel.angular.z = 0;
@@ -617,6 +618,10 @@ int main(int argc, char **argv) {
     if(!paramNh.getParam("mower_esc_enabled",mower_esc_enabled)){
         ROS_ERROR_STREAM("[mower_comms] Mower ESC enabled parameter is not specified. Quitting.");
         return 1;
+    }
+
+    if(paramNh.param("cmd_vel_timout",cmd_vel_timout,1.0)){
+        ROS_INFO_STREAM("[mower_comms] Configured cmd_vel_timout: " << cmd_vel_timout);
     }
 
     if (!parseAxes(paramNh, imu_accel_multiplier, imu_accel_idx, "imu_accel_axes")) {
