@@ -42,8 +42,8 @@ private:
 
     void circle(nav_msgs::Path &path, double radius);
     void ellipse(nav_msgs::Path &path, double hRad, double vRad);
-    void eight(nav_msgs::Path &path);
-    void zigzag(nav_msgs::Path &path);
+    void eight(nav_msgs::Path &path, double hRad, double vRad);
+    void zigzag(nav_msgs::Path &path, double length, double height);
 
 public:
     std::string state_name() override;

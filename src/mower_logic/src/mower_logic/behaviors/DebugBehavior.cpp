@@ -58,18 +58,16 @@ void DebugBehavior::circle(nav_msgs::Path &path, double radius) {
     ellipse(path, radius, radius);
 }
 
-void DebugBehavior::eight(nav_msgs::Path &path) {
+void DebugBehavior::eight(nav_msgs::Path &path, double hRad, double vRad) {
 
 }
 
-void DebugBehavior::zigzag(nav_msgs::Path &path) {
+void DebugBehavior::zigzag(nav_msgs::Path &path, double length, double height) {
 
 }
 
 
 Behavior *DebugBehavior::execute() {
-
-    // get robot's current pose from odometry.
 
     mbf_msgs::ExePathGoal exePathGoal;
 
@@ -79,14 +77,17 @@ Behavior *DebugBehavior::execute() {
     //ellipse
     //eight
 
-    circle(path, 0.6);
-    ellipse(path, 0.7, 0.4);
-    circle(path, 0.5);
+    //circle(path, 0.6);
+    ellipse(path, 0.6, 0.4);
+    //circle(path, 0.5);
     ellipse(path, 0.7, 0.3);
-    circle(path, 0.4);
+    //circle(path, 0.4);
     ellipse(path, 0.75, 0.25);
-    circle(path, 0.3);
+    //circle(path, 0.3);
     ellipse(path, 0.8, 0.2);
+    ellipse(path, 0.9, 0.15);
+    ellipse(path, 1.0, 0.10);
+    ellipse(path, 1.2, 0.5);
 
     exePathGoal.path = path;
     exePathGoal.angle_tolerance = 1.0 * (M_PI / 180.0);
@@ -94,7 +95,7 @@ Behavior *DebugBehavior::execute() {
     exePathGoal.tolerance_from_action = true;
     exePathGoal.controller = "FTCPlanner";
 
-    setMowerEnabled(true);
+    setMowerEnabled(false);
     auto result = mbfClientExePath->sendGoalAndWait(exePathGoal);
     setMowerEnabled(false);
 
@@ -104,7 +105,7 @@ Behavior *DebugBehavior::execute() {
     stopMoving("debug safety stop");
 
     if (!success) {
-        ROS_ERROR_STREAM("[DebugBehavior] Error during undock. MBF/FTCPlanner state is " << result.toString());
+        ROS_ERROR_STREAM("[DebugBehavior] Error executing debug path. MBF/FTCPlanner state is " << result.toString());
     }
 
     ROS_INFO_STREAM("[DebugBehavior] Debug finished.");
