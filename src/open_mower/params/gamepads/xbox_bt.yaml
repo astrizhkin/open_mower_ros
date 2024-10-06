@@ -29,10 +29,12 @@ teleop:
       -
         axis: 1
         target: linear.x
-        scale: 0.5
+        #value from -1 to 1 scaled actualy means speed in m/s
+        scale: 0.6
       -
         axis: 0
         target: angular.z
+        #value from -1 to 1 scaled actualy means speed in rad/s
         scale: 1.5
 
   move_turbo:
@@ -44,11 +46,13 @@ teleop:
       -
         axis: 1
         target: linear.x
+        #value from -1 to 1 scaled actualy means speed in m/s
         scale: 1.0
       -
         axis: 0
         target: angular.z
-        scale: 2.5
+        #value from -1 to 1 scaled actualy means speed in rad/s
+        scale: 2.0
 
   mower:
     type: topic
