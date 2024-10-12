@@ -28,7 +28,6 @@
 class MowingBehavior : public Behavior {
 
 private:
-    std::vector<xbot_msgs::ActionInfo> actions;
 
     bool skip_area;
     bool skip_path;
@@ -73,7 +72,7 @@ public:
 
     void handle_action(std::string action) override;
 
-    void update_actions();
+    void update_actions(bool enable);
 };
 
 

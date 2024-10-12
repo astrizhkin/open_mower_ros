@@ -75,17 +75,11 @@ void MowingBehavior::enter() {
     skip_path = false;
     mower_enabled_flag = mower_enabled_flag_before_pause = paused = aborted = false;
 
-    for(auto& a : actions) {
-        a.enabled = true;
-    }
-    registerActions("mower_logic:mowing", actions);
+    update_actions(true);
 }
 
 void MowingBehavior::exit() {
-    for(auto& a : actions) {
-        a.enabled = false;
-    }
-    registerActions("mower_logic:mowing", actions);
+    update_actions(false);
 }
 
 void MowingBehavior::reset() {
@@ -108,18 +102,6 @@ void MowingBehavior::reset() {
 
 bool MowingBehavior::needs_gps() {
     return true;
-}
-
-void MowingBehavior::update_actions() {
-    for(auto& a : actions) {
-        a.enabled = true;
-    }
-
-    // pause / resume switch. other actions are always available
-    actions[0].enabled = !paused &&  !requested_pause_flag;
-    actions[1].enabled = paused && !requested_continue_flag;
-
-    registerActions("mower_logic:mowing", actions);
 }
 
 bool MowingBehavior::create_mowing_plan(int area_index) {
@@ -513,11 +495,11 @@ bool MowingBehavior::redirect_joystick() {
     return false;
 }
 
-
 uint8_t MowingBehavior::get_sub_state() {
     return 0;
 
 }
+
 uint8_t MowingBehavior::get_state() {
     return mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_AUTONOMOUS;
 }
@@ -578,5 +560,19 @@ void MowingBehavior::handle_action(std::string action) {
         ROS_INFO_STREAM("[MowingBehavior] got skip_path command");
         skip_path = true;
     }
-    update_actions();
+    update_actions(true);
+}
+
+void MowingBehavior::update_actions(bool enable) {
+    for(auto& a : actions) {
+        a.enabled = enable;
+    }
+
+    if(enable) {
+        // pause / resume switch. other actions are always available
+        actions[0].enabled = !paused &&  !requested_pause_flag;
+        actions[1].enabled = paused && !requested_continue_flag;
+    }
+
+    registerActions("mower_logic:mowing", actions);
 }

@@ -36,7 +36,6 @@ class DockingBehavior : public Behavior {
 public:
     static DockingBehavior INSTANCE;
 private:
-    std::vector<xbot_msgs::ActionInfo> actions;
 
     uint retryCount;
     bool inApproachMode;

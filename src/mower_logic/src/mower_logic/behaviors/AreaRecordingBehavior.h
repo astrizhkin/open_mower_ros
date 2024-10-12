@@ -55,8 +55,6 @@ private:
 
     bool has_odom = false;
 
-    std::vector<xbot_msgs::ActionInfo> actions;
-
     sensor_msgs::Joy last_joy;
     xbot_msgs::AbsolutePose last_pose;
 
