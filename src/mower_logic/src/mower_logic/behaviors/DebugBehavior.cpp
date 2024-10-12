@@ -67,12 +67,32 @@ void DebugBehavior::square(nav_msgs::Path &path, double width) {
 void DebugBehavior::rectangle(nav_msgs::Path &path, double width, double height) {
    xbot_msgs::AbsolutePose pose = getPose();
 
+    double wOffset = 0;
+    double hOffset = 0;
+
+
     int point_count = 12;
 
+    //bottom left corner, move right
+    for (int i = 0; i < point_count ; i++) {
+        double xPos = (width * i / point_count) + wOffset;
+        double yPos = 0 + hOffset;
+        double tangentAngle = 0 * 2 * M_PI / 360;
+        while(tangentAngle >= M_PI) {
+            tangentAngle -= 2 * M_PI;
+        }
+        geometry_msgs::PoseStamped docking_pose_stamped_front;
+        docking_pose_stamped_front.pose = pose.pose.pose;
+        docking_pose_stamped_front.header = pose.header;
+        docking_pose_stamped_front.pose.position.x += xPos;
+        docking_pose_stamped_front.pose.position.y += yPos;
+        docking_pose_stamped_front.pose.orientation = tf2::toMsg(tf2::Quaternion(0,0,tangentAngle));
+        path.poses.push_back(docking_pose_stamped_front);
+    }
     //bottom right corner, move up
     for (int i = 0; i < point_count ; i++) {
-        double xPos = width/2;
-        double yPos = (height * i / point_count) - height/2;
+        double xPos = width + wOffset;
+        double yPos = (height * i / point_count) + hOffset;
         double tangentAngle = 90 * 2 * M_PI / 360;
         while(tangentAngle >= M_PI) {
             tangentAngle -= 2 * M_PI;
@@ -87,8 +107,8 @@ void DebugBehavior::rectangle(nav_msgs::Path &path, double width, double height)
     }
     //top right corner, meve left
     for (int i = 0; i < point_count ; i++) {
-        double xPos = -(width * i / point_count) + width/2;
-        double yPos = height/2;
+        double xPos = width -(width * i / point_count) + wOffset;
+        double yPos = height + hOffset;
         double tangentAngle = 180 * 2 * M_PI / 360;
         while(tangentAngle >= M_PI) {
             tangentAngle -= 2 * M_PI;
@@ -103,8 +123,8 @@ void DebugBehavior::rectangle(nav_msgs::Path &path, double width, double height)
     }
     //top left corner, move down
     for (int i = 0; i < point_count ; i++) {
-        double xPos = -width/2;
-        double yPos = -(height * i / point_count) + height/2;
+        double xPos = wOffset;
+        double yPos = height -(height * i / point_count) + hOffset;
         double tangentAngle = 270 * 2 * M_PI / 360;
         while(tangentAngle >= M_PI) {
             tangentAngle -= 2 * M_PI;
@@ -117,23 +137,6 @@ void DebugBehavior::rectangle(nav_msgs::Path &path, double width, double height)
         docking_pose_stamped_front.pose.orientation = tf2::toMsg(tf2::Quaternion(0,0,tangentAngle));
         path.poses.push_back(docking_pose_stamped_front);
     }
-    //bottom left corner, move right
-    for (int i = 0; i < point_count ; i++) {
-        double xPos = (width * i / point_count) - width/2;
-        double yPos = -height/2;
-        double tangentAngle = 360 * 2 * M_PI / 360;
-        while(tangentAngle >= M_PI) {
-            tangentAngle -= 2 * M_PI;
-        }
-        geometry_msgs::PoseStamped docking_pose_stamped_front;
-        docking_pose_stamped_front.pose = pose.pose.pose;
-        docking_pose_stamped_front.header = pose.header;
-        docking_pose_stamped_front.pose.position.x += xPos;
-        docking_pose_stamped_front.pose.position.y += yPos;
-        docking_pose_stamped_front.pose.orientation = tf2::toMsg(tf2::Quaternion(0,0,tangentAngle));
-        path.poses.push_back(docking_pose_stamped_front);
-    }
-
 }
 
 void DebugBehavior::eight(nav_msgs::Path &path, double hRad, double vRad) {
