@@ -20,6 +20,7 @@
 #include "ros/ros.h"
 #include "mower_logic/MowerLogicConfig.h"
 #include "mower_msgs/HighLevelStatus.h"
+#include "xbot_msgs/ActionInfo.h"
 #include <atomic>
 #include <memory>
 

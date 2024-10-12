@@ -23,7 +23,6 @@
 #include "slic3r_coverage_planner/PlanPath.h"
 #include "slic3r_coverage_planner/Path.h"
 #include "ftc_local_planner/PlannerGetProgress.h"
-#include "xbot_msgs/ActionInfo.h"
 
 class MowingBehavior : public Behavior {
 

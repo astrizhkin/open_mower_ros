@@ -38,7 +38,6 @@
 #include "mower_map/SetDockingPointSrv.h"
 #include "mower_msgs/EmergencyModeSrv.h"
 #include "xbot_msgs/AbsolutePose.h"
-#include "xbot_msgs/ActionInfo.h"
 
 #include "geometry_msgs/Twist.h"
 

@@ -24,7 +24,6 @@
 #include <dynamic_reconfigure/server.h>
 #include "mower_map/GetMowingAreaSrv.h"
 #include <mower_map/GetDockingPointSrv.h>
-#include "xbot_msgs/ActionInfo.h"
 
 class IdleBehavior : public Behavior {
 private:

@@ -29,8 +29,6 @@
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "mower_msgs/Status.h"
 #include <mower_map/GetDockingPointSrv.h>
-#include "xbot_msgs/ActionInfo.h"
-
 
 class DockingBehavior : public Behavior {
 public:
