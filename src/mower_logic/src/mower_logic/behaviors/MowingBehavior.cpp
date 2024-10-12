@@ -221,7 +221,7 @@ bool MowingBehavior::execute_mowing_plan() {
         if (requested_pause_flag) { 
             // pause was requested
             this->setPause();  // set paused=true
-            update_actions();
+            update_actions(true);
             while (!requested_continue_flag) // while not asked to continue, we wait
             {
                 if (aborted) {
@@ -247,7 +247,7 @@ bool MowingBehavior::execute_mowing_plan() {
             }
             ROS_INFO_STREAM("[MowingBehavior] CONTINUING");
             this->setContinue();
-            update_actions();
+            update_actions(true);
             //TODO: possible bug, pause state can be entered from moving to first point state
         }
     
@@ -334,7 +334,7 @@ bool MowingBehavior::execute_mowing_plan() {
                 if (first_point_attempt_counter < config.max_first_point_attempts) {
                     ROS_WARN_STREAM("[MowingBehavior] (FIRST POINT) - Attempt " << first_point_attempt_counter << " / " << config.max_first_point_attempts << " Making a little pause ...");
                     this->setPause();
-                    update_actions();
+                    update_actions(true);
                 } else {
                     // We failed to reach the first point in the mow path by simply repeating the drive to process
                     // So now we will trim the path by removing the first pose
@@ -347,7 +347,7 @@ bool MowingBehavior::execute_mowing_plan() {
                         first_point_trim_counter++;
                         first_point_attempt_counter = 0; // give it another <config.max_first_point_attempts> attempts
                         this->setPause();
-                        update_actions();
+                        update_actions(true);
                     } else {
                         // Unable to reach the start of the mow path (we tried multiple attempts for the same point, and we skipped points which also didnt work, time to give up) 
                         ROS_ERROR_STREAM("[MowingBehavior] (FIRST POINT) Max retries reached, we are unable to reach any of the first points - aborting this mow area ...");
@@ -456,7 +456,7 @@ bool MowingBehavior::execute_mowing_plan() {
                     ROS_INFO_STREAM("[MowingBehavior] (ErrorCatch): Poses after trim:" << poses.size());
                     ROS_INFO_STREAM("[MowingBehavior] (MOW) PAUSED due to MBF Error");
                     this->setPause();
-                    update_actions();
+                    update_actions(true);
                 }
             }
         }
