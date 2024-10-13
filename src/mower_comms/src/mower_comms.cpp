@@ -70,6 +70,7 @@ uint8_t mower_direction = 0;
 
 // Ticks / m and wheel distance for this robot
 double wheel_radius_m = 0.0;
+double wheel_separation_m = 0.0;
 double cmd_vel_timout = 0.0;
 
 bool mower_esc_enabled = false;
@@ -281,12 +282,12 @@ void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::H
         }
     }
 
-    if (abs(state_msg.state.cmdL - state_msg.state.speedL_meas) > state_msg.state.cmdL * 0.2 ) {
-        ROS_WARN_STREAM_THROTTLE(1, "[mower_comms] Motor L stall/overrun detected cmd=" << state_msg.state.cmdL << " spd=" << state_msg.state.speedL_meas);
-    }
-    if (abs(state_msg.state.cmdR - state_msg.state.speedR_meas) > state_msg.state.cmdR * 0.2 ) {
-        ROS_WARN_STREAM_THROTTLE(1, "[mower_comms] Motor R stall/overrun detected cmd=" << state_msg.state.cmdR << " spd=" << state_msg.state.speedR_meas);
-    }
+    //if (abs(state_msg.state.cmdL - state_msg.state.speedL_meas) > state_msg.state.cmdL * 0.2 ) {
+    //    ROS_WARN_STREAM_THROTTLE(1, "[mower_comms] Motor L stall/overrun detected cmd=" << state_msg.state.cmdL << " spd=" << state_msg.state.speedL_meas);
+    //}
+    //if (abs(state_msg.state.cmdR - state_msg.state.speedR_meas) > state_msg.state.cmdR * 0.2 ) {
+    //    ROS_WARN_STREAM_THROTTLE(1, "[mower_comms] Motor R stall/overrun detected cmd=" << state_msg.state.cmdR << " spd=" << state_msg.state.speedR_meas);
+    //}
 
     //TODO check .tacho compatibility with howerboard .wheelX_cnt
     ros_esc_left_status.tacho = state_msg.state.wheelL_cnt;
@@ -387,17 +388,22 @@ void publishStatus() {
     wheel_tick_msg.valid_wheels = xbot_msgs::WheelTick::WHEEL_VALID_FL | xbot_msgs::WheelTick::WHEEL_VALID_FR | xbot_msgs::WheelTick::WHEEL_VALID_RL | xbot_msgs::WheelTick::WHEEL_VALID_RR;
     wheel_tick_msg.wheel_pos_to_tick_factor = 0; //TODO: pass it for F9R
     wheel_tick_msg.wheel_radius = wheel_radius_m;
+    //wheel_tick_msg.wheel_separation = wheel_separation_m;
     wheel_tick_msg.stamp = status_msg.stamp;
     //check compatibility .wheel_ticks_rl and hoverboard .wheelX_cnt (previosuly was tacho_absolute)
 
     wheel_tick_msg.wheel_pos_fl = last_front_status.state.wheelL_cnt;
+    //wheel_tick_msg.wheel_speed_fl = last_front_status.state.speedL_meas;
     wheel_tick_msg.wheel_direction_fl = last_front_status.state.speedL_meas > 0;
     wheel_tick_msg.wheel_pos_fr = last_front_status.state.wheelR_cnt;
+    //wheel_tick_msg.wheel_speed_fr = last_front_status.state.speedR_meas;
     wheel_tick_msg.wheel_direction_fr = last_front_status.state.speedR_meas > 0;
 
     wheel_tick_msg.wheel_pos_rl = last_rear_status.state.wheelL_cnt;
+    //wheel_tick_msg.wheel_speed_rl = last_rear_status.state.speedL_meas;
     wheel_tick_msg.wheel_direction_rl = last_rear_status.state.speedL_meas > 0;
     wheel_tick_msg.wheel_pos_rr = last_rear_status.state.wheelR_cnt;
+    //wheel_tick_msg.wheel_speed_rr = last_rear_status.state.speedR_meas;
     wheel_tick_msg.wheel_direction_rr = last_rear_status.state.speedR_meas > 0;
 
     wheel_tick_pub.publish(wheel_tick_msg);
@@ -615,6 +621,11 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    if(!paramNh.getParam("wheel_separation_m",wheel_separation_m)){
+        ROS_ERROR_STREAM("[mower_comms] Wheel separation must be specified for odometry. Quitting.");
+        return 1;
+    }
+
     if(!paramNh.getParam("mower_esc_enabled",mower_esc_enabled)){
         ROS_ERROR_STREAM("[mower_comms] Mower ESC enabled parameter is not specified. Quitting.");
         return 1;
@@ -632,7 +643,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    ROS_INFO_STREAM("[mower_comms] Wheel radius [m]: " << wheel_radius_m);
+    ROS_INFO_STREAM("[mower_comms] Wheel radius [m]: " << wheel_radius_m << " , separation [m]: " << wheel_separation_m);
 
     last_cmd_twist.linear.x = 0;
     last_cmd_twist.angular.z = 0;
