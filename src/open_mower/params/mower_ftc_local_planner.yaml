@@ -8,7 +8,7 @@ FTCPlanner:
 
 #PID
 #PROPORTIONAL
-  kp_lon: 2.0
+  kp_lon: 1.0
   kp_lat: 4.0
   kp_ang: 1.0
 #INTEGRAL
@@ -24,15 +24,15 @@ FTCPlanner:
   kd_ang: 0.0
 
 #ROBOT
-  max_cmd_vel_ang: 2.0
-  max_cmd_vel_speed: 0.6
+  max_cmd_vel_ang: 3.14
+  max_cmd_vel_speed: 1.0
   max_follow_distance: 1.0
   max_goal_angle_error: 20.0
   max_goal_distance_error: 0.2
 
 #CARROT
   speed_angular: 40.0
-  speed_fast: 0.5
-  speed_fast_threshold: 5.0
-  speed_fast_threshold_angle: 5.0
-  speed_slow: 0.3
+  speed_fast: 0.6
+  speed_fast_threshold: 1.5
+  speed_fast_threshold_angle: 20.0
+  speed_slow: 0.4
