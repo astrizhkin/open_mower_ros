@@ -79,6 +79,7 @@ grid_map::GridMap map;
 
 //area perimeter tolerance for simplification algorithm
 double areaPerimeterTolerance = 0.05;
+double mapResolution = 0.1;
 
 /**
  * Convert a geometry_msgs::Polygon to a grid_map::Polygon.
@@ -101,6 +102,8 @@ void fromMessage(geometry_msgs::Polygon &poly, grid_map::Polygon &out) {
  * Publish map to xbot_monitoring
  */
 void publishMapMonitoring() {
+    ros::Time t1 = ros::Time::now();
+
     xbot_msgs::Map xb_map;
     xb_map.mapWidth = map.getSize().x() * map.getResolution();
     xb_map.mapHeight = map.getSize().y() * map.getResolution();
@@ -128,12 +131,15 @@ void publishMapMonitoring() {
     }
 
     xbot_monitoring_map_pub.publish(xb_map);
+    ros::Time t2 = ros::Time::now();
+    ROS_INFO_STREAM("[mower_map_service] Publish map in " << (t2 - t1).toSec());
 }
 
 /**
  * Publish map visualizations for rviz.
  */
 void visualizeAreas() {
+    ros::Time t1 = ros::Time::now();
     mower_map::MapAreas mapAreas;
 
     mapAreas.mapWidth = map.getSize().x() * map.getResolution();
@@ -199,6 +205,8 @@ void visualizeAreas() {
 
     map_server_viz_array_pub.publish(markerArray);
     map_areas_pub.publish(mapAreas);
+    ros::Time t2 = ros::Time::now();
+    ROS_INFO_STREAM("[mower_map_service] Visualize map areas in " << (t2 - t1).toSec());
 }
 
 
@@ -303,6 +311,7 @@ bool simplifyArea(double areaPerimeterTolerance, mower_map::MapArea &inArea) {
  * Finally, a blur is applied to the map so that it is expensive, but not completely forbidden to drive near boundaries.
  */
 void buildMap() {
+    ros::Time t1 = ros::Time::now();
 
     // First, calculate the size of the map by finding the min and max values for x and y.
     float minX = FLT_MAX;
@@ -344,7 +353,7 @@ void buildMap() {
     ROS_INFO_STREAM("[mower_map_service] Map Position: x=" << origin.x() << ", y=" << origin.y());
     ROS_INFO_STREAM("[mower_map_service] Map Size: x=" << (maxX - minX) << ", y=" << (maxY - minY));
 
-    map.setGeometry(grid_map::Length(maxX - minX, maxY - minY), 0.05, origin);
+    map.setGeometry(grid_map::Length(maxX - minX, maxY - minY), mapResolution, origin);
     map.setTimestamp(ros::Time::now().toNSec());
 
     map.clearAll();
@@ -440,6 +449,8 @@ void buildMap() {
     nav_msgs::OccupancyGrid msg;
     grid_map::GridMapRosConverter::toOccupancyGrid(map, "navigation_area", 0.0, 1.0, msg);
     map_pub.publish(msg);
+    ros::Time t2 = ros::Time::now();
+    ROS_INFO_STREAM("[mower_map_service] Build map in " << (t2 - t1).toSec());
 
     publishMapMonitoring();
     visualizeAreas();
@@ -450,6 +461,7 @@ void buildMap() {
  * We don't need to save the map, since we can easily build it again after loading.
  */
 void saveMapToFile() {
+    ros::Time t1 = ros::Time::now();
     rosbag::Bag bag;
     bag.open("map.bag", rosbag::bagmode::Write);
 
@@ -462,6 +474,8 @@ void saveMapToFile() {
     }
 
     bag.close();
+    ros::Time t2 = ros::Time::now();
+    ROS_INFO_STREAM("[mower_map_service] Saved " << areas.size()<< " areas to file in " << (t2 - t1).toSec());
 }
 
 /**
@@ -481,13 +495,13 @@ void readMapFromFile(const std::string& filename, bool append = false) {
         ROS_WARN("[mower_map_service] Error opening stored mowing areas.");
         return;
     }
-
+    ros::Time t1 = ros::Time::now();
     {
         rosbag::View view(bag, rosbag::TopicQuery("areas"));
 
         for (rosbag::MessageInstance const m: view) {
             mower_map::MapAreaPtr areaPtr = m.instantiate<mower_map::MapArea>();
-            if(simplifyArea(areaPerimeterTolerance,*areaPtr)){
+            if(areaPerimeterTolerance==0 || simplifyArea(areaPerimeterTolerance,*areaPtr)){
                 areas.push_back(*areaPtr);
             }
         }
@@ -509,7 +523,8 @@ void readMapFromFile(const std::string& filename, bool append = false) {
         }
     }
 
-    ROS_INFO_STREAM("[mower_map_service] Loaded " << areas.size()<< " areas from file.");
+    ros::Time t2 = ros::Time::now();
+    ROS_INFO_STREAM("[mower_map_service] Loaded " << areas.size()<< " areas from file in " << (t2 - t1).toSec());
 }
 
 
@@ -630,7 +645,7 @@ bool addMowingArea(mower_map::AddMowingAreaSrvRequest &req, mower_map::AddMowing
         ROS_INFO_STREAM("[mower_map_service] New area name " << req.area.name);
     }
 
-    if(!simplifyArea(areaPerimeterTolerance,req.area)){
+    if(areaPerimeterTolerance>0 && !simplifyArea(areaPerimeterTolerance,req.area)){
         return false;
     }
 
@@ -770,10 +785,18 @@ int main(int argc, char **argv) {
     
     if (!paramNh.getParam("areaPerimeterTolerance", areaPerimeterTolerance)) {
         ROS_WARN_STREAM("[mower_map_service] No areaPerimeterTolerance parameter specified. Using default " << areaPerimeterTolerance);
+    } else if(areaPerimeterTolerance<=0) {
+        areaPerimeterTolerance = 0;
+        ROS_INFO_STREAM("[mower_map_service] areaPerimeterTolerance is set to 0. Area perimiter simplification is disabled.");
+    } else if(areaPerimeterTolerance>1) {
+        ROS_FATAL_STREAM("[mower_map_service] areaPerimeterTolerance parameter is out of range [0-1]m");
+        return 1;
     }
 
-    if(areaPerimeterTolerance<=0 || areaPerimeterTolerance>1) {
-        ROS_FATAL_STREAM("[mower_map_service] Area perimetier tolerance out of range 0-1m");
+    if (!paramNh.getParam("mapResolution", mapResolution)) {
+        ROS_WARN_STREAM("[mower_map_service] No mapResolution parameter specified. Using default " << mapResolution);
+    } else if(mapResolution<=0 || mapResolution>1) {
+        ROS_FATAL_STREAM("[mower_map_service] mapResolution parameter is out of range (0-1]m");
         return 1;
     }
 
