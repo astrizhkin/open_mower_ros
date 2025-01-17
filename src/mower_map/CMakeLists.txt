@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
+include(ExternalProject)
 project(mower_map)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
@@ -6,6 +7,28 @@ project(mower_map)
 
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
+
+#Commented with the hope that Slic3r will be connected from sli3r_coverage_planner project
+#set(EP_SLIC3R "Slic3r")
+#ExternalProject_Add(
+#        ${EP_SLIC3R}
+
+#        PREFIX ${EP_SLIC3R}
+#        GIT_REPOSITORY http://admin:admin@185.80.130.48:8180/Slic3r.git
+#        #GIT_REPOSITORY https://github.com/ClemensElflein/Slic3r
+#        GIT_TAG 026c1380e0ad12176dd2fc8cdf8f6f181deeb071
+#        GIT_SHALLOW ON
+#        GIT_PROGRESS ON
+
+#        BUILD_ALWAYS OFF
+
+#        INSTALL_COMMAND cmake -E echo "Skipping install step."
+
+#        CMAKE_CACHE_ARGS
+#        SOURCE_SUBDIR src
+#        CMAKE_ARGS -DSLIC3R_BUILD_TESTS=OFF
+#        BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Release --parallel ${NPROC}
+#)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -138,6 +161,11 @@ include_directories(
          ${catkin_INCLUDE_DIRS}
 )
 
+ExternalProject_Get_property(${EP_SLIC3R} SOURCE_DIR)
+message("Source dir of ${EP_SLIC3R} = ${SOURCE_DIR}")
+include_directories(${SOURCE_DIR}/xs/src/libslic3r)
+include_directories(${SOURCE_DIR}/xs/src)
+
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
 #   src/${PROJECT_NAME}/mower_map.cpp
@@ -169,8 +197,22 @@ include_directories(
 # )
 
 add_executable(mower_map_service src/mower_map_service.cpp)
-add_dependencies(mower_map_service ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(mower_map_service ${catkin_LIBRARIES} ${OpenCV_LIBS})
+add_dependencies(mower_map_service ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${EP_SLIC3R})
+ExternalProject_Get_property(${EP_SLIC3R} BINARY_DIR)
+target_link_libraries(mower_map_service 
+        ${catkin_LIBRARIES} 
+        ${OpenCV_LIBS}
+        ${BINARY_DIR}/liblibslic3r.a
+        ${BINARY_DIR}/libadmesh.a
+        ${BINARY_DIR}/libBSpline.a
+        ${BINARY_DIR}/libexpat.a
+        ${BINARY_DIR}/libminiz.a
+        ${BINARY_DIR}/libpoly2tri.a
+        ${BINARY_DIR}/libpolypartition.a
+        ${BINARY_DIR}/libZipArchive.a
+        ${BINARY_DIR}/libclipper.a
+        ${Boost_LIBRARIES}
+        )
 
 #############
 ## Install ##

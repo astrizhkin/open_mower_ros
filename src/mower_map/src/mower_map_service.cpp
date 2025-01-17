@@ -21,6 +21,9 @@
 #include "grid_map_cv/GridMapCvConverter.hpp"
 #include "grid_map_ros/GridMapRosConverter.hpp"
 
+// Slic3r Polygon tools
+#include "ClipperUtils.hpp"
+
 
 // Rosbag for reading/writing the map to a file
 #include <rosbag/bag.h>
@@ -73,6 +76,9 @@ geometry_msgs::Pose fake_obstacle_pose;
 
 // The grid map. This is built from the polygons loaded from the file.
 grid_map::GridMap map;
+
+//area perimeter tolerance for simplification algorithm
+double areaPerimeterTolerance = 0.05;
 
 /**
  * Convert a geometry_msgs::Polygon to a grid_map::Polygon.
@@ -193,6 +199,98 @@ void visualizeAreas() {
 
     map_server_viz_array_pub.publish(markerArray);
     map_areas_pub.publish(mapAreas);
+}
+
+
+/*bool normalizeResolutionStep(double maxPtDistance, std::vector<geometry_msgs::Point32> &points) {
+    if(points.size()<=1){
+        return false;
+    }
+
+    int prevPointIdx = points.size()-1;
+    geometry_msgs::Point32 &startPoint = points.at(prevPointIdx);
+    tf2::Vector3 prevVector(startPoint.x, startPoint.y, 0);
+    tf2Scalar minDistanceSq = maxPtDistance*maxPtDistance + 1;
+    int minPrevPointIdx;
+    int minNextPointIdx;
+    geometry_msgs::Point32Ptr minPoint;
+    for( int i=0;i<points.size();i++) {
+        geometry_msgs::Point32 &currentPoint = points.at(i);
+        tf2::Vector3 currentVector(currentPoint.x, currentPoint.y, 0);
+        auto diff = currentVector - prevVector;        
+        tf2Scalar distance = diff.length2();
+        if (distance<minDistanceSq) {
+            minDistanceSq = distance;
+            minPrevPointIdx = prevPointIdx;
+            minNextPointIdx = i;
+        }
+        prevVector = currentVector;
+        prevPointIdx = i;
+    }
+    if(sqrt(minDistanceSq)<maxPtDistance && points.size()>3) {
+        geometry_msgs::Point32 &prevPoint = points.at(minPrevPointIdx);
+        geometry_msgs::Point32 &nextPoint = points.at(minNextPointIdx);
+        prevPoint.x = (prevPoint.x + nextPoint.x)/2;
+        prevPoint.y = (prevPoint.y + nextPoint.y)/2;
+        prevPoint.z = (prevPoint.z + nextPoint.z)/2;
+        //ROS_INFO_STREAM("[mower_map_service] Average points at pos "<< minPrevPointIdx << " and  " << minNextPointIdx << " with distance " << sqrt(minDistanceSq));
+        points.erase(points.begin()+minNextPointIdx);
+        return true;
+    }
+    return false;
+}*/
+
+bool simplifyArea(double areaPerimeterTolerance, mower_map::MapArea &inArea) {
+    //inArea->area.
+    //int pointsCountBefore = inArea->area.points.size();
+    //while(normalizeResolutionStep(0.25,inArea->area.points)){
+    //}
+    //ROS_INFO_STREAM("[mower_map_service] Reduced resolution of area "<< inArea->name << " from " << pointsCountBefore << " to " << inArea->area.points.size());
+
+    //create slic3r ploygon
+    Polygon poly;
+    for (auto &pt: inArea.area.points) {
+        poly.points.push_back(Point(scale_(pt.x), scale_(pt.y)));
+    }
+    
+    int pointsCountBefore = poly.points.size();
+
+    Polygons simplifiedPolygons;
+    poly.simplify(scale_(areaPerimeterTolerance),simplifiedPolygons);
+    
+    Polygon *singleSimplePolygon = nullptr;
+    if(simplifiedPolygons.size()!=1) {
+        ROS_WARN_STREAM("[mower_map_service] Self intersecting area found " << inArea.name);
+        double maxArea = 0;
+        for(auto &p: simplifiedPolygons) {
+            double area = p.area();
+            if(area > maxArea){
+                maxArea = area;
+                singleSimplePolygon = &p;
+            }
+        }
+        if(singleSimplePolygon == nullptr) {
+            ROS_WARN_STREAM("[mower_map_service] No simple polygon with positive area was selected after simplification. Original " << inArea.name << " area was " << unscale(unscale(poly.area())));
+            return false;
+        } else {
+            ROS_INFO_STREAM("[mower_map_service] Selected polygon with max positive area after simplification. Original " << inArea.name << " area was " << unscale(unscale(poly.area())) << " selected " << unscale(unscale(singleSimplePolygon->area())));
+        }
+    } else {
+        singleSimplePolygon = &simplifiedPolygons.at(0);
+    }
+
+    //poly.douglas_peucker(scale_(0.05));
+    ROS_INFO_STREAM("[mower_map_service] Reduced resolution of area "<< inArea.name << " from " << pointsCountBefore << " to " << singleSimplePolygon->points.size());
+    //convert back to geometry_msg
+    inArea.area.points.clear();
+    for (auto &pt: singleSimplePolygon->points) {
+        geometry_msgs::Point32 gpt;
+        gpt.x = unscale(pt.x);
+        gpt.y = unscale(pt.y);
+        gpt.z = 0;
+        inArea.area.points.push_back(gpt);
+    }
+    return true;
 }
 
 /**
@@ -388,8 +486,10 @@ void readMapFromFile(const std::string& filename, bool append = false) {
         rosbag::View view(bag, rosbag::TopicQuery("areas"));
 
         for (rosbag::MessageInstance const m: view) {
-            auto area = m.instantiate<mower_map::MapArea>();
-            areas.push_back(*area);
+            mower_map::MapAreaPtr areaPtr = m.instantiate<mower_map::MapArea>();
+            if(simplifyArea(areaPerimeterTolerance,*areaPtr)){
+                areas.push_back(*areaPtr);
+            }
         }
     }
 
@@ -411,6 +511,7 @@ void readMapFromFile(const std::string& filename, bool append = false) {
 
     ROS_INFO_STREAM("[mower_map_service] Loaded " << areas.size()<< " areas from file.");
 }
+
 
 void generateTestMap() {
     areas.clear();
@@ -528,6 +629,11 @@ bool addMowingArea(mower_map::AddMowingAreaSrvRequest &req, mower_map::AddMowing
         req.area.name = newNameStr;
         ROS_INFO_STREAM("[mower_map_service] New area name " << req.area.name);
     }
+
+    if(!simplifyArea(areaPerimeterTolerance,req.area)){
+        return false;
+    }
+
     areas.push_back(req.area);
 
     saveMapToFile();
@@ -561,8 +667,7 @@ bool getMowingArea(mower_map::GetMowingAreaSrvRequest &req, mower_map::GetMowing
     return true;
 }
 
-bool
-deleteMowingArea(mower_map::DeleteMowingAreaSrvRequest &req, mower_map::DeleteMowingAreaSrvResponse &res) {
+bool deleteMowingArea(mower_map::DeleteMowingAreaSrvRequest &req, mower_map::DeleteMowingAreaSrvResponse &res) {
     ROS_INFO_STREAM("[mower_map_service] Got delete area call with index: " << req.index);
 
     if (req.index >= areas.size()) {
@@ -578,8 +683,7 @@ deleteMowingArea(mower_map::DeleteMowingAreaSrvRequest &req, mower_map::DeleteMo
     return true;
 }
 
-bool
-convertToNavigationArea(mower_map::ConvertToNavigationAreaSrvRequest &req,
+bool convertToNavigationArea(mower_map::ConvertToNavigationAreaSrvRequest &req,
                         mower_map::ConvertToNavigationAreaSrvResponse &res) {
     ROS_INFO_STREAM("[mower_map_service] Got convert to nav area call with index: " << req.index);
 
@@ -662,6 +766,17 @@ int main(int argc, char **argv) {
     ros::init(argc, argv, "mower_map_service");
     has_docking_point = false;
     ros::NodeHandle n;
+    ros::NodeHandle paramNh("~");
+    
+    if (!paramNh.getParam("areaPerimeterTolerance", areaPerimeterTolerance)) {
+        ROS_WARN_STREAM("[mower_map_service] No areaPerimeterTolerance parameter specified. Using default " << areaPerimeterTolerance);
+    }
+
+    if(areaPerimeterTolerance<=0 || areaPerimeterTolerance>1) {
+        ROS_FATAL_STREAM("[mower_map_service] Area perimetier tolerance out of range 0-1m");
+        return 1;
+    }
+
     map_pub = n.advertise<nav_msgs::OccupancyGrid>("mower_map_service/map", 10, true);
     map_areas_pub = n.advertise<mower_map::MapAreas>("mower_map_service/map_areas", 10, true);
     map_server_viz_array_pub = n.advertise<visualization_msgs::MarkerArray>("mower_map_service/map_viz", 10, true);

@@ -148,7 +148,7 @@ struct ll_high_level_state {
 
 #pragma pack(push, 1)
 struct ll_motor_state {
-    // Type of this message. Has to be PACKET_ID_LL_HIGH_LEVEL_STATE
+    // Type of this message. Has to be PACKET_ID_LL_MOTOR_STATE
     uint8_t type;
     //uint8_t motor_id;
 
