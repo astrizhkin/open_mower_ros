@@ -132,7 +132,7 @@ void publishMapMonitoring() {
 
     xbot_monitoring_map_pub.publish(xb_map);
     ros::Time t2 = ros::Time::now();
-    ROS_INFO_STREAM("[mower_map_service] Publish map in " << (t2 - t1).toSec());
+    ROS_INFO_STREAM("[mower_map_service] Publish map in " << (t2 - t1).toSec() << " s");
 }
 
 /**
@@ -206,7 +206,7 @@ void visualizeAreas() {
     map_server_viz_array_pub.publish(markerArray);
     map_areas_pub.publish(mapAreas);
     ros::Time t2 = ros::Time::now();
-    ROS_INFO_STREAM("[mower_map_service] Visualize map areas in " << (t2 - t1).toSec());
+    ROS_INFO_STREAM("[mower_map_service] Visualize map areas in " << (t2 - t1).toSec() << " s");
 }
 
 
@@ -278,10 +278,10 @@ bool simplifyArea(double areaPerimeterTolerance, mower_map::MapArea &inArea) {
             }
         }
         if(singleSimplePolygon == nullptr) {
-            ROS_WARN_STREAM("[mower_map_service] No simple polygon with positive area was selected after simplification. Original " << inArea.name << " area was " << unscale(unscale(poly.area())));
+            ROS_WARN_STREAM("[mower_map_service] No simple polygon with positive area was selected after simplification. Original " << inArea.name << " area was " << unscale(unscale(poly.area())) << " m2");
             return false;
         } else {
-            ROS_INFO_STREAM("[mower_map_service] Selected polygon with max positive area after simplification. Original " << inArea.name << " area was " << unscale(unscale(poly.area())) << " selected " << unscale(unscale(singleSimplePolygon->area())));
+            ROS_INFO_STREAM("[mower_map_service] Selected polygon with max positive area after simplification. Original " << inArea.name << " area was " << unscale(unscale(poly.area())) << " m2 selected " << unscale(unscale(singleSimplePolygon->area()))<< " m2");
         }
     } else {
         singleSimplePolygon = &simplifiedPolygons.at(0);
@@ -450,7 +450,7 @@ void buildMap() {
     grid_map::GridMapRosConverter::toOccupancyGrid(map, "navigation_area", 0.0, 1.0, msg);
     map_pub.publish(msg);
     ros::Time t2 = ros::Time::now();
-    ROS_INFO_STREAM("[mower_map_service] Build map in " << (t2 - t1).toSec());
+    ROS_INFO_STREAM("[mower_map_service] Build map in " << (t2 - t1).toSec() << " s");
 
     publishMapMonitoring();
     visualizeAreas();
@@ -475,7 +475,7 @@ void saveMapToFile() {
 
     bag.close();
     ros::Time t2 = ros::Time::now();
-    ROS_INFO_STREAM("[mower_map_service] Saved " << areas.size()<< " areas to file in " << (t2 - t1).toSec());
+    ROS_INFO_STREAM("[mower_map_service] Saved " << areas.size()<< " areas to file in " << (t2 - t1).toSec() << " s");
 }
 
 /**
@@ -524,7 +524,7 @@ void readMapFromFile(const std::string& filename, bool append = false) {
     }
 
     ros::Time t2 = ros::Time::now();
-    ROS_INFO_STREAM("[mower_map_service] Loaded " << areas.size()<< " areas from file in " << (t2 - t1).toSec());
+    ROS_INFO_STREAM("[mower_map_service] Loaded " << areas.size()<< " areas from file in " << (t2 - t1).toSec() << " s");
 }
 
 
@@ -785,7 +785,8 @@ int main(int argc, char **argv) {
     
     if (!paramNh.getParam("areaPerimeterTolerance", areaPerimeterTolerance)) {
         ROS_WARN_STREAM("[mower_map_service] No areaPerimeterTolerance parameter specified. Using default " << areaPerimeterTolerance);
-    } else if(areaPerimeterTolerance<=0) {
+    }
+    if(areaPerimeterTolerance<=0) {
         areaPerimeterTolerance = 0;
         ROS_INFO_STREAM("[mower_map_service] areaPerimeterTolerance is set to 0. Area perimiter simplification is disabled.");
     } else if(areaPerimeterTolerance>1) {
@@ -795,7 +796,8 @@ int main(int argc, char **argv) {
 
     if (!paramNh.getParam("mapResolution", mapResolution)) {
         ROS_WARN_STREAM("[mower_map_service] No mapResolution parameter specified. Using default " << mapResolution);
-    } else if(mapResolution<=0 || mapResolution>1) {
+    }
+    if(mapResolution<=0 || mapResolution>1) {
         ROS_FATAL_STREAM("[mower_map_service] mapResolution parameter is out of range (0-1]m");
         return 1;
     }
