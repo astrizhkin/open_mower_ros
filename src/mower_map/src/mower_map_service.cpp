@@ -210,51 +210,7 @@ void visualizeAreas() {
 }
 
 
-/*bool normalizeResolutionStep(double maxPtDistance, std::vector<geometry_msgs::Point32> &points) {
-    if(points.size()<=1){
-        return false;
-    }
-
-    int prevPointIdx = points.size()-1;
-    geometry_msgs::Point32 &startPoint = points.at(prevPointIdx);
-    tf2::Vector3 prevVector(startPoint.x, startPoint.y, 0);
-    tf2Scalar minDistanceSq = maxPtDistance*maxPtDistance + 1;
-    int minPrevPointIdx;
-    int minNextPointIdx;
-    geometry_msgs::Point32Ptr minPoint;
-    for( int i=0;i<points.size();i++) {
-        geometry_msgs::Point32 &currentPoint = points.at(i);
-        tf2::Vector3 currentVector(currentPoint.x, currentPoint.y, 0);
-        auto diff = currentVector - prevVector;        
-        tf2Scalar distance = diff.length2();
-        if (distance<minDistanceSq) {
-            minDistanceSq = distance;
-            minPrevPointIdx = prevPointIdx;
-            minNextPointIdx = i;
-        }
-        prevVector = currentVector;
-        prevPointIdx = i;
-    }
-    if(sqrt(minDistanceSq)<maxPtDistance && points.size()>3) {
-        geometry_msgs::Point32 &prevPoint = points.at(minPrevPointIdx);
-        geometry_msgs::Point32 &nextPoint = points.at(minNextPointIdx);
-        prevPoint.x = (prevPoint.x + nextPoint.x)/2;
-        prevPoint.y = (prevPoint.y + nextPoint.y)/2;
-        prevPoint.z = (prevPoint.z + nextPoint.z)/2;
-        //ROS_INFO_STREAM("[mower_map_service] Average points at pos "<< minPrevPointIdx << " and  " << minNextPointIdx << " with distance " << sqrt(minDistanceSq));
-        points.erase(points.begin()+minNextPointIdx);
-        return true;
-    }
-    return false;
-}*/
-
 bool simplifyArea(double areaPerimeterTolerance, mower_map::MapArea &inArea) {
-    //inArea->area.
-    //int pointsCountBefore = inArea->area.points.size();
-    //while(normalizeResolutionStep(0.25,inArea->area.points)){
-    //}
-    //ROS_INFO_STREAM("[mower_map_service] Reduced resolution of area "<< inArea->name << " from " << pointsCountBefore << " to " << inArea->area.points.size());
-
     //create slic3r ploygon
     Polygon poly;
     for (auto &pt: inArea.area.points) {
@@ -263,9 +219,11 @@ bool simplifyArea(double areaPerimeterTolerance, mower_map::MapArea &inArea) {
     
     int pointsCountBefore = poly.points.size();
 
+    //simplify
     Polygons simplifiedPolygons;
     poly.simplify(scale_(areaPerimeterTolerance),simplifiedPolygons);
     
+    //select single max area polygon
     Polygon *singleSimplePolygon = nullptr;
     if(simplifiedPolygons.size()!=1) {
         ROS_WARN_STREAM("[mower_map_service] Self intersecting area found " << inArea.name);
@@ -287,8 +245,8 @@ bool simplifyArea(double areaPerimeterTolerance, mower_map::MapArea &inArea) {
         singleSimplePolygon = &simplifiedPolygons.at(0);
     }
 
-    //poly.douglas_peucker(scale_(0.05));
     ROS_INFO_STREAM("[mower_map_service] Reduced resolution of area "<< inArea.name << " from " << pointsCountBefore << " to " << singleSimplePolygon->points.size());
+
     //convert back to geometry_msg
     inArea.area.points.clear();
     for (auto &pt: singleSimplePolygon->points) {
