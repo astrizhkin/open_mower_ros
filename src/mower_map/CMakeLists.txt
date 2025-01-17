@@ -9,26 +9,26 @@ find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 #Commented with the hope that Slic3r will be connected from sli3r_coverage_planner project
-#set(EP_SLIC3R "Slic3r")
-#ExternalProject_Add(
-#        ${EP_SLIC3R}
+set(EP_SLIC3R "Slic3r")
+ExternalProject_Add(
+        ${EP_SLIC3R}
 
-#        PREFIX ${EP_SLIC3R}
-#        GIT_REPOSITORY http://admin:admin@185.80.130.48:8180/Slic3r.git
-#        #GIT_REPOSITORY https://github.com/ClemensElflein/Slic3r
-#        GIT_TAG 026c1380e0ad12176dd2fc8cdf8f6f181deeb071
-#        GIT_SHALLOW ON
-#        GIT_PROGRESS ON
+        PREFIX ${EP_SLIC3R}
+        GIT_REPOSITORY http://admin:admin@185.80.130.48:8180/Slic3r.git
+        #GIT_REPOSITORY https://github.com/ClemensElflein/Slic3r
+        GIT_TAG 026c1380e0ad12176dd2fc8cdf8f6f181deeb071
+        GIT_SHALLOW ON
+        GIT_PROGRESS ON
 
-#        BUILD_ALWAYS OFF
+        BUILD_ALWAYS OFF
 
-#        INSTALL_COMMAND cmake -E echo "Skipping install step."
+        INSTALL_COMMAND cmake -E echo "Skipping install step."
 
-#        CMAKE_CACHE_ARGS
-#        SOURCE_SUBDIR src
-#        CMAKE_ARGS -DSLIC3R_BUILD_TESTS=OFF
-#        BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Release --parallel ${NPROC}
-#)
+        CMAKE_CACHE_ARGS
+        SOURCE_SUBDIR src
+        CMAKE_ARGS -DSLIC3R_BUILD_TESTS=OFF
+        BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Release --parallel ${NPROC}
+)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
