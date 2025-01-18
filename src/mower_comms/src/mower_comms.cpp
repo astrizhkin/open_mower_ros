@@ -469,7 +469,7 @@ bool setEmergencyMode(mower_msgs::EmergencyModeSrvRequest &req, mower_msgs::Emer
 }
 
 void highLevelStatusReceived(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
-    ROS_INFO_STREAM("[mower_comms] High level status received: "<< msg->state_name << "/" << msg->sub_state_name);
+    //ROS_INFO_STREAM("[mower_comms] High level status received: "<< msg->state_name << "/" << msg->sub_state_name);
     struct ll_high_level_state hl_state = {
             .type = PACKET_ID_LL_HIGH_LEVEL_STATE,
             .current_mode = msg->state,

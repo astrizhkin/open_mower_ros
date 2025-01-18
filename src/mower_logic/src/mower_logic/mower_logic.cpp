@@ -357,7 +357,7 @@ void setEmergencyMode(bool set_reset, uint8_t emergency_bit, std::string reason,
 }
 
 void updateUI(const ros::TimerEvent &timer_event) {
-    ROS_ERROR_STREAM("[mower_logic] update UI timer task");
+    //ROS_INFO_STREAM("[mower_logic] update UI timer task");
     if ( currentBehavior ) {
         high_level_status.state_name = currentBehavior->state_name();
         high_level_status.state = (currentBehavior->get_state() & 0b11111) | (currentBehavior->get_sub_state() << mower_msgs::HighLevelStatus::SUBSTATE_SHIFT);
