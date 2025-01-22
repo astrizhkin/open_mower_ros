@@ -46,14 +46,14 @@ Behavior *AreaRecordingBehavior::execute() {
         // clear overlay
         map_overlay_pub.publish(result_overlay);
 
-        has_outline = false;
+        bool has_outline = false;
 
         sub_state = 0;
         while (ros::ok() && !finished_all && !error && !aborted) {
             if(set_docking_position) {
                 geometry_msgs::Pose pos;
                 if(getDockingPosition(pos)) {
-                    ROS_INFO_STREAM("new docking pos = " << pos);
+                    ROS_INFO_STREAM("[AreaRecordingBehavior] new docking pos = " << pos);
 
                     mower_map::SetDockingPointSrv set_docking_point_srv;
                     set_docking_point_srv.request.docking_pose = pos;
@@ -70,47 +70,25 @@ Behavior *AreaRecordingBehavior::execute() {
                 update_actions();
                 geometry_msgs::Polygon poly;
                 // record poly
-                if(has_outline) {
-                    sub_state = 1;
-                } else {
-                    sub_state = 2;
-                }
                 bool success = recordNewPolygon(poly, result_overlay);
                 sub_state = 0;
                 if (success) {
-                    if (!has_outline) {
-                        // first polygon is outline
-                        has_outline = true;
-                        result.area = poly;
+                    std_msgs::ColorRGBA color;
+                    // first polygon is outline
+                    has_outline = true;
+                    result.area = poly;
 
-                        std_msgs::ColorRGBA color;
-                        color.r = 0.0f;
-                        color.g = 1.0f;
-                        color.b = 0.0f;
-                        color.a = 1.0f;
-
-                        marker.color = color;
-                        marker.id = markers.markers.size() + 1;
-                        marker.action = visualization_msgs::Marker::ADD;
-                        markers.markers.push_back(marker);
-                    } else {
-                        // we already have an outline, add obstacles
-                        result.obstacles.push_back(poly);
-
-                        std_msgs::ColorRGBA color;
-                        color.r = 1.0f;
-                        color.g = 0.0f;
-                        color.b = 0.0f;
-                        color.a = 1.0f;
-
-                        marker.color = color;
-                        marker.action = visualization_msgs::Marker::ADD;
-                        marker.id = markers.markers.size() + 1;
-                        markers.markers.push_back(marker);
-                    }
+                    color.r = 0.0f;
+                    color.g = 1.0f;
+                    color.b = 0.0f;
+                    color.a = 1.0f;
+                    marker.color = color;
+                    marker.action = visualization_msgs::Marker::ADD;
+                    marker.id = markers.markers.size() + 1;
+                    markers.markers.push_back(marker);
                 } else {
                     error = true;
-                    ROS_ERROR_STREAM("Error during poly record");
+                    ROS_ERROR_STREAM("[AreaRecordingBehavior] Error during poly record");
                 }
                 marker_array_pub.publish(markers);
                 update_actions();
@@ -119,19 +97,15 @@ Behavior *AreaRecordingBehavior::execute() {
             inputDelay.sleep();
         }
 
-        if(!error && has_outline && (is_mowing_area || is_navigation_area)) {
-            if(is_mowing_area) {
-                ROS_INFO_STREAM("Area recording completed. Adding mowing area.");
-            } else if(is_navigation_area) {
-                ROS_INFO_STREAM("Area recording completed. Adding navigation area.");
-            }
+        if(!error && has_outline && finished_all && area_type!=mower_map::MapArea::AREA_NONE) {
+            ROS_INFO_STREAM("[AreaRecordingBehavior] Area recording completed. Adding area type " << static_cast<int>(area_type));
             mower_map::AddMowingAreaSrv srv;
-            srv.request.isNavigationArea = !is_mowing_area;
             srv.request.area = result;
+            srv.request.area.area_type = area_type;
             if (add_mowing_area_client.call(srv)) {
-                ROS_INFO_STREAM("Area added successfully");
+                ROS_INFO_STREAM("[AreaRecordingBehavior] Area added successfully");
             } else {
-                ROS_ERROR_STREAM("error adding area");
+                ROS_ERROR_STREAM("[AreaRecordingBehavior] error adding area");
             }
         }
 
@@ -139,8 +113,6 @@ Behavior *AreaRecordingBehavior::execute() {
         error = false;
         // reset finished all in case we want to record a second area
         finished_all = false;
-
-        has_outline = false;
         update_actions();
     }
 
@@ -149,10 +121,7 @@ Behavior *AreaRecordingBehavior::execute() {
 }
 
 void AreaRecordingBehavior::enter() {
-    has_outline = false;
-    is_mowing_area = false;
-    is_navigation_area = false;
-
+    area_type = mower_map::MapArea::AREA_NONE;
     update_actions();
 
     has_first_docking_pos = false;
@@ -171,9 +140,9 @@ void AreaRecordingBehavior::enter() {
     map_overlay_pub = n->advertise<xbot_msgs::MapOverlay>("xbot_monitoring/map_overlay", 10);
     marker_array_pub = n->advertise<visualization_msgs::MarkerArray>("area_recorder/progress_visualization_array", 10);
 
-    ROS_INFO_STREAM("Starting recording area");
+    ROS_INFO_STREAM("[AreaRecordingBehavior] Starting recording area");
 
-    ROS_INFO_STREAM("Subscribing to /joy for user input");
+    ROS_INFO_STREAM("[AreaRecordingBehavior] Subscribing to /joy for user input");
     joy_sub = n->subscribe("/joy", 100, &AreaRecordingBehavior::joy_received, this);
 
     dock_sub = n->subscribe("/record_dock", 100, &AreaRecordingBehavior::record_dock_received, this);
@@ -214,39 +183,38 @@ void AreaRecordingBehavior::pose_received(const xbot_msgs::AbsolutePose::ConstPt
     has_odom = true;
 }
 
+void AreaRecordingBehavior::finish_area(uint8_t areaType, std::string reason) {
+    ROS_INFO_STREAM("[AreaRecordingBehavior] Begin save area type " << static_cast<int>(areaType) << " with reason " << reason);
+    area_type = areaType;
+    // stop current poly recording
+    poly_recording_enabled = false;
+    // set finished
+    finished_all = true;
+}
+
 void AreaRecordingBehavior::joy_received(const sensor_msgs::Joy &joy_msg) {
 
     if (joy_msg.buttons[1] && !last_joy.buttons[1]) {
         // B was pressed. We toggle recording state
-        ROS_INFO_STREAM("B PRESSED");
+        ROS_INFO_STREAM("[AreaRecordingBehavior] B PRESSED");
         poly_recording_enabled = !poly_recording_enabled;
     }
     // Y + up was pressed, we finish the recording for a navigation area
     if ((joy_msg.buttons[3] && joy_msg.axes[7] > 0.5) && !(last_joy.buttons[3] && last_joy.axes[7] > 0.5)) {
-        ROS_INFO_STREAM("Y + UP PRESSED, recording navigation area");
-        // stop current poly recording
-        poly_recording_enabled = false;
-
-        // set finished
-        is_mowing_area = false;
-        is_navigation_area = true;
-        finished_all = true;
+        finish_area(mower_map::MapArea::AREA_NAVIGATION,"joystick Y + UP PRESSED");
+    }
+    // Y + left was pressed, we finish the recording for a navigation area
+    if ((joy_msg.buttons[3] && joy_msg.axes[6] < -0.5) && !(last_joy.buttons[3] && last_joy.axes[6] < -0.5)) {
+        finish_area(mower_map::MapArea::AREA_PROHIBITED,"joystick Y + LEFT PRESSED");
     }
     // Y + down was pressed, we finish the recording for a navigation area
     if ((joy_msg.buttons[3] && joy_msg.axes[7] < -0.5) && !(last_joy.buttons[3] && last_joy.axes[7] < -0.5)) {
-        ROS_INFO_STREAM("Y + DOWN PRESSED, recording mowing area");
-        // stop current poly recording
-        poly_recording_enabled = false;
-
-        // set finished
-        is_mowing_area = true;
-        is_navigation_area = false;
-        finished_all = true;
+        finish_area(mower_map::MapArea::AREA_MOWING,"joystick Y + DOWN PRESSED");
     }
 
     // X was pressed, set base position if we are not currently recording
     if (joy_msg.buttons[2] && !last_joy.buttons[2]) {
-        ROS_INFO_STREAM("X PRESSED");
+        ROS_INFO_STREAM("[AreaRecordingBehavior] X PRESSED");
         set_docking_position = true;
     }
 
@@ -255,7 +223,7 @@ void AreaRecordingBehavior::joy_received(const sensor_msgs::Joy &joy_msg) {
 
 void AreaRecordingBehavior::record_dock_received(std_msgs::Bool state_msg) {
     if (state_msg.data) {
-        ROS_INFO_STREAM("Record dock position");
+        ROS_INFO_STREAM("[AreaRecordingBehavior] Record dock position");
         set_docking_position = true;
     }
 }
@@ -263,41 +231,33 @@ void AreaRecordingBehavior::record_dock_received(std_msgs::Bool state_msg) {
 void AreaRecordingBehavior::record_polygon_received(std_msgs::Bool state_msg) {
     if (state_msg.data) {
         // We toggle recording state
-        ROS_INFO_STREAM("Toggle record polygon");
+        ROS_INFO_STREAM("[AreaRecordingBehavior] Toggle record polygon");
         poly_recording_enabled = !poly_recording_enabled;
     }
 }
 
 void AreaRecordingBehavior::record_navigation_received(std_msgs::Bool state_msg) {
     if (state_msg.data) {
-        ROS_INFO_STREAM("Save polygon as navigation area");
-        // stop current poly recording
-        poly_recording_enabled = false;
+        finish_area(mower_map::MapArea::AREA_NAVIGATION,"topic command");
+    }
+}
 
-        // set finished
-        is_mowing_area = false;
-        is_navigation_area = true;
-        finished_all = true;
+void AreaRecordingBehavior::record_prohibited_received(std_msgs::Bool state_msg) {
+    if (state_msg.data) {
+        finish_area(mower_map::MapArea::AREA_PROHIBITED,"topic command");
     }
 }
 
 void AreaRecordingBehavior::record_mowing_received(std_msgs::Bool state_msg) {
     if (state_msg.data) {
-        ROS_INFO_STREAM("Save polygon as mowing area");
-        // stop current poly recording
-        poly_recording_enabled = false;
-
-        // set finished
-        is_mowing_area = true;
-        is_navigation_area = false;
-        finished_all = true;
+        finish_area(mower_map::MapArea::AREA_MOWING,"topic command");
     }
 }
 
 
 bool AreaRecordingBehavior::recordNewPolygon(geometry_msgs::Polygon &polygon, xbot_msgs::MapOverlay &resultOverlay) {
 
-    ROS_INFO_STREAM("recordNewPolygon");
+    ROS_INFO_STREAM("[AreaRecordingBehavior] recordNewPolygon");
 
     bool success = true;
     marker = visualization_msgs::Marker();
@@ -334,7 +294,7 @@ bool AreaRecordingBehavior::recordNewPolygon(geometry_msgs::Polygon &polygon, xb
 
     while (true) {
         if (!ros::ok() || aborted) {
-            ROS_WARN_STREAM("Preempting Area Recorder");
+            ROS_WARN_STREAM("[AreaRecordingBehavior] Preempting Area Recorder");
             success = false;
             break;
         }
@@ -408,7 +368,7 @@ bool AreaRecordingBehavior::recordNewPolygon(geometry_msgs::Polygon &polygon, xb
             } else {
                 success = false;
             }
-            ROS_INFO_STREAM("Finished Recording polygon");
+            ROS_INFO_STREAM("[AreaRecordingBehavior] Finished Recording polygon");
             break;
         }
     }
@@ -431,7 +391,7 @@ bool AreaRecordingBehavior::recordNewPolygon(geometry_msgs::Polygon &polygon, xb
 
 bool AreaRecordingBehavior::getDockingPosition(geometry_msgs::Pose &pos) {
     if(!has_first_docking_pos) {
-        ROS_INFO_STREAM("Recording first docking position");
+        ROS_INFO_STREAM("[AreaRecordingBehavior] Recording first docking position");
 
         auto odom_ptr = ros::topic::waitForMessage<xbot_msgs::AbsolutePose>("/xbot_positioning/xb_pose", ros::Duration(1, 0));
 
@@ -440,7 +400,7 @@ bool AreaRecordingBehavior::getDockingPosition(geometry_msgs::Pose &pos) {
         update_actions();
         return false;
     } else {
-        ROS_INFO_STREAM("Recording second docking position");
+        ROS_INFO_STREAM("[AreaRecordingBehavior] Recording second docking position");
 
         auto odom_ptr = ros::topic::waitForMessage<xbot_msgs::AbsolutePose>("/xbot_positioning/xb_pose", ros::Duration(1, 0));
 
@@ -490,60 +450,33 @@ std::string AreaRecordingBehavior::sub_state_name() {
         case 0:
             return "";
         case 1:
-            return "RECORD_OUTLINE";
+            return "OUTLINE";
         case 2:
-            return "RECORD_OBSTACLE";
+            return "OBSTACLE";
         default:
             return "";
     }
 }
 
 void AreaRecordingBehavior::handle_action(std::string action) {
+    ROS_INFO_STREAM("[AreaRecordingBehavior] Got action "<<action);
     if(action == "mower_logic:area_recording/start_recording") {
-        ROS_INFO_STREAM("Got start recording");
         poly_recording_enabled = true;
     } else if(action == "mower_logic:area_recording/stop_recording") {
-        ROS_INFO_STREAM("Got stop recording");
         poly_recording_enabled = false;
     } else if(action == "mower_logic:area_recording/finish_navigation_area") {
-        ROS_INFO_STREAM("Got save navigation area");
-        // stop current poly recording
-        poly_recording_enabled = false;
-
-        // set finished
-        is_mowing_area = false;
-        is_navigation_area = true;
-        finished_all = true;
+        finish_area(mower_map::MapArea::AREA_NAVIGATION,"got action");
+    } else if(action == "mower_logic:area_recording/finish_prohibited_area") {
+        finish_area(mower_map::MapArea::AREA_PROHIBITED,"handle_action");
     } else if(action == "mower_logic:area_recording/finish_mowing_area") {
-        ROS_INFO_STREAM("Got save mowing area");
-        // stop current poly recording
-        poly_recording_enabled = false;
-
-        // set finished
-        is_mowing_area = true;
-        is_navigation_area = false;
-        finished_all = true;
+        finish_area(mower_map::MapArea::AREA_MOWING,"handle_action");
     } else if(action == "mower_logic:area_recording/finish_discard") {
-        ROS_INFO_STREAM("Got discard recorded area");
         // stop current poly recording
-        poly_recording_enabled = false;
-
-        // set finished
-        is_mowing_area = false;
-        is_navigation_area = false;
-        finished_all = true;
+        finish_area(mower_map::MapArea::AREA_NONE,"handle_action");
     } else if(action == "mower_logic:area_recording/exit_recording_mode") {
-        ROS_INFO_STREAM("Got exit without saving");
-        // stop current poly recording
-        poly_recording_enabled = false;
-
-        // set finished
-        is_mowing_area = false;
-        is_navigation_area = false;
-        finished_all = true;
+        finish_area(mower_map::MapArea::AREA_NONE,"handle_action");
         abort();
     } else if(action == "mower_logic:area_recording/record_dock") {
-        ROS_INFO_STREAM("Got record dock");
         set_docking_position = true;
     }
 }
@@ -569,6 +502,11 @@ AreaRecordingBehavior::AreaRecordingBehavior() {
     finish_mowing_area_action.enabled = false;
     finish_mowing_area_action.action_name = "Save Mowing Area";
 
+    xbot_msgs::ActionInfo finish_prohibited_area_action;
+    finish_prohibited_area_action.action_id = "finish_prohibited_area";
+    finish_prohibited_area_action.enabled = false;
+    finish_prohibited_area_action.action_name = "Save Prohibited Area";
+
     xbot_msgs::ActionInfo exit_recording_mode_action;
     exit_recording_mode_action.action_id = "exit_recording_mode";
     exit_recording_mode_action.enabled = false;
@@ -585,13 +523,14 @@ AreaRecordingBehavior::AreaRecordingBehavior() {
     record_dock_action.action_name = "Record Docking point";
 
     actions.clear();
-    actions.push_back(start_recording_action);
-    actions.push_back(stop_recording_action);
-    actions.push_back(finish_navigation_area_action);
-    actions.push_back(finish_mowing_area_action);
-    actions.push_back(exit_recording_mode_action);
-    actions.push_back(finish_discard_action);
-    actions.push_back(record_dock_action);
+    actions.push_back(start_recording_action);//0->0
+    actions.push_back(stop_recording_action);//1->1
+    actions.push_back(finish_navigation_area_action);//2->2
+    actions.push_back(finish_mowing_area_action);//3->3
+    actions.push_back(finish_prohibited_area_action);//4
+    actions.push_back(exit_recording_mode_action);//4->5
+    actions.push_back(finish_discard_action);//5->6
+    actions.push_back(record_dock_action);//6->7
 }
 
 void AreaRecordingBehavior::update_actions() {
@@ -600,7 +539,7 @@ void AreaRecordingBehavior::update_actions() {
     }
     if(has_first_docking_pos) {
         // we have recorded the first docking pose, only option is to finish by recording second one
-        actions[6].enabled = true;
+        actions[7].enabled = true;
     } else if(poly_recording_enabled) {
         // currently recording a polygon, allow stop and save actions
         actions[1].enabled = true;
@@ -608,20 +547,16 @@ void AreaRecordingBehavior::update_actions() {
         actions[3].enabled = true;
         actions[4].enabled = true;
         actions[5].enabled = true;
+        actions[6].enabled = true;
     } else {
         // neither recording a polygon nor docking point. we can save if we have an outline and always discard
-        if(has_outline) {
-            actions[0].enabled = true;
-            actions[2].enabled = true;
-            actions[3].enabled = true;
-            actions[4].enabled = true;
-            actions[5].enabled = true;
-        } else {
-            // enable start recording, discard area and record dock
-            actions[0].enabled = true;
-            actions[4].enabled = true;
-            actions[6].enabled = true;
-        }
+        actions[0].enabled = true;
+        actions[2].enabled = true;
+        actions[3].enabled = true;
+        actions[4].enabled = true;
+        actions[5].enabled = true;
+        actions[6].enabled = true;
+        actions[7].enabled = true;
     }
 
     registerActions("mower_logic:area_recording", actions);

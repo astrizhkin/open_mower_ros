@@ -1,3 +1,24 @@
+#default teleop
+#enable button 0 
+#turbo button 4
+#axis linear 1
+#axis angular 0
+
+#xbox buttons
+#A        0
+#B        1
+#X        3
+#Y        4
+#left sw  6
+#right sw 7
+#up sw    8?
+#down sw  9?
+
+#xbox axes
+#0 - Left Joystick LeftRight 1 ... -1
+#1 - Left Joystick ForwardReverse 1 ... -1
+#4 - Right finger 1 ... -1
+
 teleop:
   move:
     type: topic
@@ -8,11 +29,30 @@ teleop:
       -
         axis: 1
         target: linear.x
-        scale: 0.5
+        #value from -1 to 1 scaled actualy means speed in m/s
+        scale: 0.6
       -
         axis: 0
         target: angular.z
+        #value from -1 to 1 scaled actualy means speed in rad/s
         scale: 1.5
+
+  move_turbo:
+    type: topic
+    message_type: geometry_msgs/Twist
+    topic_name: joy_vel
+    deadman_buttons: [4]
+    axis_mappings:
+      -
+        axis: 1
+        target: linear.x
+        #value from -1 to 1 scaled actualy means speed in m/s
+        scale: 1.0
+      -
+        axis: 0
+        target: angular.z
+        #value from -1 to 1 scaled actualy means speed in rad/s
+        scale: 2.0
 
   mower:
     type: topic
@@ -24,6 +64,19 @@ teleop:
         axis: 4
         target: data
         scale: -1.0
+
+  mower_turbo:
+    type: topic
+    message_type: std_msgs/Float32
+    topic_name: joy_mower
+    deadman_buttons: [4]
+    axis_mappings:
+      -
+        axis: 4
+        target: data
+        scale: -1.0
+
+
   # record_polygon:
   #   type: topic
   #   message_type: std_msgs/Bool

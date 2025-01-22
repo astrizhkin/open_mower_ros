@@ -24,14 +24,12 @@
 #include <dynamic_reconfigure/server.h>
 #include "mower_map/GetMowingAreaSrv.h"
 #include <mower_map/GetDockingPointSrv.h>
-#include "xbot_msgs/ActionInfo.h"
 
 class IdleBehavior : public Behavior {
 private:
     bool manual_start_mowing = false;
     bool start_area_recorder = false;
     bool start_debug = false;
-    std::vector<xbot_msgs::ActionInfo> actions;
 
 public:
     IdleBehavior();

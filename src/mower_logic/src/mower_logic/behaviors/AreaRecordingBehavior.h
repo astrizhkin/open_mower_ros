@@ -38,7 +38,6 @@
 #include "mower_map/SetDockingPointSrv.h"
 #include "mower_msgs/EmergencyModeSrv.h"
 #include "xbot_msgs/AbsolutePose.h"
-#include "xbot_msgs/ActionInfo.h"
 
 #include "geometry_msgs/Twist.h"
 
@@ -54,8 +53,6 @@ public:
 private:
 
     bool has_odom = false;
-
-    std::vector<xbot_msgs::ActionInfo> actions;
 
     sensor_msgs::Joy last_joy;
     xbot_msgs::AbsolutePose last_pose;
@@ -77,11 +74,9 @@ private:
     bool poly_recording_enabled = false;
 
     // true, if all polys were recorded and the complete area is finished
-    bool is_mowing_area = false;
-    bool is_navigation_area = false;
     bool finished_all = false;
+    uint8_t area_type = 0;
     bool set_docking_position = false;
-    bool has_outline = false;
 
     visualization_msgs::MarkerArray markers;
     visualization_msgs::Marker marker;
@@ -94,8 +89,10 @@ private:
     void record_dock_received(std_msgs::Bool state_msg);
     void record_polygon_received(std_msgs::Bool state_msg);
     void record_mowing_received(std_msgs::Bool state_msg);
+    void record_prohibited_received(std_msgs::Bool state_msg);
     void record_navigation_received(std_msgs::Bool state_msg);
 
+    void finish_area(uint8_t areaType,std::string reason);
     void update_actions();
 
 public:

@@ -308,8 +308,8 @@ bool setMowerEnabledEx(bool enabled, float power, bool direction) {
 
 bool setMowerEnabled(bool enabled) {
     ros::Time started = ros::Time::now();
-    bool reverseDirection = (started.sec & 0b11) == 0b11; // Randomize mower direction on second
-    return setMowerEnabledEx(enabled, 0.5, !reverseDirection);
+    bool reverseDirection = (started.sec & 0b111) == 0b11; // Reverse mower direction for 1 sec after 7 sec
+    return setMowerEnabledEx(enabled, 0.6, !reverseDirection);
 }
 
 /// @brief Halt all bot movement
@@ -357,14 +357,15 @@ void setEmergencyMode(bool set_reset, uint8_t emergency_bit, std::string reason,
 }
 
 void updateUI(const ros::TimerEvent &timer_event) {
+    //ROS_INFO_STREAM("[mower_logic] update UI timer task");
     if ( currentBehavior ) {
         high_level_status.state_name = currentBehavior->state_name();
         high_level_status.state = (currentBehavior->get_state() & 0b11111) | (currentBehavior->get_sub_state() << mower_msgs::HighLevelStatus::SUBSTATE_SHIFT);
         high_level_status.sub_state_name = currentBehavior->sub_state_name();
     } else {
         high_level_status.state_name = "NULL";
-        high_level_status.sub_state_name = "";
         high_level_status.state = mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_NULL;
+        high_level_status.sub_state_name = "";
     }
     high_level_state_publisher.publish(high_level_status);
 }
@@ -609,12 +610,20 @@ void actionReceived(const std_msgs::String::ConstPtr &action) {
 void joyVelReceived(const geometry_msgs::Twist::ConstPtr &joy_vel) {
     if (currentBehavior && currentBehavior->redirect_joystick()) {
         ROS_INFO_STREAM("[mower_logic] redirect joystic cmd " << joy_vel->linear.x << ", " << joy_vel->angular.z);
-        cmd_vel_pub.publish(joy_vel);
+        if(joy_vel->linear.x < 0){
+            //reverse angular speed for more intuitive reverse contol
+            geometry_msgs::Twist reverse_joy_vel;
+            reverse_joy_vel.linear.x = joy_vel->linear.x;
+            reverse_joy_vel.angular.z = -joy_vel->angular.z;
+            cmd_vel_pub.publish(reverse_joy_vel);
+        }else{
+            cmd_vel_pub.publish(joy_vel);
+        }
     }
 }
 
 void joyMowerReceived(const std_msgs::Float32::ConstPtr &joy_mower) {
-    if (currentBehavior && currentBehavior->redirect_joystick()) {
+    if (currentBehavior && currentBehavior->redirect_joystick() && currentBehavior->mower_enabled()) {
         ROS_INFO_STREAM("[mower_logic] joy mower cmd " << joy_mower->data);
         float power = (joy_mower->data + 1.0)/2.0;
         setMowerEnabledEx(true, power, true);
@@ -622,10 +631,13 @@ void joyMowerReceived(const std_msgs::Float32::ConstPtr &joy_mower) {
 }
 
 int main(int argc, char **argv) {
+    ROS_INFO("[mower_logic] Main");
     ros::init(argc, argv, "mower_logic");
 
     n = new ros::NodeHandle();
     paramNh = new ros::NodeHandle("~");
+
+    ROS_INFO("[mower_logic] Start initialization");
 
     boost::recursive_mutex mutex;
 
@@ -669,6 +681,7 @@ int main(int argc, char **argv) {
             "mower_map_service/set_nav_point");
     clearNavPointClient = n->serviceClient<mower_map::ClearNavPointSrv>(
             "mower_map_service/clear_nav_point");
+    ROS_INFO("[mower_logic] Got all services");
 
 
     mbfClient = new actionlib::SimpleActionClient<mbf_msgs::MoveBaseAction>("/move_base_flex/move_base");
@@ -681,6 +694,7 @@ int main(int argc, char **argv) {
     ros::Subscriber joy_mower_cmd = n->subscribe("/joy_mower", 0, joyMowerReceived, ros::TransportHints().tcpNoDelay(true));
     ros::Subscriber action = n->subscribe("xbot/action", 0, actionReceived, ros::TransportHints().tcpNoDelay(true));
 
+    ROS_INFO("[mower_logic] Subscribed to all topics");
     ros::ServiceServer high_level_control_srv = n->advertiseService("mower_service/high_level_control", highLevelCommand);
 
     ros::AsyncSpinner asyncSpinner(1);

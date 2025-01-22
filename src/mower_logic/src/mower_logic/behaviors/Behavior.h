@@ -20,6 +20,7 @@
 #include "ros/ros.h"
 #include "mower_logic/MowerLogicConfig.h"
 #include "mower_msgs/HighLevelStatus.h"
+#include "xbot_msgs/ActionInfo.h"
 #include <atomic>
 #include <memory>
 
@@ -60,6 +61,8 @@ protected:
 
     std::atomic<bool> isGPSGood;
     std::atomic<uint8_t> sub_state;
+ 
+    std::vector<xbot_msgs::ActionInfo> actions;
 
     double time_in_state() {
         return (ros::Time::now() - startTime).toSec();

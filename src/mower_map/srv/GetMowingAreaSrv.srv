@@ -1,3 +1,4 @@
 uint32 index
 ---
 MapArea area
+geometry_msgs/Polygon[] prohibited_areas

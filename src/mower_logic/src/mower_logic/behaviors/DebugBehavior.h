@@ -42,8 +42,10 @@ private:
 
     void circle(nav_msgs::Path &path, double radius);
     void ellipse(nav_msgs::Path &path, double hRad, double vRad);
-    void eight(nav_msgs::Path &path);
-    void zigzag(nav_msgs::Path &path);
+    void eight(nav_msgs::Path &path, double hRad, double vRad);
+    void zigzag(nav_msgs::Path &path, double length, double height);
+    void square(nav_msgs::Path &path, double width);
+    void rectangle(nav_msgs::Path &path, double width, double height);
 
 public:
     std::string state_name() override;
@@ -74,6 +76,7 @@ public:
 
     void handle_action(std::string action) override;
 
+    void update_actions(bool enable);
 };
 
 

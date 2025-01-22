@@ -3,7 +3,7 @@
 	url = https://github.com/astrizhkin/ftc_local_planner.git
 [submodule "src/lib/slic3r_coverage_planner"]
 	path = src/lib/slic3r_coverage_planner
-	url = https://github.com/ClemensElflein/slic3r_coverage_planner.git
+	url = https://github.com/astrizhkin/slic3r_coverage_planner.git
 [submodule "src/lib/ntrip_client"]
 	path = src/lib/ntrip_client
 	url = https://github.com/LORD-MicroStrain/ntrip_client.git
@@ -28,3 +28,6 @@
 [submodule "src/lib/xesc_ros"]
 	path = src/lib/xesc_ros
 	url = https://github.com/astrizhkin/xesc_ros.git
+[submodule "src/lib/Slic3r"]
+	path = src/lib/Slic3r
+	url = https://github.com/astrizhkin/Slic3r

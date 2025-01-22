@@ -1,19 +1,35 @@
 # Get a base image
-FROM osrf/ros:noetic-desktop-full as base
+FROM osrf/ros:noetic-desktop-full AS base
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install required packages
 #   - git
+#   - mosquitto broker
+#   - nginx (remove default site to free up port 80)
 RUN apt-get update && apt-get install --yes \
     git \
+    mosquitto \
+    openssl \
     ros-${ROS_DISTRO}-plotjuggler-ros \
-    && rm -rf /var/lib/apt/lists/*
+    nginx && rm -rf /var/www /etc/nginx/sites-enabled/* \
+    rm -rf /var/lib/apt/lists/*
+
+# Install our configs
+COPY --link ./assets/mosquitto.conf /etc/mosquitto/mosquitto.conf
+COPY --link ./assets/nginx.conf /etc/nginx/conf.d/default.conf
+
+#Generate self-signed certificate
+RUN openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+    -keyout /etc/ssl/private/openmower-selfsigned.key \
+    -out /etc/ssl/certs/openmower-selfsigned.crt \
+    -subj "/C=RU/ST=NW/L=SPb/O=OS/CN=10.42.0.1"
+#RUN openssl dhparam -out /etc/nginx/dhparam.pem 4096
 
 # Update rosdep
 RUN rosdep update --rosdistro $ROS_DISTRO
 
 # First stage: Pull the git and all submodules, other stages depend on it
-FROM base as fetch
+FROM base AS fetch
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -27,21 +43,21 @@ RUN git submodule update --init --recursive
 
 # Get slic3r_coverage_planner and build that. We will pull the finished install folder from this.
 # This stage should cache most of the time, that's why it's not derived from the fetch stage, but copies stuff instead.
-FROM base as slic3r
+FROM base AS slic3r
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Fetch the slic3r planner from the repo (this will cache if unchanged)
-COPY --link --from=fetch /opt/open_mower_ros/src/lib/slic3r_coverage_planner /opt/slic3r_coverage_planner_workspace/src
+COPY --link --from=fetch /opt/open_mower_ros/src/lib/Slic3r /opt/slic3r_workspace/src
 
-WORKDIR /opt/slic3r_coverage_planner_workspace
+WORKDIR /opt/slic3r_workspace
 RUN rosdep install --from-paths src --ignore-src --simulate | \
     sed --expression '1d' | sort | tr -d '\n' | sed --expression 's/  apt-get install//g' > apt-install_list && \
     cat apt-install_list && \
     apt-get update && apt-get install --no-install-recommends --yes $(cat apt-install_list) && \
     rm -rf /var/lib/apt/lists/* apt-install_list
 RUN bash -c "source /opt/ros/$ROS_DISTRO/setup.bash && catkin_make"
-RUN bash -c "source /opt/ros/$ROS_DISTRO/setup.bash && source /opt/slic3r_coverage_planner_workspace/devel/setup.bash && catkin_make -DCMAKE_INSTALL_PREFIX=/opt/prebuilt/slic3r_coverage_planner install"
+RUN bash -c "source /opt/ros/$ROS_DISTRO/setup.bash && source /opt/slic3r_workspace/devel/setup.bash && catkin_make -DCMAKE_INSTALL_PREFIX=/opt/prebuilt/slic3r install"
 
 
 #FROM base as plotjuggler
@@ -69,7 +85,7 @@ RUN bash -c "source /opt/ros/$ROS_DISTRO/setup.bash && source /opt/slic3r_covera
 # If the package list is the same as last time, the apt install step is cached as well which saves a lot of time.
 # Since the list gets sorted, it will be the same each time and the cache will know that by file checksum in the COPY command.
 # We can't use this stage as base for the next, because this stage is run every time and would therefore invalidate the cache of the next stage.
-FROM fetch as dependencies
+FROM fetch AS dependencies
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -83,15 +99,12 @@ RUN apt-get update && \
 
 
 # We can't derive this from "dependencies" because "dependencies" will be rebuilt every time, but apt install should only be done if needed
-FROM base as assemble
+FROM base AS assemble
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 #Fetch the slic3r built earlier, this only changes if slic3r was changed (probably never)
-COPY --link --from=slic3r /opt/prebuilt/slic3r_coverage_planner /opt/prebuilt/slic3r_coverage_planner
-
-#Fetch the plotjuggler built earlier, this only changes if plotjuggler was changed (probably never)
-#COPY --link --from=plotjuggler /opt/prebuilt/plotjuggler /opt/prebuilt/plotjuggler
+COPY --link --from=slic3r /opt/prebuilt/slic3r /opt/prebuilt/slic3r
 
 #Fetch the list of packages, this only changes if new dependencies have been added (only sometimes)
 COPY --link --from=dependencies /apt-install_list /apt-install_list
@@ -104,27 +117,18 @@ RUN apt-get update && \
 COPY --link --from=fetch /opt/open_mower_ros /opt/open_mower_ros
 
 #delete prebuilt libs (so that they won't shadow the preinstalled ones)
-RUN rm -rf /opt/open_mower_ros/src/lib/slic3r_coverage_planner /apt-install_list
+RUN rm -rf /opt/open_mower_ros/src/lib/Slic3r /apt-install_list
 
 #RUN git clone https://github.com/ClemensElflein/open_mower_ros /opt/open_mower_ros
 
 WORKDIR /opt/open_mower_ros
 
-RUN bash -c "source /opt/ros/$ROS_DISTRO/setup.bash && cd /opt/open_mower_ros/src && catkin_init_workspace && cd .. && source /opt/prebuilt/slic3r_coverage_planner/setup.bash && catkin_make -DCATKIN_BLACKLIST_PACKAGES=slic3r_coverage_planner"
-
-#RUN mkdir -p /opt/ws_plotjuggler/src
-#WORKDIR /opt/ws_plotjuggler
-#RUN cd src
-#RUN git clone https://github.com/PlotJuggler/plotjuggler_msgs.git
-#RUN git clone https://github.com/facontidavide/PlotJuggler.git
-#RUN git clone https://github.com/PlotJuggler/plotjuggler-ros-plugins.git
-#RUN cd ..
-#RUN rosdep install --from-paths src --ignore-src --rosdistro=${ROS_DISTRO} -y
-#RUN bash -c "source /opt/ros/$ROS_DISTRO/setup.bash && catkin_make"
+RUN bash -c "source /opt/ros/$ROS_DISTRO/setup.bash && cd /opt/open_mower_ros/src && catkin_init_workspace && cd .. && source /opt/prebuilt/slic3r/setup.bash && catkin_make -DCATKIN_BLACKLIST_PACKAGES=slic3r_wrapper"
 
 COPY .github/assets/openmower_entrypoint.sh /openmower_entrypoint.sh
 RUN chmod +x /openmower_entrypoint.sh
 
 ENTRYPOINT ["/openmower_entrypoint.sh"]
+CMD ["bash", "-c", "service nginx start; service mosquitto start;"]
 #CMD ["bash", "-c", "service nginx start; service mosquitto start; roslaunch open_mower open_mower.launch --screen"]
 

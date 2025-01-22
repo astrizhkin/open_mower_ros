@@ -7,6 +7,7 @@ project(mower_map)
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
+
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -20,6 +21,7 @@ find_package(catkin REQUIRED
         grid_map_filters
         grid_map_cv
         rosbag
+        slic3r_wrapper
         )
 
 ## System dependencies are found with CMake's conventions
@@ -138,6 +140,7 @@ include_directories(
          ${catkin_INCLUDE_DIRS}
 )
 
+
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
 #   src/${PROJECT_NAME}/mower_map.cpp
@@ -170,7 +173,11 @@ include_directories(
 
 add_executable(mower_map_service src/mower_map_service.cpp)
 add_dependencies(mower_map_service ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(mower_map_service ${catkin_LIBRARIES} ${OpenCV_LIBS})
+target_link_libraries(mower_map_service 
+        ${catkin_LIBRARIES} 
+        ${OpenCV_LIBS}
+        ${Boost_LIBRARIES}
+        )
 
 #############
 ## Install ##
