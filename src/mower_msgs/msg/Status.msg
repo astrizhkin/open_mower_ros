@@ -21,7 +21,7 @@ uint16[5] uss_age_ms
 bool emergency
 bool temporary_emergency
 #percent 0-100
-float32 battery_soc
+uint8 battery_soc
 float32 v_charge
 float32 v_battery
 #charging positive, discharging negative

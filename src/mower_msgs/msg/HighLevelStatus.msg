@@ -13,6 +13,6 @@ uint8 state
 string state_name
 string sub_state_name
 float32 gps_quality_percent
-float32 battery_percent
+uint8 battery_percent
 bool is_charging
 bool emergency

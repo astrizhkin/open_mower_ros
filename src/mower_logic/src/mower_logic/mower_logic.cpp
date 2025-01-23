@@ -522,20 +522,23 @@ void checkSafety(const ros::TimerEvent &timer_event) {
         currentBehavior->setGoodGPS(!gpsTimeout);
     }
 
-    double battery_percent = last_status.battery_soc;
-    if(battery_percent > 1.0) {
-        battery_percent = 1.0;
-    } else if(battery_percent < 0.0) {
-        battery_percent = 0.0;
+    uint8_t battery_percent = last_status.battery_soc;
+    if(battery_percent > 100) {
+        battery_percent = 100;
+    } else if(battery_percent < 0) {
+        battery_percent = 0;
     }
     high_level_status.battery_percent = battery_percent;
 
     // we are in non emergency, check if we should pause. This could be empty battery, rain or hot mower motor etc.
     bool dockingNeeded = false;
-    if (    last_status.v_battery < last_config.battery_empty_voltage || 
+    if ( 
+        (last_config.battery_empty_soc!=0 && battery_percent < last_config.battery_empty_soc) || 
+        (last_config.battery_empty_voltage!=0 && last_status.v_battery < last_config.battery_empty_voltage) || 
 // no docking, we instead must make a pause
 //            last_status.mow_esc_status.temperature_motor >= last_config.motor_hot_temperature ||
-            last_config.manual_pause_mowing ) {
+         last_config.manual_pause_mowing ) {
+        ROS_WARN_STREAM("[mower_logic] Docking due to battery level or manual request");
         dockingNeeded = true;
     }
 

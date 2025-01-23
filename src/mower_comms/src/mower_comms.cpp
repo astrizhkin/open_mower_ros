@@ -345,7 +345,7 @@ void publishStatus() {
     status_msg.v_battery = last_ll_status.v_system;
     status_msg.v_charge = last_ll_status.v_charge;
     status_msg.battery_current = last_ll_status.battery_current;
-    status_msg.battery_soc = last_ll_status.batt_percentage/100.0;
+    status_msg.battery_soc = last_ll_status.batt_percentage;
 
     if (mow_xesc_interface && status_msg.esc_power) {
         mow_xesc_interface->getStatus(last_mow_status);

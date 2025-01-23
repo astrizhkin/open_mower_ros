@@ -68,7 +68,10 @@ Behavior *IdleBehavior::execute() {
 
         const bool automatic_mode = last_config.automatic_mode == eAutoMode::AUTO;
         const bool active_semiautomatic_task = last_config.automatic_mode == eAutoMode::SEMIAUTO && shared_state->active_semiautomatic_task == true;
-        const bool mower_ready = last_status.v_battery > last_config.battery_full_voltage && last_status.mow_esc_status.temperature_motor < last_config.motor_cold_temperature &&
+        const bool mower_ready = 
+            (last_config.battery_full_soc==0 || last_status.battery_soc > last_config.battery_full_soc) && 
+            (last_config.battery_full_voltage==0 || last_status.v_battery > last_config.battery_full_voltage) && 
+            last_status.mow_esc_status.temperature_motor < last_config.motor_cold_temperature &&
                 !last_config.manual_pause_mowing;
 
         if (manual_start_mowing || ((automatic_mode || active_semiautomatic_task) && mower_ready)) {
