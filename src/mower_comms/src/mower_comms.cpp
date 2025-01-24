@@ -4,7 +4,8 @@
 //
 // This work is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License.
 //
-// Feel free to use the design in your private/educational projects, but don't try to sell the design or products based on it without getting my consent first.
+// Feel free to use the design in your private/educational projects, but don't try to sell the design or products based
+// on it without getting my consent first.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -15,21 +16,31 @@
 // SOFTWARE.
 //
 //
-#include "ros/ros.h"
-
-#include "boost/crc.hpp"
-#include "std_msgs/Empty.h"
 #include "std_msgs/Bool.h"
 #include "std_msgs/Float64.h"
-#include <mower_msgs/Status.h>
+#include <dynamic_reconfigure/client.h>
 #include <geometry_msgs/Twist.h>
+#include <mower_msgs/Status.h>
 #include <sensor_msgs/Joy.h>
 #include <serial/serial.h>
-#include "ll_datatypes.h"
+#include <xbot_msgs/WheelTick.h>
+#include <xesc_driver/xesc_driver.h>
+#include <xesc_msgs/XescStateStamped.h>
+
+#include <algorithm>
+#include <bitset>
+
 #include "COBS.h"
+#include "boost/crc.hpp"
+#include "ll_datatypes.h"
+#include "mower_logic/MowerLogicConfig.h"
 #include "mower_msgs/MowerControlSrv.h"
 #include "mower_msgs/EmergencyModeSrv.h"
 #include "mower_msgs/HighLevelControlSrv.h"
+#include "mower_msgs/HighLevelStatus.h"
+#include "mower_msgs/ImuRaw.h"
+#include "mower_msgs/MowerControlSrv.h"
+#include "ros/ros.h"
 #include "sensor_msgs/Imu.h"
 #include "sensor_msgs/MagneticField.h"
 
@@ -49,11 +60,11 @@ ros::Publisher cmd_vel_safe_pub;
 
 COBS cobs;
 
-
 // 8 bits of high level emergency set/reset in ROS
 uint8_t emergency_high_level_bits = 0;
 std::string emergency_high_level_reasons[] = {"", "", "", "", "", "", "", ""};
 ros::Time emergency_high_level_end[] = {ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO,ros::Time::ZERO};
+
 
 // True, if the LL board thinks there should be an emergency
 uint8_t emergency_low_level_bits = 0;
@@ -66,7 +77,7 @@ geometry_msgs::Twist last_cmd_twist;
 ros::Time last_cmd_twist_time(0.0);
 float speed_mow = 0;
 uint8_t mower_enabled = 0;
-uint8_t mower_direction = 0;
+uint8_t mower_direction = 0, target_speed_mow = 0;
 
 // Ticks / m and wheel distance for this robot
 double wheel_radius_m = 0.0;
@@ -74,6 +85,10 @@ double wheel_separation_m = 0.0;
 double cmd_vel_timout = 0.0;
 
 bool mower_esc_enabled = false;
+
+// LL/HL configuration
+dynamic_reconfigure::Client<mower_logic::MowerLogicConfig> *reconfigClient;
+mower_logic::MowerLogicConfig mower_logic_config;
 
 // Serial port and buffer for the low level connection
 serial::Serial serial_port;
@@ -220,6 +235,7 @@ void convertXescStatus(mower_msgs::Status &status_msg, xesc_msgs::XescStateStamp
     }
 
     ros_esc_status.tacho = vesc_status.state.tacho;
+    ros_esc_status.rpm = vesc_status.state.rpm;
     ros_esc_status.current = vesc_status.state.current_input;
     ros_esc_status.temperature_motor = vesc_status.state.temperature_motor;
     ros_esc_status.temperature_pcb = vesc_status.state.temperature_pcb;
@@ -302,8 +318,8 @@ void convertHoverboardStatus(mower_msgs::Status &status_msg,hoverboard_driver::H
 }
 
 void publishStatus() {
-    mower_msgs::Status status_msg;
-    status_msg.stamp = ros::Time::now();
+  mower_msgs::Status status_msg;
+  status_msg.stamp = ros::Time::now();
 
     if (last_ll_status.status_bitmask & (1<<STATUS_INIT_BIT) ) {
         // LL OK, fill the message
@@ -314,20 +330,21 @@ void publishStatus() {
     }
     double llAge = (status_msg.stamp - last_ll_status_time).toSec();
 
-    status_msg.raspberry_pi_power = (last_ll_status.status_bitmask & (1<<STATUS_RASPI_POWER_BIT)) != 0;
-    status_msg.charging = (last_ll_status.status_bitmask & (1<<STATUS_CHARGING_BIT)) != 0;
-    status_msg.esc_power = (last_ll_status.status_bitmask & (1<<STATUS_ESC_ENABLED_BIT)) != 0;
-    status_msg.rain_detected = (last_ll_status.status_bitmask & (1<<STATUS_RAIN_BIT)) != 0;
-    status_msg.uss_timeout = (last_ll_status.status_bitmask & (1<<STATUS_USS_TIMEOUT_BIT)) != 0;
-    status_msg.imu_timeout = (last_ll_status.status_bitmask & (1<<STATUS_IMU_TIMEOUT_BIT)) != 0;
-    status_msg.battery_empty = (last_ll_status.status_bitmask & (1<<STATUS_BATTERY_EMPTY_BIT)) != 0;
+  status_msg.raspberry_pi_power = (last_ll_status.status_bitmask & (1<<STATUS_RASPI_POWER_BIT)) != 0;
+  status_msg.charging = (last_ll_status.status_bitmask & (1<<STATUS_CHARGING_BIT)) != 0;
+  status_msg.esc_power = (last_ll_status.status_bitmask & (1<<STATUS_ESC_ENABLED_BIT)) != 0;
+  status_msg.rain_detected = (last_ll_status.status_bitmask & (1<<STATUS_RAIN_BIT)) != 0;
+  status_msg.uss_timeout = (last_ll_status.status_bitmask & (1<<STATUS_USS_TIMEOUT_BIT)) != 0;
+  status_msg.imu_timeout = (last_ll_status.status_bitmask & (1<<STATUS_IMU_TIMEOUT_BIT)) != 0;
+  status_msg.battery_empty = (last_ll_status.status_bitmask & (1<<STATUS_BATTERY_EMPTY_BIT)) != 0;
     status_msg.bms_timeout = (last_ll_status.status_bitmask & (1<<STATUS_BMS_TIMEOUT_BIT)) != 0;
     status_msg.ll_timeout = llAge > 1.0;
+  status_msg.mow_enabled = !(target_speed_mow == 0);
 
-    for (uint8_t i = 0; i < 5; i++) {
-        status_msg.uss_ranges[i] = last_ll_status.uss_ranges_m[i];
+  for (uint8_t i = 0; i < 5; i++) {
+    status_msg.uss_ranges[i] = last_ll_status.uss_ranges_m[i];
         status_msg.uss_age_ms[i] = last_ll_status.uss_age_ms[i];
-    }
+  }
 
     // overwrite emergency with the LL value.
     emergency_low_level_bits = last_ll_status.emergency_bitmask;
@@ -406,13 +423,112 @@ void publishStatus() {
     //wheel_tick_msg.wheel_speed_rr = last_rear_status.state.speedR_meas;
     wheel_tick_msg.wheel_direction_rr = last_rear_status.state.speedR_meas > 0;
 
-    wheel_tick_pub.publish(wheel_tick_msg);
+  wheel_tick_pub.publish(wheel_tick_msg);
 }
+
+std::string getHallConfigsString(const HallConfig *hall_configs, const size_t size) {
+  std::string str;
+
+  // Parse hall_configs and build a readable string
+  for (size_t i = 0; i < size; i++) {
+    if (str.length()) str.append(", ");
+    if (hall_configs->active_low) str.append("!");
+    switch (hall_configs->mode) {
+      case HallMode::OFF: str.append("I"); break;
+      case HallMode::LIFT_TILT: str.append("L"); break;
+      case HallMode::STOP: str.append("S"); break;
+      case HallMode::UNDEFINED: str.append("U"); break;
+      default: break;
+    }
+    hall_configs++;
+  }
+
+  return str;
+}
+
+void publishLowLevelConfig(const uint8_t pkt_type) {
+  if (!serial_port.isOpen() || !allow_send) return;
+
+  // Prepare the pkt
+  size_t size = sizeof(struct ll_high_level_config) + 3;  // +1 type, +2 crc
+  uint8_t buf[size];
+
+  // Send config and request a config answer
+  buf[0] = pkt_type;
+
+  // Copy our live config into the message (behind type)
+  memcpy(&buf[1], &llhl_config, sizeof(struct ll_high_level_config));
+
+  // Member access to buffer
+  struct ll_high_level_config *buf_config = (struct ll_high_level_config *)&buf[1];
+
+  // CRC
+  crc.reset();
+  crc.process_bytes(buf, sizeof(struct ll_high_level_config) + 1);  // + type
+  buf[size - 1] = (crc.checksum() >> 8) & 0xFF;
+  buf[size - 2] = crc.checksum() & 0xFF;
+
+  // COBS
+  size_t encoded_size = cobs.encode(buf, size, out_buf);
+  out_buf[encoded_size] = 0;
+  encoded_size++;
+
+  // Send
+  try {
+    // Let's be verbose for easier follow-up
+    ROS_INFO(
+        "Send ll_high_level_config packet %#04x\n"
+        "\t options{dfp_is_5v=%d, background_sounds=%d, ignore_charging_current=%d},\n"
+        "\t v_charge_cutoff=%f, i_charge_cutoff=%f,\n"
+        "\t v_battery_cutoff=%f, v_battery_empty=%f, v_battery_full=%f,\n"
+        "\t lift_period=%d, tilt_period=%d,\n"
+        "\t shutdown_esc_max_pitch=%d,\n"
+        "\t language=\"%.2s\", volume=%d\n"
+        "\t hall_configs=\"%s\"",
+        buf[0], (int)buf_config->options.dfp_is_5v, (int)buf_config->options.background_sounds,
+        (int)buf_config->options.ignore_charging_current, buf_config->v_charge_cutoff, buf_config->i_charge_cutoff,
+        buf_config->v_battery_cutoff, buf_config->v_battery_empty, buf_config->v_battery_full, buf_config->lift_period,
+        buf_config->tilt_period, buf_config->shutdown_esc_max_pitch, buf_config->language, buf_config->volume,
+        getHallConfigsString(buf_config->hall_configs, MAX_HALL_INPUTS).c_str());
+
+    serial_port.write(out_buf, encoded_size);
+  } catch (std::exception &e) {
+    ROS_ERROR_STREAM("Error writing to serial port");
+  }
+}
+
+/**
+ * @brief A simple config tracker (struct-class) for managing lost response packets as well as simpler handling of
+ * LowLevel reboots or flash period.
+ */
+struct {
+  ros::Time last_config_req;    // Time when last config request was sent
+  unsigned int tries_left = 0;  // Remaining request tries before giving up
+
+  void ackResponse() {  // Call this on receive of a response packet to stop monitoring
+    tries_left = 0;
+  };
+  void setDirty() {  // Call this for indicating that config packet need to be resend, i.e. die to LL-reboot
+    tries_left = 5;
+  };
+  void check() {
+    if (!tries_left ||                                            // No request tries left (probably old LL-FW)
+        !serial_port.isOpen() || !allow_send ||                   // Serial not ready
+        ros::Time::now() - last_config_req < ros::Duration(0.5))  // Timeout waiting for response not reached
+      return;
+    publishLowLevelConfig(PACKET_ID_LL_HIGH_LEVEL_CONFIG_REQ);
+    last_config_req = ros::Time::now();
+    tries_left--;
+    ROS_WARN_STREAM_COND(
+        !tries_left, "Didn't received a config packet from LowLevel in time. Is your LowLevel firmware up-to-date?");
+  };
+} configTracker;
 
 void publishActuatorsTimerTask(const ros::TimerEvent &timer_event) {
     updateEmergencyBits();
-    publishActuators();
-    publishStatus();
+  publishActuators();
+  publishStatus();
+  configTracker.check();
 }
 
 bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerControlSrvResponse &res) {
@@ -499,40 +615,40 @@ void onFrontStateReceived(const hoverboard_driver::HoverboardStateStamped::Const
 void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {
     ROS_INFO_STREAM("[mower_comms] Got UI button with code:" << +ui_event->button_id << " and duration: " << +ui_event->press_duration);
 
-    mower_msgs::HighLevelControlSrv srv;
+  mower_msgs::HighLevelControlSrv srv;
 
-    switch(ui_event->button_id) {
-        case 2:
-            // Home
-            srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_HOME;
-            break;
-        case 3:
-            // Play
-            srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_START;
-            break;
-        case 4:
-            // S1
-            srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_S1;
-            break;
-        case 5:
-            // S2
-            if(ui_event->press_duration == 2) {
-                srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_DELETE_MAPS;
-            } else {
-                srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_S2;
-            }
-            break;
-        case 6:
-            //LOCK
-            if(ui_event->press_duration == 2) {
-                // very long press on lock
-                srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_RESET_EMERGENCY;
-            }
-            break;
-        default:
-            // Return, don't call the service.
-            return;
-    }
+  switch (ui_event->button_id) {
+    case 2:
+      // Home
+      srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_HOME;
+      break;
+    case 3:
+      // Play
+      srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_START;
+      break;
+    case 4:
+      // S1
+      srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_S1;
+      break;
+    case 5:
+      // S2
+      if (ui_event->press_duration == 2) {
+        srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_DELETE_MAPS;
+      } else {
+        srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_S2;
+      }
+      break;
+    case 6:
+      // LOCK
+      if (ui_event->press_duration == 2) {
+        // very long press on lock
+        srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_RESET_EMERGENCY;
+      }
+      break;
+    default:
+      // Return, don't call the service.
+      return;
+  }
 
     if(!highLevelClient.call(srv)) {
         ROS_ERROR_STREAM("[mower_comms] Error calling high level control service");
@@ -598,10 +714,10 @@ int parseAxes(ros::NodeHandle& paramNh, double* axes_multiplier, int* axes_idx, 
 }
 
 int main(int argc, char **argv) {
-    ros::init(argc, argv, "mower_comms");
+  ros::init(argc, argv, "mower_comms");
 
-    sensor_mag_msg.header.seq = 0;
-    sensor_imu_msg.header.seq = 0;
+  sensor_mag_msg.header.seq = 0;
+  sensor_imu_msg.header.seq = 0;
 
     ros::NodeHandle n;
     ros::NodeHandle paramNh("~");
@@ -610,6 +726,8 @@ int main(int argc, char **argv) {
     highLevelClient = n.serviceClient<mower_msgs::HighLevelControlSrv>(
             "mower_service/high_level_control");
 
+  mower_logic_config = mower_logic::MowerLogicConfig::__getDefault__();
+  reconfigClient = new dynamic_reconfigure::Client<mower_logic::MowerLogicConfig>("/mower_logic", reconfigCB);
 
     std::string ll_serial_port_name;
     if (!paramNh.getParam("ll_serial_port", ll_serial_port_name)) {
@@ -691,9 +809,9 @@ int main(int argc, char **argv) {
                 serial_port.setTimeout(to);
                 serial_port.open();
 
-                // wait for controller to boot
-                retryDelay.sleep();
-                // this will only be set if no error was set
+        // wait for controller to boot
+        retryDelay.sleep();
+        // this will only be set if no error was set
 
                 allow_send = true;
             } catch (std::exception &e) {
@@ -768,14 +886,14 @@ int main(int argc, char **argv) {
 
                 }
 
-                read = 0;
-            } else {
-                read += bytes_read;
-            }
-        }
+        read = 0;
+      } else {
+        read += bytes_read;
+      }
     }
+  }
 
-    spinner.stop();
+  spinner.stop();
 
     if(mow_xesc_interface) {
         mow_xesc_interface->setDutyCycle(0.0);
@@ -791,5 +909,5 @@ int main(int argc, char **argv) {
         delete mow_xesc_interface;
     }
 
-    return 0;
+  return 0;
 }

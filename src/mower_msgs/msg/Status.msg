@@ -26,6 +26,7 @@ float32 v_charge
 float32 v_battery
 #charging positive, discharging negative
 float32 battery_current
+bool mow_enabled
 
 # ESC stuff
 ESCStatus rear_left_esc_status
@@ -33,4 +34,3 @@ ESCStatus rear_right_esc_status
 ESCStatus front_left_esc_status
 ESCStatus front_right_esc_status
 ESCStatus mow_esc_status
-

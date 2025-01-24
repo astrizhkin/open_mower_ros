@@ -21,6 +21,7 @@ find_package(catkin REQUIRED
         grid_map_filters
         grid_map_cv
         rosbag
+        xbot_msgs
         slic3r_wrapper
         )
 

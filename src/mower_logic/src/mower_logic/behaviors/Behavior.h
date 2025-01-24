@@ -3,7 +3,8 @@
 //
 // This work is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License.
 //
-// Feel free to use the design in your private/educational projects, but don't try to sell the design or products based on it without getting my consent first.
+// Feel free to use the design in your private/educational projects, but don't try to sell the design or products based
+// on it without getting my consent first.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -36,17 +37,22 @@ enum ePauseReason {
     PAUSE_AUTO = 2
 };
 
+enum pauseType { PAUSE_MANUAL = 0b1, PAUSE_EMERGENCY = 0b10 };
+
+
 struct sSharedState {
-    bool active_semiautomatic_task;
+  // True, if the semiautomatic task is still in progress
+  bool active_semiautomatic_task;
+  // True, if the user has manually paused the mowing. We should then wait for the user to continue
+  bool semiautomatic_task_paused;
 };
 
 /**
  * Behavior definition
  */
 class Behavior {
-
-private:
-    ros::Time startTime;
+ private:
+  ros::Time startTime;
 
 protected:
     std::atomic<bool> aborted;
@@ -56,42 +62,40 @@ protected:
     std::atomic<bool> mower_enabled_flag;
     std::atomic<bool> mower_enabled_flag_before_pause;
 
-    std::atomic<bool> requested_continue_flag;
-    std::atomic<bool> requested_pause_flag;
+  std::atomic<u_int8_t> requested_pause_flag;
 
     std::atomic<bool> isGPSGood;
     std::atomic<uint8_t> sub_state;
  
     std::vector<xbot_msgs::ActionInfo> actions;
 
-    double time_in_state() {
-        return (ros::Time::now() - startTime).toSec();
-    }
+  double time_in_state() {
+    return (ros::Time::now() - startTime).toSec();
+  }
 
-    mower_logic::MowerLogicConfig config;
-    std::shared_ptr<sSharedState> shared_state;
+  mower_logic::MowerLogicConfig config;
+  std::shared_ptr<sSharedState> shared_state;
 
-    /**
-     * Called ONCE on state enter.
-     */
-    virtual void enter() = 0;
+  /**
+   * Called ONCE on state enter.
+   */
+  virtual void enter() = 0;
 
-public:
+ public:
+  virtual std::string state_name() = 0;
+  virtual std::string sub_state_name() {
+    return "";
+  }
 
-    virtual std::string state_name() = 0;
-    virtual std::string sub_state_name() {
-        return "";
-    }
+  bool hasGoodGPS() {
+    return isGPSGood;
+  }
 
-    bool hasGoodGPS() {
-        return isGPSGood;
-    }
+  void setGoodGPS(bool isGood) {
+    isGPSGood = isGood;
+  }
 
-    void setGoodGPS(bool isGood) {
-        isGPSGood = isGood;
-    }
-
-    void requestContinue(ePauseReason reason) {
+    void requestContinue(pauseType reason = pauseType::PAUSE_MANUAL, ePauseReason reason) {
         if(!paused || !requested_pause_flag) {
             return;
         }
@@ -99,12 +103,12 @@ public:
             ROS_WARN_STREAM("[Behavior] Can not reset pause with reason ["<< reason <<"] different from pause set reason [" << requested_pause_reason <<"]");
             return;
         }
-        requested_continue_flag = true;
+        requested_pause_flag &= ~reason;
     }
 
-    void requestPause(ePauseReason reason) {
+    void requestPause(pauseType reason = pauseType::PAUSE_MANUAL,ePauseReason reason) {
         ROS_WARN_STREAM("[Behavior] Request pause with reason ["<< reason <<"]");
-        requested_pause_flag = true;
+        requested_pause_flag |= reason;
         requested_pause_reason = reason;
     }
 
@@ -130,66 +134,67 @@ public:
         mower_enabled_flag = enabled;
     }
 
-    void start(mower_logic::MowerLogicConfig &c, std::shared_ptr<sSharedState> s) {
-        ROS_INFO_STREAM("");
-        ROS_INFO_STREAM("");
-        ROS_INFO_STREAM("--------------------------------------");
-        ROS_INFO_STREAM("- Entered state: " << state_name());
-        ROS_INFO_STREAM("--------------------------------------");
-        aborted = false;
-        this->setContinue();
-        this->config = c;
-        this->shared_state = std::move(s);
-        startTime = ros::Time::now();
-        isGPSGood = false;
-        sub_state = 0;
-        enter();
+  void start(mower_logic::MowerLogicConfig &c, std::shared_ptr<sSharedState> s) {
+    ROS_INFO_STREAM("");
+    ROS_INFO_STREAM("");
+    ROS_INFO_STREAM("--------------------------------------");
+    ROS_INFO_STREAM("- Entered state: " << state_name());
+    ROS_INFO_STREAM("--------------------------------------");
+    aborted = false;
+    paused = false;//???
+    requested_pause_flag = 0;//???
+    this->setContinue();//???
+    this->config = c;
+    this->shared_state = std::move(s);
+    startTime = ros::Time::now();
+    isGPSGood = false;
+    sub_state = 0;
+    enter();
+  }
+
+  /**
+   * Execute the behavior. This call should block until the behavior is executed fully.
+   * @returns the pointer to the next behavior (can return itself).
+   */
+  virtual Behavior *execute() = 0;
+
+  /**
+   * Called ONCE before state exits
+   */
+  virtual void exit() = 0;
+
+  /**
+   * Reset the internal state of the behavior.
+   */
+  virtual void reset() = 0;
+
+  /**
+   * If called, save state internally and return the execute() method asap.
+   * Execution should resume on the next execute() call.
+   */
+  void abort() {
+    if (!aborted) {
+      ROS_INFO_STREAM("- Behaviour.h: abort() called");
     }
-
-    /**
-     * Execute the behavior. This call should block until the behavior is executed fully.
-     * @returns the pointer to the next behavior (can return itself).
-     */
-    virtual Behavior *execute() = 0;
-
-    /**
-     * Called ONCE before state exits
-     */
-    virtual void exit() = 0;
-
-    /**
-     * Reset the internal state of the behavior.
-     */
-    virtual void reset() = 0;
-
-    /**
-     * If called, save state internally and return the execute() method asap.
-     * Execution should resume on the next execute() call.
-     */
-    void abort() {
-        if(!aborted) {
-            ROS_INFO_STREAM( "- Behaviour.h: abort() called");
-        }
-        aborted = true;
-    }
+    aborted = true;
+  }
 
     // Return true, if this state needs absolute positioning.
     // The state will be aborted if GPS is lost and resumed at some later point in time.
     virtual bool needs_gps() = 0;
 
-    // return true to redirect joystick speeds to the controller
-    virtual bool redirect_joystick() = 0;
+  // return true to redirect joystick speeds to the controller
+  virtual bool redirect_joystick() = 0;
 
+  virtual void command_home() = 0;
+  virtual void command_start() = 0;
+  virtual void command_s1() = 0;
+  virtual void command_s2() = 0;
 
-    virtual void command_home() = 0;
-    virtual void command_start() = 0;
-    virtual void command_s1() = 0;
-    virtual void command_s2() = 0;
+  virtual uint8_t get_sub_state() = 0;
+  virtual uint8_t get_state() = 0;
 
-    virtual uint8_t get_sub_state() = 0;
-    virtual uint8_t get_state() = 0;
-
-    virtual void handle_action(std::string action) = 0;
+  virtual void handle_action(std::string action) = 0;
 };
 
-#endif //SRC_BEHAVIOR_H
+#endif  // SRC_BEHAVIOR_H

@@ -22,7 +22,7 @@
             <param name="~autorepeat_rate" value="10.0"/>
             <param name="~coalesce_interval" value="0.06"/>
         </node>
-        
+
         <rosparam file="$(find open_mower)/params/gamepads/$(env OM_MOWER_GAMEPAD).yaml" command="load"/>
         <rosparam file="$(env HOME)/mower_params/gamepads/$(env OM_MOWER_GAMEPAD).yaml" command="load"/>
         
