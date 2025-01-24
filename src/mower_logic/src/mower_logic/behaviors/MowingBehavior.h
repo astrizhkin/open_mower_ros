@@ -18,9 +18,11 @@
 #ifndef SRC_MOWINGBEHAVIOR_H
 #define SRC_MOWINGBEHAVIOR_H
 
-#include "Behavior.h"
 #include "UndockingBehavior.h"
 #include "ftc_local_planner/PlannerGetProgress.h"
+#include "slic3r_coverage_planner/Path.h"
+#include "slic3r_coverage_planner/PlanPath.h"
+#include "xbot_msgs/ActionInfo.h"
 
 class MowingBehavior : public Behavior {
 

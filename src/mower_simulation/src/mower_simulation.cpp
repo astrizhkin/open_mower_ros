@@ -18,15 +18,14 @@
 #include "ros/ros.h"
 
 // Include messages for mower control
-#include "mower_msgs/Status.h"
-#include "mower_msgs/MowerControlSrv.h"
-#include "xbot_positioning/GPSControlSrv.h"
-#include "mower_msgs/EmergencyModeSrv.h"
-#include "geometry_msgs/Twist.h"
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
+#include "dynamic_reconfigure/server.h"
 #include "geometry_msgs/PoseWithCovarianceStamped.h"
 #include "geometry_msgs/Twist.h"
 #include "mower_map/GetDockingPointSrv.h"
-#include "mower_msgs/EmergencyStopSrv.h"
+#include "mower_msgs/EmergencyModeSrv.h"
 #include "mower_msgs/MowerControlSrv.h"
 #include "mower_msgs/Status.h"
 #include "mower_simulation/MowerSimulationConfig.h"
@@ -65,10 +64,11 @@ bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerCon
 }
 
 bool setEmergencyMode(mower_msgs::EmergencyModeSrvRequest &req, mower_msgs::EmergencyModeSrvResponse &res) {
-    config.emergency_stop = req.set_reset;
-    reconfig_server->updateConfig(config);
-    return true;
+  config.emergency_stop = req.set_reset;
+  reconfig_server->updateConfig(config);
+  return true;
 }
+
 void fetchDock(const ros::TimerEvent &timer_event) {
   mower_map::GetDockingPointSrv get_docking_point_srv;
   geometry_msgs::PoseWithCovarianceStamped docking_pose_stamped;
@@ -135,13 +135,13 @@ void publishStatus(const ros::TimerEvent &timer_event) {
   if (config.wheels_stalled) {
     fake_mow_status.rear_left_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
     fake_mow_status.rear_right_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
-        fake_mow_status.front_left_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
-        fake_mow_status.front_right_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
+    fake_mow_status.front_left_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
+    fake_mow_status.front_right_esc_status.status = mower_msgs::ESCStatus ::ESC_STATUS_STALLED;
   } else {
     fake_mow_status.rear_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
     fake_mow_status.rear_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-        fake_mow_status.front_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-        fake_mow_status.front_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+    fake_mow_status.front_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+    fake_mow_status.front_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
   }
   fake_mow_status.emergency = config.emergency_stop;
 
@@ -237,29 +237,29 @@ int main(int argc, char **argv) {
   }
   */
 
-    fake_mow_status.mower_status = mower_msgs::Status::MOWER_STATUS_OK;
-    fake_mow_status.v_charge = 0.0;
-    fake_mow_status.v_battery = 29.0;
-    fake_mow_status.stamp = ros::Time::now();
-    fake_mow_status.rear_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-    fake_mow_status.rear_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-    fake_mow_status.front_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-    fake_mow_status.front_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-    fake_mow_status.mow_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-    fake_mow_status.mow_esc_status.temperature_motor = 50;
-    fake_mow_status.emergency = true;
-    config.emergency_stop = true;
+  fake_mow_status.mower_status = mower_msgs::Status::MOWER_STATUS_OK;
+  fake_mow_status.v_charge = 0.0;
+  fake_mow_status.v_battery = 29.0;
+  fake_mow_status.stamp = ros::Time::now();
+  fake_mow_status.rear_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+  fake_mow_status.rear_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+  fake_mow_status.front_left_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+  fake_mow_status.front_right_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+  fake_mow_status.mow_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
+  fake_mow_status.mow_esc_status.temperature_motor = 50;
+  fake_mow_status.emergency = true;
+  config.emergency_stop = true;
 
   status_pub = n.advertise<mower_msgs::Status>("mower/status", 1);
   cmd_vel_pub = n.advertise<geometry_msgs::Twist>("/cmd_vel_out", 1);
   pose_pub = n.advertise<xbot_msgs::AbsolutePose>("/xbot_positioning/xb_pose", 1);
 
-    ros::Subscriber cmd_vel_sub = n.subscribe("/cmd_vel", 0, velReceived, ros::TransportHints().tcpNoDelay(true));
-    ros::Subscriber odom_sub = n.subscribe("/mower/odom", 0, odomReceived, ros::TransportHints().tcpNoDelay(true));
-    ros::ServiceServer mow_service = n.advertiseService("mower_service/mow_enabled", setMowEnabled);
-    ros::ServiceServer gps_service = n.advertiseService("xbot_positioning/set_gps_state", setGpsState);
-    ros::ServiceServer emergency_service = n.advertiseService("mower_service/emergency", setEmergencyMode);
-    ros::ServiceServer pose_service = n.advertiseService("xbot_positioning/set_robot_pose", setPose);
+  ros::Subscriber cmd_vel_sub = n.subscribe("/cmd_vel", 0, velReceived, ros::TransportHints().tcpNoDelay(true));
+  ros::Subscriber odom_sub = n.subscribe("/mower/odom", 0, odomReceived, ros::TransportHints().tcpNoDelay(true));
+  ros::ServiceServer mow_service = n.advertiseService("mower_service/mow_enabled", setMowEnabled);
+  ros::ServiceServer gps_service = n.advertiseService("xbot_positioning/set_gps_state", setGpsState);
+  ros::ServiceServer emergency_service = n.advertiseService("mower_service/emergency", setEmergencyMode);
+  ros::ServiceServer pose_service = n.advertiseService("xbot_positioning/set_robot_pose", setPose);
 
   ros::Timer publish_timer = n.createTimer(ros::Duration(0.02), publishStatus);
   ros::Timer update_dock_timer = n.createTimer(ros::Duration(1.0), fetchDock);

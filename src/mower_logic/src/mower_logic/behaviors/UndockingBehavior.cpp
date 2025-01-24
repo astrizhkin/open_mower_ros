@@ -137,7 +137,8 @@ void UndockingBehavior::enter() {
 
   // set the robot's position to the dock if we're actually docked
   if (getStatus().v_charge > 5.0) {
-    ROS_INFO_STREAM("[UndockingBehavior] Currently inside the docking station, we set the robot's pose to the docks pose.");
+    ROS_INFO_STREAM(
+        "[UndockingBehavior] Currently inside the docking station, we set the robot's pose to the docks pose.");
     setRobotPose(docking_pose_stamped.pose, "undocking init");
   }
 }
@@ -155,7 +156,7 @@ bool UndockingBehavior::needs_gps() {
 
 bool UndockingBehavior::waitForGPS() {
   gpsRequired = false;
-  setGPS(true,"undocking finished");
+  setGPS(true, "undocking finished");
   ros::Rate odom_rate(1.0);
   while (ros::ok() && !aborted) {
     if (isGpsGood()) {

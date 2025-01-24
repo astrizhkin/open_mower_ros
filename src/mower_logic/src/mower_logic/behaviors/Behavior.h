@@ -18,27 +18,17 @@
 #ifndef SRC_BEHAVIOR_H
 #define SRC_BEHAVIOR_H
 
-#include "ros/ros.h"
-#include "mower_logic/MowerLogicConfig.h"
-#include "mower_msgs/HighLevelStatus.h"
-#include "xbot_msgs/ActionInfo.h"
 #include <atomic>
 #include <memory>
 
-enum eAutoMode {
-    MANUAL = 0,
-    SEMIAUTO = 1,
-    AUTO = 2
-};
+#include "mower_logic/MowerLogicConfig.h"
+#include "mower_msgs/HighLevelStatus.h"
+#include "ros/ros.h"
+#include "xbot_msgs/ActionInfo.h"
 
-enum ePauseReason {
-    PAUSE_FORCE = 0,
-    PAUSE_MANUAL = 1,
-    PAUSE_AUTO = 2
-};
+enum eAutoMode { MANUAL = 0, SEMIAUTO = 1, AUTO = 2 };
 
-enum pauseType { PAUSE_MANUAL = 0b1, PAUSE_EMERGENCY = 0b10 };
-
+enum ePauseReason { PAUSE_FORCE = 0b100, PAUSE_MANUAL = 0b1, PAUSE_AUTO = 0b10 };
 
 struct sSharedState {
   // True, if the semiautomatic task is still in progress
@@ -54,20 +44,20 @@ class Behavior {
  private:
   ros::Time startTime;
 
-protected:
-    std::atomic<bool> aborted;
-    std::atomic<bool> paused;
-    std::atomic<ePauseReason> requested_pause_reason;
+ protected:
+  std::atomic<bool> aborted;
+  std::atomic<bool> paused;
 
-    std::atomic<bool> mower_enabled_flag;
-    std::atomic<bool> mower_enabled_flag_before_pause;
+  std::atomic<bool> mower_enabled_flag;
+  std::atomic<bool> mower_enabled_flag_before_pause;
 
   std::atomic<u_int8_t> requested_pause_flag;
+  std::atomic<u_int8_t> requested_continue_flag;
 
-    std::atomic<bool> isGPSGood;
-    std::atomic<uint8_t> sub_state;
- 
-    std::vector<xbot_msgs::ActionInfo> actions;
+  std::atomic<bool> isGPSGood;
+  std::atomic<uint8_t> sub_state;
+
+  std::vector<xbot_msgs::ActionInfo> actions;
 
   double time_in_state() {
     return (ros::Time::now() - startTime).toSec();
@@ -95,44 +85,39 @@ protected:
     isGPSGood = isGood;
   }
 
-    void requestContinue(pauseType reason = pauseType::PAUSE_MANUAL, ePauseReason reason) {
-        if(!paused || !requested_pause_flag) {
-            return;
-        }
-        if(requested_pause_reason != reason && reason!=ePauseReason::PAUSE_FORCE) {
-            ROS_WARN_STREAM("[Behavior] Can not reset pause with reason ["<< reason <<"] different from pause set reason [" << requested_pause_reason <<"]");
-            return;
-        }
-        requested_pause_flag &= ~reason;
+  void requestContinue(ePauseReason reason) {
+    if (!paused || !requested_pause_flag) {
+      return;
     }
+    requested_pause_flag &= ~reason;
+  }
 
-    void requestPause(pauseType reason = pauseType::PAUSE_MANUAL,ePauseReason reason) {
-        ROS_WARN_STREAM("[Behavior] Request pause with reason ["<< reason <<"]");
-        requested_pause_flag |= reason;
-        requested_pause_reason = reason;
-    }
+  void requestPause(ePauseReason reason) {
+    ROS_WARN_STREAM("[Behavior] Request pause with reason [" << reason << "]");
+    requested_pause_flag |= reason;
+  }
 
-    void setPause() {
-        paused = true;
-        mower_enabled_flag_before_pause = mower_enabled_flag.load();
-        mower_enabled_flag = false;
-    }
+  void setPause() {
+    paused = true;
+    mower_enabled_flag_before_pause = mower_enabled_flag.load();
+    mower_enabled_flag = false;
+  }
 
-    void setContinue() {
-        paused = false;
-        requested_continue_flag = false;
-        requested_pause_flag = false;
-        mower_enabled_flag = mower_enabled_flag_before_pause.load();
-    }
+  void setContinue() {
+    paused = false;
+    requested_continue_flag = false;
+    requested_pause_flag = false;
+    mower_enabled_flag = mower_enabled_flag_before_pause.load();
+  }
 
-    // return true, if the mower motor should currently be running.
-    bool mower_enabled() {
-        return mower_enabled_flag;
-    }
+  // return true, if the mower motor should currently be running.
+  bool mower_enabled() {
+    return mower_enabled_flag;
+  }
 
-    void setMowerEnabled(bool enabled) {
-        mower_enabled_flag = enabled;
-    }
+  void setMowerEnabled(bool enabled) {
+    mower_enabled_flag = enabled;
+  }
 
   void start(mower_logic::MowerLogicConfig &c, std::shared_ptr<sSharedState> s) {
     ROS_INFO_STREAM("");
@@ -141,9 +126,9 @@ protected:
     ROS_INFO_STREAM("- Entered state: " << state_name());
     ROS_INFO_STREAM("--------------------------------------");
     aborted = false;
-    paused = false;//???
-    requested_pause_flag = 0;//???
-    this->setContinue();//???
+    paused = false;            //???
+    requested_pause_flag = 0;  //???
+    this->setContinue();       //???
     this->config = c;
     this->shared_state = std::move(s);
     startTime = ros::Time::now();
@@ -179,9 +164,9 @@ protected:
     aborted = true;
   }
 
-    // Return true, if this state needs absolute positioning.
-    // The state will be aborted if GPS is lost and resumed at some later point in time.
-    virtual bool needs_gps() = 0;
+  // Return true, if this state needs absolute positioning.
+  // The state will be aborted if GPS is lost and resumed at some later point in time.
+  virtual bool needs_gps() = 0;
 
   // return true to redirect joystick speeds to the controller
   virtual bool redirect_joystick() = 0;

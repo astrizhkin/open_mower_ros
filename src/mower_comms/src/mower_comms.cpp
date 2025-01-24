@@ -36,7 +36,6 @@
 #include "mower_msgs/EmergencyModeSrv.h"
 #include "mower_msgs/HighLevelControlSrv.h"
 #include "mower_msgs/HighLevelStatus.h"
-#include "mower_msgs/ImuRaw.h"
 #include "mower_msgs/MowerControlSrv.h"
 #include "ros/ros.h"
 #include "sensor_msgs/Imu.h"
@@ -81,6 +80,8 @@ double cmd_vel_timout = 0.0;
 bool mower_esc_enabled = false;
 
 // LL/HL configuration
+struct ll_high_level_config llhl_config;
+
 dynamic_reconfigure::Client<mower_logic::MowerLogicConfig> *reconfigClient;
 mower_logic::MowerLogicConfig mower_logic_config;
 
@@ -669,6 +670,77 @@ void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {
   }
 }
 
+/**
+ * @brief getNewSetChanged return t_new and checks if the value changed in comparison to t_cur.
+ * t_new can't be a reference because the same function is also used for packed structures.
+ * @param t_cur source value
+ * @param t_new reference
+ * @return &bool get set to true if t_cur and t_new differ, otherwise changed doesn't get touched
+ */
+template <typename T>
+T getNewSetChanged(const T t_cur, const T t_new, bool &changed) {
+  bool equal;
+  if (std::is_floating_point<T>::value)
+    equal = fabs(t_cur - t_new) < std::numeric_limits<T>::epsilon();
+  else
+    equal = t_cur == t_new;
+
+  if (!equal) changed = true;
+
+  //ROS_INFO_STREAM("DEBUG mower_comms comp. member: cur " << t_cur << " ?= " << t_new << " == equal " << equal << ", changed " << changed);
+
+  return t_new;
+}
+
+/**
+ * Handle config packet on receive from LL (LL->HL config packet response)
+ */
+void handleLowLevelConfig(const uint8_t *buffer, const size_t size) {
+  // This is a flexible length packet where the size may vary when ll_high_level_config struct got enhanced only on one
+  // side. If payload size is larger than our struct size, ensure that we only copy those we know of = our struct size.
+  // If payload size is smaller than our struct size, copy only the payload we got, but ensure that the unsent member(s)
+  // have reasonable defaults.
+  size_t payload_size = std::min(sizeof(ll_high_level_config), size - 3);  // exclude type & crc
+
+  // Copy payload to separated ll_config
+  memcpy(&llhl_config, buffer + 1, payload_size);
+
+  // Let's be verbose for easier follow-up
+  ROS_INFO(
+      "[mower_comms] Received ll_high_level_config packet %#04x\n"
+      "\t options{dfp_is_5v=%d, background_sounds=%d, ignore_charging_current=%d},\n"
+      "\t v_charge_cutoff=%f, i_charge_cutoff=%f,\n"
+      "\t v_battery_cutoff=%f, v_battery_empty=%f, v_battery_full=%f,\n"
+      "\t lift_period=%d, tilt_period=%d,\n"
+      "\t shutdown_esc_max_pitch=%d,\n"
+      "\t language=\"%.2s\", volume=%d\n"
+      "\t hall_configs=\"%s\"",
+      *buffer, (int)llhl_config.options.dfp_is_5v, (int)llhl_config.options.background_sounds,
+      (int)llhl_config.options.ignore_charging_current, llhl_config.v_charge_cutoff, llhl_config.i_charge_cutoff,
+      llhl_config.v_battery_cutoff, llhl_config.v_battery_empty, llhl_config.v_battery_full, llhl_config.lift_period,
+      llhl_config.tilt_period, llhl_config.shutdown_esc_max_pitch, llhl_config.language, llhl_config.volume,
+      getHallConfigsString(llhl_config.hall_configs, MAX_HALL_INPUTS).c_str());
+
+  // Inform config packet tracker about the response
+  configTracker.ackResponse();
+
+  // Copy received config values from LL to mower_logic's related dynamic reconfigure variables and
+  // decide if mower_logic's dynamic reconfigure need to be updated with probably changed values
+  bool dirty = false;
+  // clang-format off
+  mower_logic_config.cu_rain_threshold = getNewSetChanged<int>(mower_logic_config.cu_rain_threshold, llhl_config.rain_threshold, dirty);
+  mower_logic_config.charge_critical_high_voltage = getNewSetChanged<double>(mower_logic_config.charge_critical_high_voltage, llhl_config.v_charge_cutoff, dirty);
+  mower_logic_config.charge_critical_high_current = getNewSetChanged<double>(mower_logic_config.charge_critical_high_current, llhl_config.i_charge_cutoff, dirty);
+  mower_logic_config.battery_critical_high_voltage = getNewSetChanged<double>(mower_logic_config.battery_critical_high_voltage, llhl_config.v_battery_cutoff, dirty);
+  mower_logic_config.battery_empty_voltage = getNewSetChanged<double>(mower_logic_config.battery_empty_voltage, llhl_config.v_battery_empty, dirty);
+  mower_logic_config.battery_full_voltage = getNewSetChanged<double>(mower_logic_config.battery_full_voltage, llhl_config.v_battery_full, dirty);
+  mower_logic_config.emergency_lift_period = getNewSetChanged<int>(mower_logic_config.emergency_lift_period, llhl_config.lift_period, dirty);
+  mower_logic_config.emergency_tilt_period = getNewSetChanged<int>(mower_logic_config.emergency_tilt_period, llhl_config.tilt_period, dirty);
+  // clang-format on
+
+  if (dirty) reconfigClient->setConfiguration(mower_logic_config);
+}
+
 void handleLowLevelStatus(struct ll_status *status) {
   std::unique_lock<std::mutex> lk(ll_status_mutex);
   bool prev_esc_enabled = last_ll_status.status_bitmask & (1 << STATUS_ESC_ENABLED_BIT);
@@ -733,6 +805,50 @@ int parseAxes(ros::NodeHandle &paramNh, double *axes_multiplier, int *axes_idx, 
   return 1;
 }
 
+void reconfigCB(const mower_logic::MowerLogicConfig &config) {
+  ROS_INFO_STREAM("[mower_comms] received new mower_logic config");
+
+  mower_logic_config = config;
+
+  // Copy changed mower_config's values to the related llhl_config values and
+  // decide if LL need to be informed with a new config packet
+  bool dirty = false;
+
+  // clang-format off
+  llhl_config.rain_threshold = getNewSetChanged<int>(llhl_config.rain_threshold, mower_logic_config.cu_rain_threshold, dirty);
+  llhl_config.v_charge_cutoff = getNewSetChanged<double>(llhl_config.v_charge_cutoff, mower_logic_config.charge_critical_high_voltage, dirty);
+  llhl_config.i_charge_cutoff = getNewSetChanged<double>(llhl_config.i_charge_cutoff, mower_logic_config.charge_critical_high_current, dirty);
+  llhl_config.v_battery_cutoff = getNewSetChanged<double>(llhl_config.v_battery_cutoff, mower_logic_config.battery_critical_high_voltage, dirty);
+  llhl_config.v_battery_empty = getNewSetChanged<double>(llhl_config.v_battery_empty, mower_logic_config.battery_empty_voltage, dirty);
+  llhl_config.v_battery_full = getNewSetChanged<double>(llhl_config.v_battery_full, mower_logic_config.battery_full_voltage, dirty);
+  llhl_config.lift_period = getNewSetChanged<int>(llhl_config.lift_period, mower_logic_config.emergency_lift_period, dirty);
+  llhl_config.tilt_period = getNewSetChanged<int>(llhl_config.tilt_period, mower_logic_config.emergency_tilt_period, dirty);
+  // clang-format on
+
+  // Parse emergency_input_config and set hall_configs
+  char *token = strtok(strdup(mower_logic_config.emergency_input_config.c_str()), ",");
+  bool low_active;
+  unsigned int hall_idx = 0;
+  while (token != NULL) {
+    low_active = false;
+    while (*token != 0) {
+      switch (std::toupper(*token)) {
+        case '!': low_active = true; break;
+        case 'I': llhl_config.hall_configs[hall_idx] = {HallMode::OFF, low_active}; break;
+        case 'L': llhl_config.hall_configs[hall_idx] = {HallMode::LIFT_TILT, low_active}; break;
+        case 'S': llhl_config.hall_configs[hall_idx] = {HallMode::STOP, low_active}; break;
+        case 'U': llhl_config.hall_configs[hall_idx] = {HallMode::UNDEFINED, low_active}; break;
+        default: break;
+      }
+      token++;
+    }
+    token = strtok(NULL, ",");
+    hall_idx++;
+  }
+
+  if (dirty) configTracker.setDirty();
+}
+
 int main(int argc, char **argv) {
   ros::init(argc, argv, "mower_comms");
 
@@ -786,6 +902,16 @@ int main(int argc, char **argv) {
   last_cmd_twist.linear.x = 0;
   last_cmd_twist.angular.z = 0;
   speed_mow = 0;
+
+  // Some generic settings from param server (non- dynamic)
+  llhl_config.options.ignore_charging_current =
+      paramNh.param("/mower_logic/ignore_charging_current", false) ? OptionState::ON : OptionState::OFF;
+  llhl_config.options.dfp_is_5v = paramNh.param("dfp_is_5v", false) ? OptionState::ON : OptionState::OFF;
+  llhl_config.volume = paramNh.param("volume", -1);
+  llhl_config.options.background_sounds =
+      paramNh.param("background_sounds", false) ? OptionState::ON : OptionState::OFF;
+  // ISO-639-1 (2 char) language code
+  strncpy(llhl_config.language, paramNh.param<std::string>("language", "en").c_str(), 2);
 
   // Setup XESC interfaces
   if (mowerParamNh.hasParam("xesc_type") && mower_esc_enabled) {

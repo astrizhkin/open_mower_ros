@@ -23,8 +23,15 @@
         <param name="tool_width" value="$(env OM_TOOL_WIDTH)"/>
         <param name="enable_mower" value="$(env OM_ENABLE_MOWER)"/>
         <param name="battery_empty_voltage" value="$(env OM_BATTERY_EMPTY_VOLTAGE)"/>
-        <param name="battery_empty_soc" value="$(env OM_BATTERY_EMPTY_SOC)"/>
+        <param
+            name="battery_critical_voltage"
+            value="$(eval battery_empty_voltage if battery_critical_voltage=='' else battery_critical_voltage)"
+        />
         <param name="battery_full_voltage" value="$(env OM_BATTERY_FULL_VOLTAGE)"/>
+        <param name="battery_critical_high_voltage" value="$(optenv OM_BATTERY_CRITICAL_HIGH_VOLTAGE -1)"/>
+        <param name="charge_critical_high_voltage" value="$(optenv OM_CHARGE_CRITICAL_HIGH_VOLTAGE -1)"/>
+        <param name="charge_critical_high_current" value="$(optenv OM_CHARGE_CRITICAL_HIGH_CURRENT -1)"/>
+        <param name="battery_empty_soc" value="$(env OM_BATTERY_EMPTY_SOC)"/>
         <param name="battery_full_soc" value="$(env OM_BATTERY_FULL_SOC)"/>
         <param name="battery_critical_voltage" value="$(eval battery_empty_voltage if battery_critical_voltage=='' else battery_critical_voltage)"/>
         <param name="battery_critical_high_voltage" value="$(optenv OM_BATTERY_CRITICAL_HIGH_VOLTAGE -1)"/>

@@ -20,7 +20,7 @@
 extern ros::NodeHandle* n;
 extern ros::Publisher cmd_vel_pub;
 extern mower_msgs::Status getStatus();
-extern void setGPS(bool enabled);
+extern void setGPS(bool enabled, std::string reason);
 
 static ros::Subscriber perimeterSubscriber;
 static ros::ServiceClient perimeterClient;
@@ -339,11 +339,6 @@ bool PerimeterBase::needs_gps() {
   return false;
 }
 
-bool PerimeterBase::mower_enabled() {
-  // No mower during docking
-  return false;
-}
-
 void PerimeterBase::command_home() {
 }
 
@@ -381,7 +376,7 @@ int PerimeterBase::setupConnections() {
 }
 
 void PerimeterMoveToGpsBehavior::enter() {
-  setGPS(true);
+  setGPS(true,"perimeter docking");
 }
 
 std::string PerimeterMoveToGpsBehavior::state_name() {

@@ -595,7 +595,7 @@ AreaRecordingBehavior::AreaRecordingBehavior() {
   actions.push_back(stop_manual_mowing_action);
 }
 
-#define start_recording_action  0
+#define start_recording_action 0
 #define stop_recording_action 1
 #define finish_navigation_area_action 2
 #define finish_mowing_area_action 3
@@ -610,35 +610,34 @@ AreaRecordingBehavior::AreaRecordingBehavior() {
 #define stop_manual_mowing_action 12
 
 void AreaRecordingBehavior::update_actions() {
-    for (auto &a : actions) {
-      a.enabled = false;
-    }
-    if (has_first_docking_pos) {
-      // we have recorded the first docking pose, only option is to finish by recording second one
-      actions[record_dock_action].enabled = true;
-    } else if (poly_recording_enabled) {
-      // currently recording a polygon, allow stop and save actions
-      actions[stop_recording_action].enabled = true;
-      actions[finish_navigation_area_action].enabled = true;
-      actions[finish_mowing_area_action].enabled = true;
-      actions[finish_prohibited_area_action].enabled = true;
-      actions[exit_recording_mode_action].enabled = true;
-      actions[finish_discard_action].enabled = true;
+  for (auto &a : actions) {
+    a.enabled = false;
+  }
+  if (has_first_docking_pos) {
+    // we have recorded the first docking pose, only option is to finish by recording second one
+    actions[record_dock_action].enabled = true;
+  } else if (poly_recording_enabled) {
+    // currently recording a polygon, allow stop and save actions
+    actions[stop_recording_action].enabled = true;
+    actions[finish_navigation_area_action].enabled = true;
+    actions[finish_mowing_area_action].enabled = true;
+    actions[finish_prohibited_area_action].enabled = true;
+    actions[exit_recording_mode_action].enabled = true;
+    actions[finish_discard_action].enabled = true;
 
-      // enable/disable auto point collecting
-      actions[auto_point_collecting_enable_action].enabled = !auto_point_collecting;
-      actions[auto_point_collecting_disable_action].enabled = auto_point_collecting;
-      actions[collect_point_action].enabled = !auto_point_collecting;
-    } else {
-      // neither recording a polygon nor docking point. we can save if we have an outline and always discard
-      actions[start_recording_action].enabled = true;
-      actions[finish_navigation_area_action].enabled = true;
-      actions[finish_mowing_area_action].enabled = true;
-      actions[finish_prohibited_area_action].enabled = true;
-      actions[exit_recording_mode_action].enabled = true;
-      actions[finish_discard_action].enabled = true;
-      actions[record_dock_action].enabled = true;
-    }
+    // enable/disable auto point collecting
+    actions[auto_point_collecting_enable_action].enabled = !auto_point_collecting;
+    actions[auto_point_collecting_disable_action].enabled = auto_point_collecting;
+    actions[collect_point_action].enabled = !auto_point_collecting;
+  } else {
+    // neither recording a polygon nor docking point. we can save if we have an outline and always discard
+    actions[start_recording_action].enabled = true;
+    actions[finish_navigation_area_action].enabled = true;
+    actions[finish_mowing_area_action].enabled = true;
+    actions[finish_prohibited_area_action].enabled = true;
+    actions[exit_recording_mode_action].enabled = true;
+    actions[finish_discard_action].enabled = true;
+    actions[record_dock_action].enabled = true;
   }
   // start_manual_mowing
   actions[start_manual_mowing_action].enabled = !manual_mowing;
@@ -650,34 +649,17 @@ void AreaRecordingBehavior::update_actions() {
 
 void AreaRecordingBehavior::record_auto_point_collecting(std_msgs::Bool state_msg) {
   if (state_msg.data) {
-    ROS_INFO_STREAM("Recording auto point collecting enabled");
+    ROS_INFO_STREAM("[AreaRecordingBehavior] Recording auto point collecting enabled");
     auto_point_collecting = true;
   } else {
-    ROS_INFO_STREAM("Recording auto point collecting disabled");
+    ROS_INFO_STREAM("[AreaRecordingBehavior] Recording auto point collecting disabled");
     auto_point_collecting = false;
   }
 }
 
 void AreaRecordingBehavior::record_collect_point(std_msgs::Bool state_msg) {
   if (state_msg.data) {
-    ROS_INFO_STREAM("Recording collect point");
-    collect_point = true;
-  }
-}
-
-void AreaRecordingBehavior::record_auto_point_collecting(std_msgs::Bool state_msg) {
-  if (state_msg.data) {
-    ROS_INFO_STREAM("Recording auto point collecting enabled");
-    auto_point_collecting = true;
-  } else {
-    ROS_INFO_STREAM("Recording auto point collecting disabled");
-    auto_point_collecting = false;
-  }
-}
-
-void AreaRecordingBehavior::record_collect_point(std_msgs::Bool state_msg) {
-  if (state_msg.data) {
-    ROS_INFO_STREAM("Recording collect point");
+    ROS_INFO_STREAM("[AreaRecordingBehavior] Recording collect point");
     collect_point = true;
   }
 }

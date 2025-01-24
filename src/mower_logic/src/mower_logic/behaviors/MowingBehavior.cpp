@@ -250,7 +250,7 @@ bool MowingBehavior::execute_mowing_plan() {
     ////////////////////////////////////////////////
     if (requested_pause_flag) {  // pause was requested
       this->setPause();          // set paused=true
-      mowerEnabled = false;
+      this->setMowerEnabled(false);
       u_int8_t last_requested_pause_flags = 0;
       while (requested_pause_flag)  // while emergency and/or manual pause not asked to continue, we wait
       {
@@ -260,13 +260,13 @@ bool MowingBehavior::execute_mowing_plan() {
         last_requested_pause_flags = requested_pause_flag;
 
         std::string pause_reason = "";
-        if (requested_pause_flag & pauseType::PAUSE_EMERGENCY) {
+        if (requested_pause_flag & ePauseReason::PAUSE_AUTO) {
           pause_reason += "on EMERGENCY";
-          if (requested_pause_flag & pauseType::PAUSE_MANUAL) {
+          if (requested_pause_flag & ePauseReason::PAUSE_MANUAL) {
             pause_reason += " and ";
           }
         }
-        if (requested_pause_flag & pauseType::PAUSE_MANUAL) {
+        if (requested_pause_flag & ePauseReason::PAUSE_MANUAL) {
           pause_reason += "waiting for CONTINUE";
         }
         ROS_INFO_STREAM_THROTTLE(30, "[MowingBehavior] PAUSED (" << pause_reason << ")");

@@ -170,24 +170,74 @@ struct ll_motor_state {
 } __attribute__((packed));
 #pragma pack(pop)
 
-#pragma pack(push, 1)
-struct ll_motor_state {
-    // Type of this message. Has to be PACKET_ID_LL_MOTOR_STATE
-    uint8_t type;
-    //uint8_t motor_id;
+enum class OptionState : unsigned int {
+    OFF = 0,
+    ON,
+    UNDEFINED
+};
 
-    //rad/s
-    //float cmd[5];
-    //rad/s
-    //float speed_meas[5];
-    //rad
-    //float wheel_cnt[5];
-    //float curr_meas[5];
-    //float motor_temp[5];
-    //float boardTemp[3];
-    uint16_t status[3]; //See motor status bits
-    uint8_t status_age_s[3];
-    uint16_t crc;
+#pragma pack(push, 1)
+struct ConfigOptions {
+    OptionState dfp_is_5v : 2;
+    OptionState background_sounds : 2;
+    OptionState ignore_charging_current : 2;
+    // Need to block/waster the bits now, to be prepared for future enhancements
+    OptionState reserved_for_future_use1 : 2;
+    OptionState reserved_for_future_use2 : 2;
+    OptionState reserved_for_future_use3 : 2;
+    OptionState reserved_for_future_use4 : 2;
+    OptionState reserved_for_future_use5 : 2;
+} __attribute__((packed));
+#pragma pack(pop)
+static_assert(sizeof(ConfigOptions) == 2, "Changing size of ConfigOption != 2 will break packet compatibilty");
+
+typedef char iso639_1[2];  // Two char ISO 639-1 language code
+
+enum class HallMode : unsigned int {
+  OFF = 0,
+  LIFT_TILT,  // Wheel lifted and wheels tilted functionality
+  STOP,       // Stop mower
+  UNDEFINED   // This is used by foreign side to inform that it doesn't has a configuration for this sensor
+};
+
+#pragma pack(push, 1)
+struct HallConfig {
+  HallConfig(HallMode t_mode = HallMode::UNDEFINED, bool t_active_low = false)
+      : mode(t_mode), active_low(t_active_low) {};
+
+  HallMode mode : 3;  // 1 bit reserved
+  bool active_low : 1;
+} __attribute__((packed));
+#pragma pack(pop)
+
+#define MAX_HALL_INPUTS 10  // How much Hall-inputs we do support. 4 * OM + 6 * Stock-CoverUI
+
+// LL/HL config packet, bi-directional, flexible-length
+#pragma pack(push, 1)
+struct ll_high_level_config {
+  // ATTENTION: This is a flexible length struct. It is allowed to grow independently to HL without loosing
+  // compatibility, but never change or restructure already published member, except you really know their consequences.
+
+  // uint8_t type; Just for illustration. Get set later in wire buffer with type PACKET_ID_LL_HIGH_LEVEL_CONFIG_*
+
+  // clang-format off
+  ConfigOptions options = {.dfp_is_5v = OptionState::OFF, .background_sounds = OptionState::OFF, .ignore_charging_current = OptionState::OFF};
+  uint16_t rain_threshold = 0xffff;          // If (stock CoverUI) rain value < rain_threshold then it rains
+  float v_charge_cutoff = -1;                // Protective max. charging voltage before charging get switched off (-1 = unknown)
+  float i_charge_cutoff = -1;                // Protective max. charging current before charging get switched off (-1 = unknown)
+  float v_battery_cutoff = -1;               // Protective max. battery voltage before charging get switched off (-1 = unknown)
+  float v_battery_empty = -1;                // Empty battery voltage used for % calc of capacity (-1 = unknown)
+  float v_battery_full = -1;                 // Full battery voltage used for % calc of capacity (-1 = unknown)
+  uint16_t lift_period = 0xffff;             // Period (ms) for >=2 wheels to be lifted in order to count as emergency (0 = disable, 0xFFFF = unknown)
+  uint16_t tilt_period = 0xffff;             // Period (ms) for a single wheel to be lifted in order to count as emergency (0 = disable, 0xFFFF = unknown)
+  uint8_t shutdown_esc_max_pitch = 0xff;     // Do not shutdown ESCs if absolute pitch angle is greater than this (0 = disable, 0xff = unknown) (to be implemented, see OpenMower PR #97)
+  iso639_1 language = {'e', 'n'};            // ISO 639-1 (2-char) language code (en, de, ...)
+  uint8_t volume = 0xff;                     // Volume (0-100%) feedback (if directly changed i.e. via CoverUI) (0xff = do not change)
+  HallConfig hall_configs[MAX_HALL_INPUTS];  // Set all to UNDEFINED
+  // INFO: Before adding a new member here: Decide if and how much hall_configs spares do we like to have
+
+  // uint16_t crc;  Just for illustration, that it get appended later within the wire buffer
+  // clang-format on
 } __attribute__((packed));
 #pragma pack(pop)
 

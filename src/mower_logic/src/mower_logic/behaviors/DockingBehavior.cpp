@@ -31,18 +31,18 @@ extern void registerActions(std::string prefix, const std::vector<xbot_msgs::Act
 
 DockingBehavior DockingBehavior::INSTANCE;
 
-DockingBehavior::DockingBehavior(){
-    xbot_msgs::ActionInfo abort_docking_action;
-    abort_docking_action.action_id = "abort_docking";
-    abort_docking_action.enabled = false;
-    abort_docking_action.action_name = "Stop Docking";
+DockingBehavior::DockingBehavior() {
+  xbot_msgs::ActionInfo abort_docking_action;
+  abort_docking_action.action_id = "abort_docking";
+  abort_docking_action.enabled = false;
+  abort_docking_action.action_name = "Stop Docking";
 
-    actions.clear();
-    actions.push_back(abort_docking_action);
+  actions.clear();
+  actions.push_back(abort_docking_action);
 }
 
 bool DockingBehavior::approach_docking_point() {
-    ROS_INFO_STREAM("[DockingBehavior] Calculating approach path");
+  ROS_INFO_STREAM("[DockingBehavior] Calculating approach path");
 
   // Calculate a docking approaching point behind the actual docking point
   tf2::Quaternion quat;
@@ -78,12 +78,12 @@ bool DockingBehavior::approach_docking_point() {
       path.poses.push_back(docking_pose_stamped_front);
     }
 
-        exePathGoal.path = path;
-        exePathGoal.angle_tolerance = 1.0 * (M_PI / 180.0);
-        exePathGoal.dist_tolerance = 0.1;
-        exePathGoal.tolerance_from_action = true;
-        exePathGoal.controller = "FTCPlanner";
-        ROS_INFO_STREAM("[DockingBehavior] Executing Docking Approach");
+    exePathGoal.path = path;
+    exePathGoal.angle_tolerance = 1.0 * (M_PI / 180.0);
+    exePathGoal.dist_tolerance = 0.1;
+    exePathGoal.tolerance_from_action = true;
+    exePathGoal.controller = "FTCPlanner";
+    ROS_INFO_STREAM("[DockingBehavior] Executing Docking Approach");
 
     auto approachResult = mbfClientExePath->sendGoalAndWait(exePathGoal);
     if (approachResult.state_ != approachResult.SUCCEEDED) {
@@ -141,41 +141,41 @@ bool DockingBehavior::dock_straight() {
       waitingForResult = false;
     }
 
-        switch (mbfState.state_) {
-            case actionlib::SimpleClientGoalState::ACTIVE:
-            case actionlib::SimpleClientGoalState::PENDING:
-                // currently moving. Cancel as soon as we're in the station
-                if (last_status.v_charge > 5.0) {
-                    ROS_INFO_STREAM("[DockingBehavior] Got a voltage of " << last_status.v_charge << " V. Cancelling docking.");
-                    ros::Duration(config.docking_extra_time).sleep();
-                    mbfClientExePath->cancelGoal();
-                    stopMoving("docking success waiting");
-                    dockingSuccess = true;
-                    waitingForResult = false;
-                }
-                break;
-            case actionlib::SimpleClientGoalState::SUCCEEDED:
-                // we stopped moving because the path has ended. check, if we have docked successfully
-                ROS_INFO_STREAM(
-                        "[DockingBehavior] Docking stopped, because we reached end pose. Voltage was " << last_status.v_charge<< " V.");
-                if (last_status.v_charge > 5.0) {
-                    mbfClientExePath->cancelGoal();
-                    dockingSuccess = true;
-                    stopMoving("docking success");
-                }
-                waitingForResult = false;
-                break;
-            default:
-                ROS_WARN_STREAM("[DockingBehavior] Some error during path execution. Docking failed. status value was: "
-                                        << mbfState.state_);
-                waitingForResult = false;
-                stopMoving("docking bad MBF state");
-                break;
+    switch (mbfState.state_) {
+      case actionlib::SimpleClientGoalState::ACTIVE:
+      case actionlib::SimpleClientGoalState::PENDING:
+        // currently moving. Cancel as soon as we're in the station
+        if (last_status.v_charge > 5.0) {
+          ROS_INFO_STREAM("[DockingBehavior] Got a voltage of " << last_status.v_charge << " V. Cancelling docking.");
+          ros::Duration(config.docking_extra_time).sleep();
+          mbfClientExePath->cancelGoal();
+          stopMoving("docking success waiting");
+          dockingSuccess = true;
+          waitingForResult = false;
         }
+        break;
+      case actionlib::SimpleClientGoalState::SUCCEEDED:
+        // we stopped moving because the path has ended. check, if we have docked successfully
+        ROS_INFO_STREAM("[DockingBehavior] Docking stopped, because we reached end pose. Voltage was "
+                        << last_status.v_charge << " V.");
+        if (last_status.v_charge > 5.0) {
+          mbfClientExePath->cancelGoal();
+          dockingSuccess = true;
+          stopMoving("docking success");
+        }
+        waitingForResult = false;
+        break;
+      default:
+        ROS_WARN_STREAM("[DockingBehavior] Some error during path execution. Docking failed. status value was: "
+                        << mbfState.state_);
+        waitingForResult = false;
+        stopMoving("docking bad MBF state");
+        break;
     }
+  }
 
-    // to be safe if the planner sent additional commands after cancel
-    stopMoving("docking safety stop");
+  // to be safe if the planner sent additional commands after cancel
+  stopMoving("docking safety stop");
 
   return dockingSuccess;
 }
@@ -217,7 +217,7 @@ Behavior *DockingBehavior::execute() {
 
   // Disable GPS
   inApproachMode = false;
-  setGPS(false,"start docking");
+  setGPS(false, "start docking");
 
   if (PerimeterSearchBehavior::configured(config)) return &PerimeterSearchBehavior::INSTANCE;
 
@@ -256,7 +256,7 @@ void DockingBehavior::enter() {
   docking_pose_stamped.header.frame_id = "map";
   docking_pose_stamped.header.stamp = ros::Time::now();
 
-    update_actions();
+  update_actions();
 }
 
 void DockingBehavior::exit() {
@@ -295,16 +295,16 @@ uint8_t DockingBehavior::get_state() {
 }
 
 void DockingBehavior::handle_action(std::string action) {
-    if (action == "mower_logic:docking/abort_docking") {
-        ROS_INFO_STREAM("[DockingBehavior] got abort docking command");
-        this->abort();
-    }
+  if (action == "mower_logic:docking/abort_docking") {
+    ROS_INFO_STREAM("[DockingBehavior] got abort docking command");
+    this->abort();
+  }
 }
 
 void DockingBehavior::update_actions() {
-    for(auto& a : actions) {
-        a.enabled = true;
-    }
+  for (auto &a : actions) {
+    a.enabled = true;
+  }
 
-    registerActions("mower_logic:docking", actions);
+  registerActions("mower_logic:docking", actions);
 }

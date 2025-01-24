@@ -31,8 +31,6 @@
 #include "mower_msgs/Status.h"
 #include "ros/ros.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
-#include "mower_msgs/Status.h"
-#include <mower_map/GetDockingPointSrv.h>
 
 class DockingBehavior : public Behavior {
  public:
@@ -47,11 +45,12 @@ class DockingBehavior : public Behavior {
 
   bool dock_straight();
 
-    void update_actions();
-public:
-    DockingBehavior();
+  void update_actions();
 
-    std::string state_name() override;
+ public:
+  DockingBehavior();
+
+  std::string state_name() override;
 
   Behavior *execute() override;
 
@@ -61,7 +60,7 @@ public:
 
   void reset() override;
 
-    bool needs_gps() override;
+  bool needs_gps() override;
 
   void command_home() override;
 

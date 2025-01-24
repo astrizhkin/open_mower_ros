@@ -39,7 +39,6 @@ class PerimeterBase : public Behavior {
   void exit() override;
   void reset() override;
   bool needs_gps() override;
-  bool mower_enabled() override;
   void command_home() override;
   void command_start() override;
   void command_s1() override;

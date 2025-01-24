@@ -51,9 +51,8 @@ class AreaRecordingBehavior : public Behavior {
 
   AreaRecordingBehavior();
 
-private:
-
-    bool has_odom = false;
+ private:
+  bool has_odom = false;
 
   sensor_msgs::Joy last_joy;
   xbot_msgs::AbsolutePose last_pose;
@@ -74,12 +73,10 @@ private:
   // true, if we should be recording the current data into a polygon
   bool poly_recording_enabled = false;
 
-    // true, if all polys were recorded and the complete area is finished
-    bool finished_all = false;
-    uint8_t area_type = 0;
-    bool set_docking_position = false;
-
-    bool has_outline = false;
+  // true, if all polys were recorded and the complete area is finished
+  bool finished_all = false;
+  uint8_t area_type = 0;
+  bool set_docking_position = false;
 
   // auto point collecting enabled to true points are collected automatically
   // if distance is greater than NEW_POINT_MIN_DISTANCE during recording
@@ -88,7 +85,6 @@ private:
   bool collect_point = false;
 
   bool manual_mowing = false;
-
 
   visualization_msgs::MarkerArray markers;
   visualization_msgs::Marker marker;
@@ -101,13 +97,13 @@ private:
   void record_dock_received(std_msgs::Bool state_msg);
   void record_polygon_received(std_msgs::Bool state_msg);
   void record_mowing_received(std_msgs::Bool state_msg);
-    void record_prohibited_received(std_msgs::Bool state_msg);
+  void record_prohibited_received(std_msgs::Bool state_msg);
   void record_navigation_received(std_msgs::Bool state_msg);
   void record_auto_point_collecting(std_msgs::Bool state_msg);
   void record_collect_point(std_msgs::Bool state_msg);
 
-    void finish_area(uint8_t areaType,std::string reason);
-    void update_actions();
+  void finish_area(uint8_t areaType, std::string reason);
+  void update_actions();
 
  public:
   std::string state_name() override;
@@ -122,7 +118,7 @@ private:
 
   void reset() override;
 
-    bool needs_gps() override;
+  bool needs_gps() override;
 
   void command_home() override;
 
