@@ -378,21 +378,14 @@ void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
 
   dt = (msg->stamp - last_status.stamp).toSec();
 
+  d_wheel_l = (int32_t)(((msg->rear_left_esc_status.tacho - last_status.rear_left_esc_status.tacho) +
+                         (msg->front_left_esc_status.tacho - last_status.front_left_esc_status.tacho)) /
+                        2) / TICKS_PER_M;
+  d_wheel_r = -(int32_t)(((msg->rear_right_esc_status.tacho - last_status.rear_right_esc_status.tacho) +
+                          (msg->front_right_esc_status.tacho - last_status.front_right_esc_status.tacho)) /
+                         2) / TICKS_PER_M;
 
-    d_wheel_l = (int32_t) (
-            (
-                (msg->rear_left_esc_status.tacho - last_status.rear_left_esc_status.tacho) + 
-                (msg->front_left_esc_status.tacho - last_status.front_left_esc_status.tacho)
-            ) / 2
-        ) / TICKS_PER_M;
-    d_wheel_r = -(int32_t) ( 
-            (
-                (msg->rear_right_esc_status.tacho - last_status.rear_right_esc_status.tacho) + 
-                (msg->front_right_esc_status.tacho - last_status.front_right_esc_status.tacho)
-            ) / 2 
-        ) / TICKS_PER_M;
-
-    ROS_INFO_STREAM("[mower_odometry] d_wheel_l = " << d_wheel_l << ", d_wheel_r = " << d_wheel_r);
+  ROS_INFO_STREAM("[mower_odometry] d_wheel_l = " << d_wheel_l << ", d_wheel_r = " << d_wheel_r);
 
   bool success;
   if (!use_f9r_sensor_fusion) {

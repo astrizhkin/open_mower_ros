@@ -89,11 +89,11 @@ void MowingBehavior::enter() {
   skip_path = false;
   mower_enabled_flag = mower_enabled_flag_before_pause = paused = aborted = false;
 
-    update_actions(true);
+  update_actions(true);
 }
 
 void MowingBehavior::exit() {
-    update_actions(false);
+  update_actions(false);
 }
 
 void MowingBehavior::reset() {
@@ -131,11 +131,11 @@ bool MowingBehavior::create_mowing_plan(int area_index) {
   // Area orientation is the same as the first point
   double angle = 0;
   auto points = mapSrv.response.area.area.points;
-    if(points.size() >= 1) {
-        ROS_INFO_STREAM("[MowingBehavior] Mowing area num points: " << (int)points.size());
-    }else{
-        ROS_ERROR_STREAM("[MowingBehavior] Got empty area points");
-    }
+  if (points.size() >= 1) {
+    ROS_INFO_STREAM("[MowingBehavior] Mowing area num points: " << (int)points.size());
+  } else {
+    ROS_ERROR_STREAM("[MowingBehavior] Got empty area points");
+  }
 
   if (points.size() >= 2) {
     tf2::Vector3 first(points[0].x, points[0].y, 0);
@@ -200,7 +200,7 @@ bool MowingBehavior::create_mowing_plan(int area_index) {
   // Proceed to checkpoint?
   if (mowingPlanDigest == currentMowingPlanDigest) {
     ROS_INFO_STREAM("[MowingBehavior] Advancing to checkpoint, path: " << currentMowingPath
-                                                                      << " index: " << currentMowingPathIndex);
+                                                                       << " index: " << currentMowingPathIndex);
   } else {
     ROS_INFO_STREAM("[MowingBehavior] Ignoring checkpoint for plan ("
                     << currentMowingPlanDigest << ") current mowing plan is (" << mowingPlanDigest << ")");
@@ -249,13 +249,13 @@ bool MowingBehavior::execute_mowing_plan() {
     // PAUSE HANDLING
     ////////////////////////////////////////////////
     if (requested_pause_flag) {  // pause was requested
-      this->setPause();  // set paused=true
+      this->setPause();          // set paused=true
       mowerEnabled = false;
       u_int8_t last_requested_pause_flags = 0;
       while (requested_pause_flag)  // while emergency and/or manual pause not asked to continue, we wait
       {
         if (last_requested_pause_flags != requested_pause_flag) {
-           update_actions(true);
+          update_actions(true);
         }
         last_requested_pause_flags = requested_pause_flag;
 
@@ -280,7 +280,7 @@ bool MowingBehavior::execute_mowing_plan() {
       while (!this->hasGoodGPS())  // while no good GPS we wait
       {
         ROS_INFO_STREAM("[MowingBehavior] PAUSED (" << (ros::Time::now() - paused_time).toSec()
-                                                   << "s) (waiting for GPS)");
+                                                    << "s) (waiting for GPS)");
         ros::Rate r(1.0);
         r.sleep();
       }
@@ -293,7 +293,7 @@ bool MowingBehavior::execute_mowing_plan() {
     ROS_INFO_STREAM("[MowingBehavior] Path segment length: " << path.path.poses.size() << " poses.");
 
     // Check if path is empty. If so, directly skip it
-    if  (currentMowingPathIndex >= path.path.poses.size()) {
+    if (currentMowingPathIndex >= path.path.poses.size()) {
       ROS_INFO_STREAM("[MowingBehavior] Skipping empty path.");
       currentMowingPath++;
       currentMowingPathIndex = 0;
@@ -331,7 +331,7 @@ bool MowingBehavior::execute_mowing_plan() {
             current_status.state_ == actionlib::SimpleClientGoalState::PENDING) {
           // path is being executed, everything seems fine.
           // check if we should pause or abort mowing
-          if  (skip_area) {
+          if (skip_area) {
             ROS_INFO_STREAM("[MowingBehavior] (FIRST POINT) SKIP AREA was requested.");
             // remove all paths in current area and return true
             this->setMowerEnabled(false);
@@ -340,7 +340,7 @@ bool MowingBehavior::execute_mowing_plan() {
             skip_area = false;
             return true;
           }
-          if  (skip_path) {
+          if (skip_path) {
             skip_path = false;
             currentMowingPath++;
             currentMowingPathIndex = 0;
@@ -375,8 +375,8 @@ bool MowingBehavior::execute_mowing_plan() {
         // we have 3 attempts to get to the start pose of the mowing area
         if (first_point_attempt_counter < config.max_first_point_attempts) {
           ROS_WARN_STREAM("[MowingBehavior] (FIRST POINT) - Attempt " << first_point_attempt_counter << " / "
-                                                                     << config.max_first_point_attempts
-                                                                     << " Making a little pause ...");
+                                                                      << config.max_first_point_attempts
+                                                                      << " Making a little pause ...");
           this->setPause();
           update_actions(true);
         } else {
@@ -447,7 +447,7 @@ bool MowingBehavior::execute_mowing_plan() {
             current_status.state_ == actionlib::SimpleClientGoalState::PENDING) {
           // path is being executed, everything seems fine.
           // check if we should pause or abort mowing
-          if  (skip_area) {
+          if (skip_area) {
             ROS_INFO_STREAM("[MowingBehavior] (MOW) SKIP AREA was requested.");
             // remove all paths in current area and return true
             this->setMowerEnabled(false);
@@ -455,7 +455,7 @@ bool MowingBehavior::execute_mowing_plan() {
             skip_area = false;
             return true;
           }
-          if  (skip_path) {
+          if (skip_path) {
             skip_path = false;
             currentMowingPath++;
             currentMowingPathIndex = 0;
@@ -625,42 +625,42 @@ MowingBehavior::MowingBehavior() {
 }
 
 void MowingBehavior::handle_action(std::string action) {
-    if (action == "mower_logic:mowing/pause") {
-        ROS_INFO_STREAM("[MowingBehavior] got pause command");
-        this->requestPause(ePauseReason::PAUSE_MANUAL);
-    } else if (action == "mower_logic:mowing/continue") {
-        ROS_INFO_STREAM("[MowingBehavior] got continue command");
-        this->requestContinue(ePauseReason::PAUSE_MANUAL);
-    } else if (action == "mower_logic:mowing/abort_mowing") {
-        ROS_INFO_STREAM("[MowingBehavior] got abort mowing command");
-        if (paused) {
-            // Request continue to wait for odom
-            this->requestContinue(ePauseReason::PAUSE_FORCE);
-            // Then instantly abort i.e. go to dock.
-        }
-        this->abort();
-    } else if (action == "mower_logic:mowing/skip_area") {
-        ROS_INFO_STREAM("[MowingBehavior] got skip_area command");
-        skip_area = true;
-    } else if (action == "mower_logic:mowing/skip_path") {
-        ROS_INFO_STREAM("[MowingBehavior] got skip_path command");
-        skip_path = true;
+  if (action == "mower_logic:mowing/pause") {
+    ROS_INFO_STREAM("[MowingBehavior] got pause command");
+    this->requestPause(ePauseReason::PAUSE_MANUAL);
+  } else if (action == "mower_logic:mowing/continue") {
+    ROS_INFO_STREAM("[MowingBehavior] got continue command");
+    this->requestContinue(ePauseReason::PAUSE_MANUAL);
+  } else if (action == "mower_logic:mowing/abort_mowing") {
+    ROS_INFO_STREAM("[MowingBehavior] got abort mowing command");
+    if (paused) {
+      // Request continue to wait for odom
+      this->requestContinue(ePauseReason::PAUSE_FORCE);
+      // Then instantly abort i.e. go to dock.
     }
-    update_actions(true);
+    this->abort();
+  } else if (action == "mower_logic:mowing/skip_area") {
+    ROS_INFO_STREAM("[MowingBehavior] got skip_area command");
+    skip_area = true;
+  } else if (action == "mower_logic:mowing/skip_path") {
+    ROS_INFO_STREAM("[MowingBehavior] got skip_path command");
+    skip_path = true;
+  }
+  update_actions(true);
 }
 
 void MowingBehavior::update_actions(bool enable) {
-    for(auto& a : actions) {
-        a.enabled = enable;
-    }
+  for (auto &a : actions) {
+    a.enabled = enable;
+  }
 
-    if(enable) {
-        // pause / resume switch. other actions are always available
-        actions[0].enabled = !paused &&  !requested_pause_flag;
-        actions[1].enabled = paused && !requested_continue_flag;
-    }
+  if (enable) {
+    // pause / resume switch. other actions are always available
+    actions[0].enabled = !paused && !requested_pause_flag;
+    actions[1].enabled = paused && !requested_continue_flag;
+  }
 
-    registerActions("mower_logic:mowing", actions);
+  registerActions("mower_logic:mowing", actions);
 }
 
 void MowingBehavior::checkpoint() {
