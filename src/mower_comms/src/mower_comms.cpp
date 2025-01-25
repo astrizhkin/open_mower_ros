@@ -472,39 +472,24 @@ void publishLowLevelConfig(const uint8_t pkt_type) {
   // Member access to buffer
   struct ll_high_level_config *buf_config = (struct ll_high_level_config *)&buf[1];
 
-  // CRC
-  crc.reset();
-  crc.process_bytes(buf, sizeof(struct ll_high_level_config) + 1);  // + type
-  buf[size - 1] = (crc.checksum() >> 8) & 0xFF;
-  buf[size - 2] = crc.checksum() & 0xFF;
+  // Let's be verbose for easier follow-up
+  ROS_INFO(
+      "Send ll_high_level_config packet %#04x\n"
+      "\t options{dfp_is_5v=%d, background_sounds=%d, ignore_charging_current=%d},\n"
+      "\t v_charge_cutoff=%f, i_charge_cutoff=%f,\n"
+      "\t v_battery_cutoff=%f, v_battery_empty=%f, v_battery_full=%f,\n"
+      "\t lift_period=%d, tilt_period=%d,\n"
+      "\t shutdown_esc_max_pitch=%d,\n"
+      "\t language=\"%.2s\", volume=%d\n"
+      "\t hall_configs=\"%s\"",
+      buf[0], (int)buf_config->options.dfp_is_5v, (int)buf_config->options.background_sounds,
+      (int)buf_config->options.ignore_charging_current, buf_config->v_charge_cutoff, buf_config->i_charge_cutoff,
+      buf_config->v_battery_cutoff, buf_config->v_battery_empty, buf_config->v_battery_full, buf_config->lift_period,
+      buf_config->tilt_period, buf_config->shutdown_esc_max_pitch, buf_config->language, buf_config->volume,
+      getHallConfigsString(buf_config->hall_configs, MAX_HALL_INPUTS).c_str());
 
-  // COBS
-  size_t encoded_size = cobs.encode(buf, size, out_buf);
-  out_buf[encoded_size] = 0;
-  encoded_size++;
-
-  // Send
-  try {
-    // Let's be verbose for easier follow-up
-    ROS_INFO(
-        "Send ll_high_level_config packet %#04x\n"
-        "\t options{dfp_is_5v=%d, background_sounds=%d, ignore_charging_current=%d},\n"
-        "\t v_charge_cutoff=%f, i_charge_cutoff=%f,\n"
-        "\t v_battery_cutoff=%f, v_battery_empty=%f, v_battery_full=%f,\n"
-        "\t lift_period=%d, tilt_period=%d,\n"
-        "\t shutdown_esc_max_pitch=%d,\n"
-        "\t language=\"%.2s\", volume=%d\n"
-        "\t hall_configs=\"%s\"",
-        buf[0], (int)buf_config->options.dfp_is_5v, (int)buf_config->options.background_sounds,
-        (int)buf_config->options.ignore_charging_current, buf_config->v_charge_cutoff, buf_config->i_charge_cutoff,
-        buf_config->v_battery_cutoff, buf_config->v_battery_empty, buf_config->v_battery_full, buf_config->lift_period,
-        buf_config->tilt_period, buf_config->shutdown_esc_max_pitch, buf_config->language, buf_config->volume,
-        getHallConfigsString(buf_config->hall_configs, MAX_HALL_INPUTS).c_str());
-
-    serial_port.write(out_buf, encoded_size);
-  } catch (std::exception &e) {
-    ROS_ERROR_STREAM("Error writing to serial port");
-  }
+  //Send
+  sendLLMessage(buf, sizeof(struct ll_high_level_config));
 }
 
 /**
@@ -538,7 +523,8 @@ void publishActuatorsTimerTask(const ros::TimerEvent &timer_event) {
   updateEmergencyBits();
   publishActuators();
   publishStatus();
-  configTracker.check();
+  //do not publish config, LL do not support it at the time
+  //configTracker.check();
 }
 
 bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerControlSrvResponse &res) {
@@ -1023,6 +1009,10 @@ int main(int argc, char **argv) {
                   ROS_WARN_STREAM(
                       "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was UI_EVENT");
                 }
+                break;
+              case PACKET_ID_LL_HIGH_LEVEL_CONFIG_REQ:
+              case PACKET_ID_LL_HIGH_LEVEL_CONFIG_RSP:
+                handleLowLevelConfig(buffer_decoded, data_size);
                 break;
               default: ROS_WARN_STREAM("[mower_comms] Got unknown packet from Low Level Board"); break;
             }
