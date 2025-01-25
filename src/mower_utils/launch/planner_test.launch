@@ -8,6 +8,17 @@
         <param name="mapResolution" value="0.1"/>
     </node>
     <node pkg="slic3r_coverage_planner" type="slic3r_coverage_planner" name="slic3r_coverage_planner" required="true" output="screen"/>
-    <node pkg="mower_utils" type="planner_test" name="planner_test" required="false"  output="screen"/>
+    <node
+            if="$(eval optenv('START_PLANNER', True))"
+            pkg="mower_utils"
+            type="planner_test"
+            name="planner_test"
+            required="false"
+            output="screen"
+    >
+        <param name="area_index" value="$(eval optenv('AREA_INDEX', 0))"/>
+        <param name="outline_count" value="$(eval optenv('OM_OUTLINE_COUNT', 10))"/>
+    </node>
+
 <!--    <node pkg="mower_logic" type="mower_logic" name="mower_logic" required="true" />-->
 </launch>

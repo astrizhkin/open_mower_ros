@@ -1,3 +1,7 @@
+## I am available for hire
+Hello! With a background in software engineering, embedded programming, hardware design, and robotics, I'm on the lookout for new challenges.
+If you're in search of someone with my skills, let's team up and create something amazing! https://x-tech.online/
+
 # ROS Workspace
 
 [![Build](https://github.com/ClemensElflein/open_mower_ros/actions/workflows/build-image.yaml/badge.svg)](https://github.com/ClemensElflein/open_mower_ros/actions/workflows/build-image.yaml)
@@ -94,4 +98,3 @@ Copy the settings for **Build directory** and **CMake options**. Everything else
 <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by-nc-sa/4.0/88x31.png" /></a><br />This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/">Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License</a>.
 
 Feel free to use the design in your private/educational projects, but don't try to sell the design or products based on it without getting my consent first. The idea here is to share knowledge, not to enable others to simply sell my work. Thank you for understanding.
-
