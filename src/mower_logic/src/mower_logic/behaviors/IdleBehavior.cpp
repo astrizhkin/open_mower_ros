@@ -76,7 +76,7 @@ Behavior *IdleBehavior::execute() {
                                            !shared_state->semiautomatic_task_paused;
     const bool rain_delay = last_config.rain_mode == 2 && ros::Time::now() < rain_resume;
     if (rain_delay) {
-      ROS_INFO_STREAM_THROTTLE(300, "Rain delay: " << int((rain_resume - ros::Time::now()).toSec() / 60) << " minutes");
+      ROS_INFO_STREAM_THROTTLE(300, "[IdleBehavior] Rain delay: " << int((rain_resume - ros::Time::now()).toSec() / 60) << " minutes");
     }
     const bool mower_ready =
         (last_config.battery_full_soc == 0 || last_status.battery_soc > last_config.battery_full_soc) &&

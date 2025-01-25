@@ -656,8 +656,8 @@ void MowingBehavior::update_actions(bool enable) {
 
   if (enable) {
     // pause / resume switch. other actions are always available
-    actions[0].enabled = !paused && !requested_pause_flag;
-    actions[1].enabled = paused && !requested_continue_flag;
+    actions[0].enabled = !(requested_pause_flag & ePauseReason::PAUSE_MANUAL);
+    actions[1].enabled = requested_pause_flag & ePauseReason::PAUSE_MANUAL;
   }
 
   registerActions("mower_logic:mowing", actions);

@@ -122,7 +122,6 @@ Behavior *AreaRecordingBehavior::execute() {
 void AreaRecordingBehavior::enter() {
   area_type = mower_map::MapArea::AREA_NONE;
   update_actions();
-  manual_mowing = false;
 
   has_first_docking_pos = false;
   has_odom = false;
@@ -131,6 +130,7 @@ void AreaRecordingBehavior::enter() {
   set_docking_position = false;
   markers = visualization_msgs::MarkerArray();
   mower_enabled_flag = mower_enabled_flag_before_pause = paused = aborted = false;
+  //default enable mower for manual mowing
   mower_enabled_flag = true;
 
   add_mowing_area_client = n->serviceClient<mower_map::AddMowingAreaSrv>("mower_map_service/add_mowing_area");
@@ -506,9 +506,9 @@ void AreaRecordingBehavior::handle_action(std::string action) {
   } else if (action == "mower_logic:area_recording/collect_point") {
     collect_point = true;
   } else if (action == "mower_logic:area_recording/start_manual_mowing") {
-    manual_mowing = true;
+    mower_enabled_flag = true;
   } else if (action == "mower_logic:area_recording/stop_manual_mowing") {
-    manual_mowing = false;
+    mower_enabled_flag = false;
   }
   update_actions();
 }
@@ -640,9 +640,9 @@ void AreaRecordingBehavior::update_actions() {
     actions[record_dock_action].enabled = true;
   }
   // start_manual_mowing
-  actions[start_manual_mowing_action].enabled = !manual_mowing;
+  actions[start_manual_mowing_action].enabled = !mower_enabled_flag;
   // stop manual mowing
-  actions[stop_manual_mowing_action].enabled = manual_mowing;
+  actions[stop_manual_mowing_action].enabled = mower_enabled_flag;
 
   registerActions("mower_logic:area_recording", actions);
 }
@@ -659,7 +659,7 @@ void AreaRecordingBehavior::record_auto_point_collecting(std_msgs::Bool state_ms
 
 void AreaRecordingBehavior::record_collect_point(std_msgs::Bool state_msg) {
   if (state_msg.data) {
-    ROS_INFO_STREAM("[AreaRecordingBehavior] Recording collect point");
+    ROS_INFO_STREAM("[AreaRecordingBehavior] Recording collect single point");
     collect_point = true;
   }
 }

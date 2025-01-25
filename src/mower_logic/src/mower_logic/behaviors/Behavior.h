@@ -52,8 +52,7 @@ class Behavior {
   std::atomic<bool> mower_enabled_flag_before_pause;
 
   std::atomic<u_int8_t> requested_pause_flag;
-  std::atomic<u_int8_t> requested_continue_flag;
-
+  
   std::atomic<bool> isGPSGood;
   std::atomic<uint8_t> sub_state;
 
@@ -105,8 +104,7 @@ class Behavior {
 
   void setContinue() {
     paused = false;
-    requested_continue_flag = false;
-    requested_pause_flag = false;
+    requested_pause_flag = 0;
     mower_enabled_flag = mower_enabled_flag_before_pause.load();
   }
 
@@ -126,9 +124,7 @@ class Behavior {
     ROS_INFO_STREAM("- Entered state: " << state_name());
     ROS_INFO_STREAM("--------------------------------------");
     aborted = false;
-    paused = false;            //???
-    requested_pause_flag = 0;  //???
-    this->setContinue();       //???
+    this->setContinue();
     this->config = c;
     this->shared_state = std::move(s);
     startTime = ros::Time::now();

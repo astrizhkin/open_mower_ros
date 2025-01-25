@@ -70,7 +70,7 @@ geometry_msgs::Twist last_cmd_twist;
 ros::Time last_cmd_twist_time(0.0);
 float speed_mow = 0;
 uint8_t mower_enabled = 0;
-uint8_t mower_direction = 0, target_speed_mow = 0;
+uint8_t mower_direction = 0;
 
 // Ticks / m and wheel distance for this robot
 double wheel_radius_m = 0.0;
@@ -341,7 +341,7 @@ void publishStatus() {
   status_msg.battery_empty = (last_ll_status.status_bitmask & (1 << STATUS_BATTERY_EMPTY_BIT)) != 0;
   status_msg.bms_timeout = (last_ll_status.status_bitmask & (1 << STATUS_BMS_TIMEOUT_BIT)) != 0;
   status_msg.ll_timeout = llAge > 1.0;
-  status_msg.mow_enabled = !(target_speed_mow == 0);
+  status_msg.mow_enabled = mower_enabled;
 
   for (uint8_t i = 0; i < 5; i++) {
     status_msg.uss_ranges[i] = last_ll_status.uss_ranges_m[i];
