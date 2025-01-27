@@ -26,6 +26,9 @@
         <param unless="$(env OM_USE_RELATIVE_POSITION)" name="datum_height" value="0"/>
         <remap from="/rtcm" to="/ntrip_client/rtcm"/>
         <remap from="~wheel_ticks" to="/mower/wheel_ticks"/>
+
+        <param name="radio_log_levels" value="ERROR,FATAL"/>
+        <remap from="/radio_log_in" to="/rosout_agg"/>
     </node>
 
 </launch>
