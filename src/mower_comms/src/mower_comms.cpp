@@ -520,9 +520,9 @@ struct {
     AddressAndValue &expected = scheduledUpdates.at(0);
     if(expected.address==response.address && expected.address2==response.address2) {
       executedUpdates.push_back(response);
-      scheduledUpdates.erase(scheduledUpdates.begin()+1);
+      scheduledUpdates.erase(scheduledUpdates.begin());
       ROS_INFO_STREAM("[mower_comms] Got config packet "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
-      tries_left = 0;
+      tries_left = 5;
     }else{
       ROS_WARN_STREAM("[mower_comms] Got unexpected config packet. Expected " << (int)expected.address <<","<<(int)expected.address2 << " received "<<(int)response.address <<","<<(int)response.address2);
     }
@@ -749,7 +749,6 @@ void handleLowLevelConfig(struct ll_high_level_config *ll_config) {
   };
   if(ll_config->type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_ERR) {
     ROS_ERROR_STREAM("[mower_comms] Get error config response address "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
-    return;
   }
 
   configTracker.ackResponse(response);
