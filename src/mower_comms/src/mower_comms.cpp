@@ -485,7 +485,7 @@ void publishStatus() {
   return str;
 }*/
 
-void publishLowLevelConfig(const ConfigAddress address,const uint8_t address2,const ConfigValue value) {
+void  publishLowLevelConfig(const uint8_t address,const uint8_t address2,const ConfigValue value) {
   struct ll_high_level_config ll_config = {
       .type = PACKET_ID_LL_HIGH_LEVEL_CONFIG_SET,
       .address = address,
@@ -496,7 +496,7 @@ void publishLowLevelConfig(const ConfigAddress address,const uint8_t address2,co
 }
 
 struct AddressAndValue {
-  ConfigAddress address;
+  uint8_t address;
   uint8_t address2;//4 bits actually
   ConfigValue value;
 };

@@ -245,7 +245,7 @@ union ConfigValue {
 struct ll_high_level_config {
   // PACKET_ID_LL_HIGH_LEVEL_CONFIG_*
   uint8_t type;
-  ConfigAddress address;
+  uint8_t address;
   uint8_t address2;//4 bits actually
   ConfigValue value;
   uint16_t crc;
