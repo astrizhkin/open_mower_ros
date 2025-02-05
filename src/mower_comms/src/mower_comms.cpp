@@ -491,7 +491,7 @@ void  publishLowLevelConfig(const uint8_t address,const uint8_t address2,const C
       .address = address,
       .address2 = address2,
       .value = value};
-  ROS_INFO("[mower_comms] Sending LL config %d,%d = %d",(int)address,(int)address2,(int)value.int32Value);
+  ROS_INFO("[mower_comms] Sending LL config %d,%d=%d",(int)address,(int)address2,(int)value.int32Value);
   sendLLMessage((uint8_t *)&ll_config, sizeof(struct ll_high_level_config));
 }
 
@@ -516,7 +516,7 @@ struct {
     executedUpdates.clear();
   }
 
-  void ackResponse(AddressAndValue &response) {  // Call this on receive of a response packet to stop monitoring
+  void ackResponse(uint8_t type,AddressAndValue &response) {  // Call this on receive of a response packet to stop monitoring
     AddressAndValue &expected = scheduledUpdates.at(0);
     if(expected.address==response.address && expected.address2==response.address2) {
       executedUpdates.push_back(response);
@@ -564,7 +564,7 @@ struct {
   void executeUpdate() {
     if (!tries_left ||                                            // No request tries left (probably old LL-FW)
         !serial_port.isOpen() || !allow_send ||                   // Serial not ready
-        ros::Time::now() - last_config_req < ros::Duration(0.5))  // Timeout waiting for response not reached
+        (tries_left!=5 && ros::Time::now() - last_config_req < ros::Duration(0.5)))  // Timeout waiting for response not reached
       return;
 
     if(!scheduledUpdates.empty()) {
@@ -751,7 +751,7 @@ void handleLowLevelConfig(struct ll_high_level_config *ll_config) {
     ROS_ERROR_STREAM("[mower_comms] Get error config response address "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
   }
 
-  configTracker.ackResponse(response);
+  configTracker.ackResponse(ll_config->type,response);
   if(configTracker.isComplete()) {
     std::vector<AddressAndValue> &allResponses = configTracker.executedUpdates;
     bool dirty = false;
@@ -768,7 +768,7 @@ void handleLowLevelConfig(struct ll_high_level_config *ll_config) {
           //mower_logic_config. = getNewSetChanged<double>(mower_logic_config., responseItem.value.int8Value, dirty);
           break;
         default:
-          ROS_WARN_STREAM("[mower_comms] Unknown config response address "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
+          ROS_WARN_STREAM("[mower_comms] Unknown config response address "<<(int)responseItem.address <<","<<(int)responseItem.address2<<"="<<(int)responseItem.value.int32Value);
       }
       // clang-format on
     }
