@@ -876,7 +876,6 @@ void reconfigCB(const mower_logic::MowerLogicConfig &config) {
   configTracker.scheduleUpdate(ConfigAddress::BATTERY_SHUTDOWN_VOLTAGE,0,mower_logic_config.battery_shutdown_voltage);
   configTracker.scheduleUpdate(ConfigAddress::BATTERY_SHUTDOWN_SOC,0,mower_logic_config.battery_shutdown_soc);
 
-  configTracker.scheduleUpdate(ConfigAddress::COMMAND,0,ConfigCommand::CONFIGURATION_SAVE);
 
   // Parse emergency_input_config and set hall_configs
   char *contact_token = strtok(strdup(mower_logic_config.emergency_input_config.c_str()), ",");
@@ -925,6 +924,8 @@ void reconfigCB(const mower_logic::MowerLogicConfig &config) {
     uss_token = strtok(NULL, ",");
     uss_idx++;
   }
+
+  configTracker.scheduleUpdate(ConfigAddress::COMMAND,0,ConfigCommand::CONFIGURATION_SAVE);
 }
 
 int main(int argc, char **argv) {
@@ -1074,7 +1075,7 @@ int main(int argc, char **argv) {
                   handleLowLevelStatus((struct ll_status *)buffer_decoded);
                 } else {
                   ROS_WARN_STREAM(
-                      "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was STATUS");
+                      "[mower_comms] Low Level Board sent a valid packet with the wrong size %d. Type was STATUS %d",(int)data_size,(int)sizeof(struct ll_status));
                 }
                 break;
               case PACKET_ID_LL_IMU:
