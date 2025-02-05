@@ -79,8 +79,8 @@ Behavior *IdleBehavior::execute() {
       ROS_INFO_STREAM_THROTTLE(300, "[IdleBehavior] Rain delay: " << int((rain_resume - ros::Time::now()).toSec() / 60) << " minutes");
     }
     const bool mower_ready =
-        (last_config.battery_full_soc == 0 || last_status.battery_soc > last_config.battery_full_soc) &&
-        (last_config.battery_full_voltage == 0 || last_status.v_battery > last_config.battery_full_voltage) &&
+        (last_config.charge_start_soc == 0 || last_status.battery_soc > last_config.charge_start_soc) &&
+        (last_config.charge_start_voltage == 0 || last_status.v_battery > last_config.charge_start_voltage) &&
 
         last_status.mow_esc_status.temperature_motor < last_config.motor_cold_temperature &&
         !last_config.manual_pause_mowing && !rain_delay;

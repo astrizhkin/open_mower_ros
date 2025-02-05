@@ -621,17 +621,19 @@ void checkSafety(const ros::TimerEvent &timer_event) {
 
   // Dock if below critical voltage to avoid BMS undervoltage protection
   if (!dockingNeeded &&
-      ((last_config.battery_empty_soc != 0 && battery_percent < last_config.battery_empty_soc) ||
-       (last_config.battery_empty_voltage != 0 && last_status.v_battery < last_config.battery_empty_voltage))) {
-    dockingReason << "Battery level min critical: " << last_status.v_battery;
+      ((last_config.battery_shutdown_soc != 0 && battery_percent < last_config.battery_shutdown_soc) ||
+       (last_config.battery_shutdown_voltage != 0 && last_status.v_battery < last_config.battery_shutdown_voltage))) {
+    dockingReason << "Battery voltage or SOC critical: " << last_status.v_battery;
     dockingNeeded = true;
   }
 
   // Otherwise take the max battery voltage over 20s to ignore droop during short current spikes
   max_v_battery_seen = std::max<double>(max_v_battery_seen, last_status.v_battery);
   if (ros::Time::now() - last_v_battery_check > ros::Duration(20.0)) {
-    if (!dockingNeeded && (max_v_battery_seen < last_config.battery_empty_voltage)) {
-      dockingReason << "Battery average voltage low: " << max_v_battery_seen;
+    if (!dockingNeeded && 
+      ((last_config.battery_low_voltage != 0 && max_v_battery_seen < last_config.battery_low_voltage) || 
+       (last_config.battery_low_soc!=0 && last_status.battery_soc < last_config.battery_low_soc))) {
+      dockingReason << "Battery average voltage low or SOC low: " << max_v_battery_seen;
       dockingNeeded = true;
     }
     max_v_battery_seen = 0.0;

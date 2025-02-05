@@ -23,20 +23,22 @@
         <param name="tool_width" value="$(env OM_TOOL_WIDTH)"/>
         <param name="enable_mower" value="$(env OM_ENABLE_MOWER)"/>
         <param name="battery_empty_voltage" value="$(env OM_BATTERY_EMPTY_VOLTAGE)"/>
-        <param
-            name="battery_critical_voltage"
-            value="$(eval battery_empty_voltage if battery_critical_voltage=='' else battery_critical_voltage)"
-        />
         <param name="battery_full_voltage" value="$(env OM_BATTERY_FULL_VOLTAGE)"/>
-        <param name="battery_critical_high_voltage" value="$(optenv OM_BATTERY_CRITICAL_HIGH_VOLTAGE -1)"/>
-        <param name="charge_critical_high_voltage" value="$(optenv OM_CHARGE_CRITICAL_HIGH_VOLTAGE -1)"/>
-        <param name="charge_critical_high_current" value="$(optenv OM_CHARGE_CRITICAL_HIGH_CURRENT -1)"/>
-        <param name="battery_empty_soc" value="$(env OM_BATTERY_EMPTY_SOC)"/>
-        <param name="battery_full_soc" value="$(env OM_BATTERY_FULL_SOC)"/>
-        <param name="battery_critical_voltage" value="$(eval battery_empty_voltage if battery_critical_voltage=='' else battery_critical_voltage)"/>
-        <param name="battery_critical_high_voltage" value="$(optenv OM_BATTERY_CRITICAL_HIGH_VOLTAGE -1)"/>
-        <param name="charge_critical_high_voltage" value="$(optenv OM_CHARGE_CRITICAL_HIGH_VOLTAGE -1)"/>
-        <param name="charge_critical_high_current" value="$(optenv OM_CHARGE_CRITICAL_HIGH_CURRENT -1)"/>
+        <param name="battery_low_voltage" value="$(env OM_BATTERY_LOW_VOLTAGE)"/>
+        <param name="battery_low_soc" value="$(env OM_BATTERY_LOW_SOC)"/>
+        <param name="battery_shutdown_voltage" value="$(env OM_BATTERY_SHUTDOWN_VOLTAGE)"/>
+        <param name="battery_shutdown_soc" value="$(env OM_BATTERY_SHUTDOWN_SOC)"/>
+        <param name="charge_start_voltage" value="$(env OM_CHARGE_START_VOLTAGE)"/>
+        <param name="charge_start_soc" value="$(env OM_CHARGE_START_SOC)"/>
+        <param name="charge_max_current" value="$(env OM_CHARGE_MAX_CURRENT)"/>
+        <param name="charge_stop_voltage" value="$(env OM_CHARGE_STOP_VOLTAGE)"/>
+        <param name="charge_stop_soc" value="$(env OM_CHARGE_STOP_SOC)"/>
+        <param name="charge_stop_current" value="$(env OM_CHARGE_STOP_CURRENT)"/>
+        <param name="charger_min_voltage" value="$(env OM_CHARGE_MIN_VOLTAGE)"/>
+        <param name="charger_max_voltage" value="$(env OM_CHARGE_MAX_VOLTAGE)"/>
+        <param name="charge_min_battery_temperature" value="$(env OM_CHARGE_MIN_BATTERY_TEMPERATURE)"/>
+        <param name="charge_max_battery_temperature" value="$(env OM_CHARGE_MAX_BATTERY_TEMPERATURE)"/>
+        <param name="charge_stop_balancer_temperature" value="$(env OM_CHARGE_STOP_BALANCER_TEMPERATURE)"/>
         <param name="outline_count" value="$(env OM_OUTLINE_COUNT)"/>
         <param name="outline_overlap_count" value="$(optenv OM_OUTLINE_OVERLAP_COUNT 0)"/>
         <param name="outline_offset" value="$(env OM_OUTLINE_OFFSET)"/>
@@ -50,14 +52,12 @@
         <param name="rain_mode" value="$(optenv OM_RAIN_MODE 0)"/>
         <param name="rain_delay_minutes" value="$(optenv OM_RAIN_DELAY_MINUTES 30)"/>
         <param name="rain_check_seconds" value="$(optenv OM_RAIN_CHECK_SECONDS 20)"/>
-        <param name="cu_rain_threshold" value="$(optenv OM_CU_RAIN_THRESHOLD -1)"/>
         <param name="undock_angled_distance" value="$(optenv OM_UNDOCK_ANGLED_DISTANCE 0.0)"/>
         <param name="undock_angle" value="$(optenv OM_UNDOCK_ANGLE 0.0)"/>
         <param name="undock_fixed_angle" value="$(optenv OM_UNDOCK_FIXED_ANGLE True)"/>
         <param name="undock_use_curve" value="$(optenv OM_UNDOCK_USE_CURVE True)"/>
-        <param name="emergency_lift_period" value="$(optenv OM_EMERGENCY_LIFT_PERIOD -1)"/>
-        <param name="emergency_tilt_period" value="$(optenv OM_EMERGENCY_TILT_PERIOD -1)"/>
         <param name="emergency_input_config" value="$(optenv OM_EMERGENCY_INPUT_CONFIG)"/>
+        <param name="uss_input_config" value="$(optenv OM_USS_INPUT_CONFIG)"/>
         <param name="ignore_charging_current" value="$(optenv OM_IGNORE_CHARGING_CURRENT False)"/>
     </node>
     <node pkg="slic3r_coverage_planner" type="slic3r_coverage_planner" name="slic3r_coverage_planner" output="screen"/>

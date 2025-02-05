@@ -136,25 +136,29 @@ void pose_received(const xbot_msgs::AbsolutePose::ConstPtr &msg) {
 }
 
 void set_limits_battery_v(SensorConfig &sensor_config) {
-  sensor_config.si.lower_critical_value = mower_logic_config.battery_critical_voltage;
+  sensor_config.si.lower_critical_value = mower_logic_config.battery_low_voltage;
   sensor_config.si.min_value = mower_logic_config.battery_empty_voltage;
   sensor_config.si.max_value = mower_logic_config.battery_full_voltage;
-  sensor_config.si.upper_critical_value = mower_logic_config.battery_critical_high_voltage;
+  sensor_config.si.upper_critical_value = mower_logic_config.charge_stop_voltage;
 }
 
 void set_limits_battery_soc(SensorConfig &sensor_config) {
-  sensor_config.si.lower_critical_value = mower_logic_config.battery_empty_soc;
+  sensor_config.si.lower_critical_value = mower_logic_config.battery_low_soc;//maybe battery_shutdown_soc
   sensor_config.si.min_value = 0;
   sensor_config.si.max_value = 100;
-  sensor_config.si.upper_critical_value = mower_logic_config.battery_full_soc;
+  sensor_config.si.upper_critical_value = mower_logic_config.charge_stop_soc;
 }
 
 void set_limits_charge_v(SensorConfig &sensor_config) {
-  sensor_config.si.upper_critical_value = mower_logic_config.charge_critical_high_voltage;
+  sensor_config.si.upper_critical_value = mower_logic_config.charge_start_voltage;
+  sensor_config.si.min_value = mower_logic_config.charger_min_voltage;
+  sensor_config.si.max_value = mower_logic_config.charger_max_voltage;
+  sensor_config.si.upper_critical_value = mower_logic_config.charge_stop_voltage;
 }
 
 void set_limits_battery_current(SensorConfig &sensor_config) {
-  sensor_config.si.upper_critical_value = mower_logic_config.charge_critical_high_current;
+  sensor_config.si.lower_critical_value = mower_logic_config.charge_stop_current;
+  sensor_config.si.upper_critical_value = mower_logic_config.charge_max_current;
 }
 
 void set_limits_esc_temp(SensorConfig &sensor_config) {

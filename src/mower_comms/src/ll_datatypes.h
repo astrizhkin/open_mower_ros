@@ -24,8 +24,9 @@
 #define PACKET_ID_LL_STATUS 1
 #define PACKET_ID_LL_IMU 2
 #define PACKET_ID_LL_UI_EVENT 3
-#define PACKET_ID_LL_HIGH_LEVEL_CONFIG_REQ 0x11  // ll_high_level_config and request config from receiver
-#define PACKET_ID_LL_HIGH_LEVEL_CONFIG_RSP 0x12  // ll_high_level_config response
+#define PACKET_ID_LL_HIGH_LEVEL_CONFIG_GET 0x10  // ll_high_level_config read value result
+#define PACKET_ID_LL_HIGH_LEVEL_CONFIG_SET 0x11  // ll_high_level_config set value result
+#define PACKET_ID_LL_HIGH_LEVEL_CONFIG_ERR 0x12  // ll_high_level_config invalid address
 #define PACKET_ID_LL_HEARTBEAT 0x42
 #define PACKET_ID_LL_HIGH_LEVEL_STATE 0x43
 #define PACKET_ID_LL_MOTOR_STATE 0x44
@@ -40,10 +41,10 @@
 #define STATUS_BATTERY_EMPTY_BIT 7
 #define STATUS_BMS_TIMEOUT_BIT 8
 
-#define EMERGENCY_BUTTON1_BIT 1 //primary emergency button
-#define EMERGENCY_BUTTON2_BIT 2
-#define EMERGENCY_LIFT1_BIT 3
-#define EMERGENCY_LIFT2_BIT 4
+#define EMERGENCY_CONTACT1_BIT 1 //primary emergency button
+#define EMERGENCY_CONTACT2_BIT 2
+#define EMERGENCY_CONTACT3_BIT 3
+#define EMERGENCY_CONTACT4_BIT 4
 #define EMERGENCY_ROS_TIMEOUT 5
 #define EMERGENCY_HIGH_LEVEL 6
 
@@ -66,6 +67,9 @@
 #define MOTOR_STATUS_BATTERY_L1             13
 #define MOTOR_STATUS_BATTERY_L2             14
 
+#define USS_COUNT 5
+#define CONTACT_COUNT 4
+
 #pragma pack(push, 1)
 struct ll_status {
     // Type of this message. Has to be PACKET_ID_LL_STATUS.
@@ -81,9 +85,11 @@ struct ll_status {
     // Bit 7: don't care
     uint16_t status_bitmask;
     // USS range in m
-    float uss_ranges_m[5];
+    float uss_ranges_m[USS_COUNT];
     // USS measurement age in ms (no more than UINT16_MAX)
-    uint16_t uss_age_ms[5];
+    uint16_t uss_age_ms[USS_COUNT];
+    //contact active after timeout
+    uint8_t contacts;
     // Emergency bitmask:
     // Bit 0: Emergency latch
     // Bit 1: Emergency 0 active
@@ -97,10 +103,12 @@ struct ll_status {
     // Charge voltage
     float v_charge;
     // System voltage
-    float v_system;
+    float v_battery;
     // Charge current
     float battery_current;
-    uint8_t batt_percentage;
+    uint8_t battery_soc;
+    float battery_temperature;
+    float balancer_temperature;
     uint16_t crc;
 } __attribute__((packed));
 #pragma pack(pop)
@@ -170,73 +178,77 @@ struct ll_motor_state {
 } __attribute__((packed));
 #pragma pack(pop)
 
-enum class OptionState : unsigned int {
-    OFF = 0,
-    ON,
-    UNDEFINED
-};
+typedef enum ConfigCommand {
+    CONFIGURATION_LOAD = 1,
+    CONFIGURATION_SAVE = 2
+} ConfigCommand;
 
-#pragma pack(push, 1)
-struct ConfigOptions {
-    OptionState dfp_is_5v : 2;
-    OptionState background_sounds : 2;
-    OptionState ignore_charging_current : 2;
-    // Need to block/waster the bits now, to be prepared for future enhancements
-    OptionState reserved_for_future_use1 : 2;
-    OptionState reserved_for_future_use2 : 2;
-    OptionState reserved_for_future_use3 : 2;
-    OptionState reserved_for_future_use4 : 2;
-    OptionState reserved_for_future_use5 : 2;
-} __attribute__((packed));
-#pragma pack(pop)
-static_assert(sizeof(ConfigOptions) == 2, "Changing size of ConfigOption != 2 will break packet compatibilty");
+typedef enum ConfigAddress {
+  //control group (10)
+  EEPROM_STATUS = 0, //bool
+  COMMAND = 1, //bool
 
-typedef char iso639_1[2];  // Two char ISO 639-1 language code
+  //charge group (20)
+  CHARGE_START_SOC = 10, //int percent, 0 - disable
+  CHARGE_START_VOLTAGE = 11,//float volt, 0 - disable
+  CHARGE_STOP_SOC = 12,  //int percent, 0 - disable
+  CHARGE_STOP_VOLTAGE = 13,//float volt, 0 - disable
+  CHARGE_STOP_CURRENT = 14,//float current, 0 - disable
+  CHARGE_MAX_CURRENT = 15,//float current, 0 - disable
+  CHARGER_MAX_VOLTAGE = 16,//float volt, 0 - disable
+  CHARGER_MIN_VOLTAGE = 17,//float volt, 0 - disable
+  CHARGE_MIN_BATTERY_TEMPERATURE = 18, //int percent, 0 - disable
+  CHARGE_MAX_BATTERY_TEMPERATURE = 19,//float volt, 0 - disable
+  CHARGE_STOP_BALANCER_TEMPERATURE = 20,//float volt, 0 - disable
 
-enum class HallMode : unsigned int {
+  //battery group (10)
+  BATTERY_EMPTY_VOLTAGE = 30,//float current, 0 - disable
+  BATTERY_FULL_VOLTAGE = 31,//float current, 0 - disable
+  BATTERY_LOW_WARNING_SOC = 32,//int percent, 0 - disable
+  BATTERY_LOW_WARNING_VOLTAGE = 33,//float current, 0 - disable
+  BATTERY_SHUTDOWN_SOC = 34,//int percent, 0 - disable
+  BATTERY_SHUTDOWN_VOLTAGE = 35,//float current, 0 - disable
+
+  //contact group (4x8)
+  CONTACT_MODE = 40,//ContactMode, address2 is requred
+  CONTACT_ACTIVE_LOW = 41,//bool, address2 is requred
+  CONTACT_TIMEOUT = 42,//bool, address2 is requred
+
+  //uss group (4x8)
+  USS_ACTIVE = 40+32,//bool, address2 is requred
+
+  //end
+  END = 30+32+32
+} ConfigAddress;
+
+typedef enum ContactMode {
   OFF = 0,
-  LIFT_TILT,  // Wheel lifted and wheels tilted functionality
-  STOP,       // Stop mower
-  UNDEFINED   // This is used by foreign side to inform that it doesn't has a configuration for this sensor
+  MONITOR = 1,  // Contact output
+  EMERGENCY_STOP = 2, // Emergeny bit and contact output
+} ContactMode;
+
+union ConfigValue {
+//  double doubleValue;
+  float floatValue;
+  uint32_t uint32Value;
+  int32_t int32Value;
+  uint16_t uint16Value;
+  int16_t int16Value;
+  uint8_t uint8Value;
+  int8_t int8Value;
+  char charValue;
+  bool boolValue;
 };
-
-#pragma pack(push, 1)
-struct HallConfig {
-  HallConfig(HallMode t_mode = HallMode::UNDEFINED, bool t_active_low = false)
-      : mode(t_mode), active_low(t_active_low) {};
-
-  HallMode mode : 3;  // 1 bit reserved
-  bool active_low : 1;
-} __attribute__((packed));
-#pragma pack(pop)
-
-#define MAX_HALL_INPUTS 10  // How much Hall-inputs we do support. 4 * OM + 6 * Stock-CoverUI
 
 // LL/HL config packet, bi-directional, flexible-length
 #pragma pack(push, 1)
 struct ll_high_level_config {
-  // ATTENTION: This is a flexible length struct. It is allowed to grow independently to HL without loosing
-  // compatibility, but never change or restructure already published member, except you really know their consequences.
-
-  // uint8_t type; Just for illustration. Get set later in wire buffer with type PACKET_ID_LL_HIGH_LEVEL_CONFIG_*
-
-  // clang-format off
-  ConfigOptions options = {.dfp_is_5v = OptionState::OFF, .background_sounds = OptionState::OFF, .ignore_charging_current = OptionState::OFF};
-  uint16_t rain_threshold = 0xffff;          // If (stock CoverUI) rain value < rain_threshold then it rains
-  float v_charge_cutoff = -1;                // Protective max. charging voltage before charging get switched off (-1 = unknown)
-  float i_charge_cutoff = -1;                // Protective max. charging current before charging get switched off (-1 = unknown)
-  float v_battery_cutoff = -1;               // Protective max. battery voltage before charging get switched off (-1 = unknown)
-  float v_battery_empty = -1;                // Empty battery voltage used for % calc of capacity (-1 = unknown)
-  float v_battery_full = -1;                 // Full battery voltage used for % calc of capacity (-1 = unknown)
-  uint16_t lift_period = 0xffff;             // Period (ms) for >=2 wheels to be lifted in order to count as emergency (0 = disable, 0xFFFF = unknown)
-  uint16_t tilt_period = 0xffff;             // Period (ms) for a single wheel to be lifted in order to count as emergency (0 = disable, 0xFFFF = unknown)
-  uint8_t shutdown_esc_max_pitch = 0xff;     // Do not shutdown ESCs if absolute pitch angle is greater than this (0 = disable, 0xff = unknown) (to be implemented, see OpenMower PR #97)
-  iso639_1 language = {'e', 'n'};            // ISO 639-1 (2-char) language code (en, de, ...)
-  uint8_t volume = 0xff;                     // Volume (0-100%) feedback (if directly changed i.e. via CoverUI) (0xff = do not change)
-  HallConfig hall_configs[MAX_HALL_INPUTS];  // Set all to UNDEFINED
-  // INFO: Before adding a new member here: Decide if and how much hall_configs spares do we like to have
-
-  // uint16_t crc;  Just for illustration, that it get appended later within the wire buffer
+  // PACKET_ID_LL_HIGH_LEVEL_CONFIG_*
+  uint8_t type;
+  ConfigAddress address;
+  uint8_t address2;//4 bits actually
+  ConfigValue value;
+  uint16_t crc;
   // clang-format on
 } __attribute__((packed));
 #pragma pack(pop)
