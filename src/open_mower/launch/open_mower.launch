@@ -34,8 +34,8 @@
         <param name="charge_stop_voltage" value="$(env OM_CHARGE_STOP_VOLTAGE)"/>
         <param name="charge_stop_soc" value="$(env OM_CHARGE_STOP_SOC)"/>
         <param name="charge_stop_current" value="$(env OM_CHARGE_STOP_CURRENT)"/>
-        <param name="charger_min_voltage" value="$(env OM_CHARGE_MIN_VOLTAGE)"/>
-        <param name="charger_max_voltage" value="$(env OM_CHARGE_MAX_VOLTAGE)"/>
+        <param name="charger_min_voltage" value="$(env OM_CHARGER_MIN_VOLTAGE)"/>
+        <param name="charger_max_voltage" value="$(env OM_CHARGER_MAX_VOLTAGE)"/>
         <param name="charge_min_battery_temperature" value="$(env OM_CHARGE_MIN_BATTERY_TEMPERATURE)"/>
         <param name="charge_max_battery_temperature" value="$(env OM_CHARGE_MAX_BATTERY_TEMPERATURE)"/>
         <param name="charge_stop_balancer_temperature" value="$(env OM_CHARGE_STOP_BALANCER_TEMPERATURE)"/>

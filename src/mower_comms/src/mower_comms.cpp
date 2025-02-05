@@ -1075,7 +1075,7 @@ int main(int argc, char **argv) {
                   handleLowLevelStatus((struct ll_status *)buffer_decoded);
                 } else {
                   ROS_WARN_STREAM(
-                      "[mower_comms] Low Level Board sent a valid packet with the wrong size "<<(int)data_size<<". Type was STATUS "<<(int)sizeof(struct ll_status));
+                      "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was STATUS");
                 }
                 break;
               case PACKET_ID_LL_IMU:
