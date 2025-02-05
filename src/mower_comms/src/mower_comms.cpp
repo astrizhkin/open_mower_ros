@@ -366,8 +366,8 @@ void publishStatus() {
   status_msg.v_charge = last_ll_status.v_charge;
   status_msg.battery_current = last_ll_status.battery_current;
   status_msg.battery_soc = last_ll_status.battery_soc;
-  //last_ll_status.battery_temperature;
-  //last_ll_status.balancer_temperature;
+  status_msg.battery_temperature=last_ll_status.battery_temperature;
+  status_msg.balancer_temperature=last_ll_status.balancer_temperature;
 
   if (mow_xesc_interface && status_msg.esc_power) {
     mow_xesc_interface->getStatus(last_mow_status);

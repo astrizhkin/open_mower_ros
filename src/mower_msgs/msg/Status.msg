@@ -26,6 +26,8 @@ float32 v_charge
 float32 v_battery
 #charging positive, discharging negative
 float32 battery_current
+float32 battery_temperature
+float32 balancer_temperature
 bool mow_enabled
 
 # ESC stuff
