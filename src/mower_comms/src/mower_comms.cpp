@@ -105,6 +105,7 @@ std::mutex ll_status_mutex;
 struct ll_status last_ll_status = {0};
 ros::Time last_ll_status_time(0.0);
 ros::Time last_ll_status_esc_enabled(0.0);
+ros::Time last_uss_stamp[USS_COUNT];
 
 sensor_msgs::MagneticField sensor_mag_msg;
 sensor_msgs::Imu sensor_imu_msg;
@@ -347,7 +348,13 @@ void publishStatus() {
 
   for (int i = 0; i < USS_COUNT; i++) {
     sensor_msgs::Range range_msg;
-    range_msg.header.stamp = last_ll_status_time - ros::Duration(((double)last_ll_status.uss_age_ms[i])/1000);
+    ros::Time current_uss_stamp = last_ll_status_time - ros::Duration(((double)last_ll_status.uss_age_ms[i])/1000);
+    double uss_stamp_diff_s = (current_uss_stamp - last_uss_stamp[i]).toSec();
+    if(last_ll_status.uss_age_ms[i]>1000 || abs(uss_stamp_diff_s)<0.01) {
+      continue;
+    }
+    last_uss_stamp[i] = current_uss_stamp;
+    range_msg.header.stamp = current_uss_stamp;
     std::ostringstream uss_frame_id;
     uss_frame_id << "uss_" << i;
     range_msg.header.frame_id=uss_frame_id.str();
