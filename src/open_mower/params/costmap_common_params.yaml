@@ -6,9 +6,16 @@ robot_radius: 0.3
 
 max_obstacle_height: 1.0
 
-uss_layer:
-  topics: ["/mower/uss"]
-  no_readings_timeout: 1.0
-  clear_on_max_reading: true
-  clear_threshold: 0.20
-  mark_threshold: 0.80
+observation_sources: uss_0_sensor_data uss_1_sensor_data uss_2_sensor_data uss_3_sensor_data uss_4_sensor_data
+uss_0_sensor_data: {sensor_frame: uss_0, data_type: Range, topic: /mower/uss, marking: true, clearing: true}
+uss_1_sensor_data: {sensor_frame: uss_1, data_type: Range, topic: /mower/uss, marking: true, clearing: true}
+uss_2_sensor_data: {sensor_frame: uss_2, data_type: Range, topic: /mower/uss, marking: true, clearing: true}
+uss_3_sensor_data: {sensor_frame: uss_3, data_type: Range, topic: /mower/uss, marking: true, clearing: true}
+uss_4_sensor_data: {sensor_frame: uss_4, data_type: Range, topic: /mower/uss, marking: true, clearing: true}
+
+#uss_layer:
+#  topics: ["/mower/uss"]
+#  no_readings_timeout: 1.0
+#  clear_on_max_reading: true
+#  clear_threshold: 0.20
+#  mark_threshold: 0.80
