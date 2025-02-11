@@ -21,7 +21,7 @@
 #include <hoverboard_driver/HoverboardStateStamped.h>
 #include <mower_msgs/Status.h>
 #include <sensor_msgs/Joy.h>
-//#include <sensor_msgs/Range.h>
+#include <sensor_msgs/Range.h>
 #include <serial/serial.h>
 #include <xbot_msgs/WheelTick.h>
 #include <xesc_driver/xesc_driver.h>
@@ -346,19 +346,17 @@ void publishStatus() {
   status_msg.mow_enabled = mower_enabled;
 
   for (uint8_t i = 0; i < 5; i++) {
-    status_msg.uss_ranges[i] = ((float)last_ll_status.uss_ranges_cm[i])/100;//convert centimeters to meters
-    status_msg.uss_age_ms[i] = last_ll_status.uss_age_ms[i];
-    //sensor_msgs::Range range_msg;
-    //range_msg.header.stamp = last_ll_status_time - ros::Duration(((double)last_ll_status.uss_age_ms[i])/1000);
-    //std::ostringstream uss_frame_id;
-    //uss_frame_id << "uss_" << (int)i;
-    //range_msg.header.frame_id=uss_frame_id.str();
-    //range_msg.range = ((float)last_ll_status.uss_ranges_cm[i])/100;
-    //range_msg.field_of_view = 30 * M_PI / 180;
-    //range_msg.min_range=0.0;
-    //range_msg.max_range=2.54;
-    //range_msg.radiation_type = sensor_msgs::Range::ULTRASOUND;
-    //uss_pub.publish(range_msg);
+    sensor_msgs::Range range_msg;
+    range_msg.header.stamp = last_ll_status_time - ros::Duration(((double)last_ll_status.uss_age_ms[i])/1000);
+    std::ostringstream uss_frame_id;
+    uss_frame_id << "uss_" << (int)i;
+    range_msg.header.frame_id=uss_frame_id.str();
+    range_msg.range = ((float)last_ll_status.uss_ranges_cm[i])/100;
+    range_msg.field_of_view = 30 * M_PI / 180;
+    range_msg.min_range=0.0;
+    range_msg.max_range=2.54;
+    range_msg.radiation_type = sensor_msgs::Range::ULTRASOUND;
+    uss_pub.publish(range_msg);
   }
 
   // overwrite emergency with the LL value.
@@ -1002,7 +1000,7 @@ int main(int argc, char **argv) {
   }
 
   status_pub = n.advertise<mower_msgs::Status>("mower/status", 1);
-  //uss_pub = n.advertise<sensor_msgs::Range>("mower/uss", 1);
+  uss_pub = n.advertise<sensor_msgs::Range>("mower/uss", 1);
   wheel_tick_pub = n.advertise<xbot_msgs::WheelTick>("mower/wheel_ticks", 1);
   sensor_imu_pub = n.advertise<sensor_msgs::Imu>("imu/data_raw", 1);
   sensor_mag_pub = n.advertise<sensor_msgs::MagneticField>("imu/mag", 1);
