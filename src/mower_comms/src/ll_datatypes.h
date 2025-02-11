@@ -85,7 +85,7 @@ struct ll_status {
     // Bit 7: don't care
     uint16_t status_bitmask;
     // USS range in m
-    float uss_ranges_m[USS_COUNT];
+    uint8_t uss_ranges_cm[USS_COUNT];
     // USS measurement age in ms (no more than UINT16_MAX)
     uint16_t uss_age_ms[USS_COUNT];
     //contact active after timeout
