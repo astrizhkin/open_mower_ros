@@ -88,7 +88,8 @@
         <geometry>
           <box size="0.01 0.05 0.02"/>
         </geometry>
-        <origin rpy="0 0 -1.05" xyz="0.15 -0.2 0.3"/>
+        <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+        <!--origin rpy="0 0 -1.05" xyz="0.15 -0.2 0.3"/-->
         <material name="silver">
           <color rgba="0.7 0.7 0.7 0.6"/>
         </material>
@@ -100,7 +101,7 @@
         <geometry>
           <box size="0.01 0.05 0.02"/>
         </geometry>
-        <origin rpy="0 0 -0.52" xyz="0.2 -0.15 0.3"/>
+        <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
         <material name="silver">
           <color rgba="0.7 0.7 0.7 0.6"/>
         </material>
@@ -112,7 +113,7 @@
         <geometry>
           <box size="0.01 0.05 0.02"/>
         </geometry>
-        <origin rpy="0 0 0" xyz="0.2 0 0.3"/>
+        <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
         <material name="silver">
           <color rgba="0.7 0.7 0.7 0.6"/>
         </material>
@@ -124,7 +125,7 @@
         <geometry>
           <box size="0.01 0.05 0.02"/>
         </geometry>
-        <origin rpy="0 0 0.52" xyz="0.2 0.15 0.3"/>
+        <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
         <material name="silver">
           <color rgba="0.7 0.7 0.7 0.6"/>
         </material>
@@ -136,7 +137,7 @@
         <geometry>
           <box size="0.01 0.05 0.02"/>
         </geometry>
-        <origin rpy="0 0 1.05" xyz="0.15 0.2 0.3"/>
+        <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
         <material name="silver">
           <color rgba="0.7 0.7 0.7 0.6"/>
         </material>
@@ -176,26 +177,26 @@
     <joint name="base_to_uss_0" type="fixed">
       <parent link="base_link"/>
       <child link="uss_0"/>
-      <origin xyz="0.0 0.0 0.0"/>
+      <origin rpy="0 0 -1.05" xyz="0.15 -0.2 0.3"/>
     </joint>
     <joint name="base_to_uss_1" type="fixed">
       <parent link="base_link"/>
       <child link="uss_1"/>
-      <origin xyz="0.0 0.0 0.0"/>
+      <origin rpy="0 0 -0.52" xyz="0.2 -0.15 0.3"/>
     </joint>
     <joint name="base_to_uss_2" type="fixed">
       <parent link="base_link"/>
       <child link="uss_2"/>
-      <origin xyz="0.0 0.0 0.0"/>
+      <origin rpy="0 0 0" xyz="0.2 0 0.3"/>
     </joint>
     <joint name="base_to_uss_3" type="fixed">
       <parent link="base_link"/>
       <child link="uss_3"/>
-      <origin xyz="0.0 0.0 0.0"/>
+      <origin rpy="0 0 0.52" xyz="0.2 0.15 0.3"/>
     </joint>
     <joint name="base_to_uss_4" type="fixed">
       <parent link="base_link"/>
       <child link="uss_4"/>
-      <origin xyz="0.0 0.0 0.0"/>
+      <origin rpy="0 0 1.05" xyz="0.15 0.2 0.3"/>
     </joint>
     </robot>

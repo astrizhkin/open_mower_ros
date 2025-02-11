@@ -2,7 +2,7 @@
 
   <param name="robot_model" textfile="$(find open_mower)/params/hardware_specific/CUSTOM/urdf.xml"/>
     
-  <node pkg="robot_state_publisher" type="robot_state_publisher" name="rob_st_pub" >
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="rob_st_pub" output="screen">
     <remap from="robot_description" to="robot_model" />
     <remap from="joint_states" to="different_joint_states" />
     <param name="publish_frequency" value="5"/>
