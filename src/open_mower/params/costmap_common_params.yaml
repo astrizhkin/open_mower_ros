@@ -12,6 +12,6 @@ max_obstacle_height: 1.0
 uss_layer:
   topics: ["/mower/uss"]
   no_readings_timeout: 1.0
-  clear_on_max_reading: true
+  clear_on_max_reading: false
   clear_threshold: 0.20
   mark_threshold: 0.80
