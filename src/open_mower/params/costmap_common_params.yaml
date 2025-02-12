@@ -13,3 +13,5 @@ uss_layer:
   clear_threshold: 0.20
   mark_threshold: 0.80
   debug_publisher: true
+  use_decay: true
+  pixel_decay: 10.0
