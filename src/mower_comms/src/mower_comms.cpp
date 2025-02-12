@@ -359,7 +359,7 @@ void publishStatus() {
     uss_frame_id << "uss_" << i;
     range_msg.header.frame_id=uss_frame_id.str();
     range_msg.range = ((float)last_ll_status.uss_ranges_cm[i])/100;
-    range_msg.field_of_view = 30 * M_PI / 180;
+    range_msg.field_of_view = 60 * M_PI / 180;
     range_msg.min_range=0.0;
     range_msg.max_range=2.55;
     range_msg.radiation_type = sensor_msgs::Range::ULTRASOUND;

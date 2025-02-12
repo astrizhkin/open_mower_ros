@@ -6,9 +6,6 @@ raytrace_range: 4.0
 
 max_obstacle_height: 1.0
 
-#observation_sources: uss_sensor_data
-#uss_sensor_data: {data_type: Range, topic: /mower/uss, marking: true, clearing: true}
-
 uss_layer:
   topics: ["/mower/uss"]
   no_readings_timeout: 1.0
