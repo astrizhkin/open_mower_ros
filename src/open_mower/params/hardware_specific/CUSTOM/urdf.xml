@@ -214,7 +214,7 @@
     <joint name="base_to_gps" type="fixed">
       <parent link="base_link"/>
       <child link="gps"/>
-      <origin rpy="0.0 0.0 0" xyz="-0.13 -0.04 0.2"/>
+      <origin rpy="0.0 0.0 0" xyz="-0.13 0.04 0.2"/>
     </joint>
 
     </robot>
