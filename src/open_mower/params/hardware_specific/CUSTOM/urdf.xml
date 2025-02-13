@@ -144,6 +144,18 @@
       </visual>
     </link>
 
+    <link name="gps">
+      <visual>
+        <geometry>
+          <box size="0.04 0.04 0.05"/>
+        </geometry>
+        <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+        <material name="silver">
+          <color rgba="0.7 0.7 0.7 0.6"/>
+        </material>
+      </visual>
+    </link>
+
     <!--joint name="base_to_wheel_left_front" type="fixed">
       <parent link="base_link"/>
       <child link="wheel_left_front"/>
@@ -199,4 +211,10 @@
       <child link="uss_4"/>
       <origin rpy="0.0 0.0 -1.05" xyz="0.13 -0.2 0.2"/>
     </joint>
+    <joint name="base_to_gps" type="fixed">
+      <parent link="base_link"/>
+      <child link="gps"/>
+      <origin rpy="0.0 0.0 0" xyz="-0.13 -0.04 0.2"/>
+    </joint>
+
     </robot>

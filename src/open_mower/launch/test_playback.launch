@@ -4,7 +4,7 @@
     <arg name="r" default="1" />
     <arg name="rqt_reconfigure" default="False" />
 
-    <node pkg="rosbag" type="play" name="player" output="log" args="--clock $(arg bagfile) -s$(arg s) -r$(arg r) /tf:=/tf_null /xbot_positioning/odom_out:=/null/xbot_positioning/odom_out"/>
+    <node pkg="rosbag" type="play" name="player" output="log" args="--clock $(arg bagfile) -s$(arg s) -r$(arg r) /tf:=/tf_null /xbot_positioning/odom_3d_out:=/null/xbot_positioning/odom_3d_out /xbot_positioning/odom_2d_out:=/null/xbot_positioning/odom_2d_out"/>
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find open_mower)/rviz/playback.rviz" required="true" />
 
     <node name="converter1" pkg="mower_utils" type="xbot_pose_converter" required="true">

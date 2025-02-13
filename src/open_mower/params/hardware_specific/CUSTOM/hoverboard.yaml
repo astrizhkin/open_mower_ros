@@ -35,7 +35,7 @@ rear:
     cmd_vel_timeout: 0.5
 
     # Base frame_id
-    base_frame_id: base_footprint #default: base_link
+    base_frame_id: base_link
     allow_multiple_cmd_vel_publishers: false
     odom_frame_id: '/raw_odom'
     enable_odom_tf: false
@@ -99,7 +99,7 @@ front:
     cmd_vel_timeout: 0.5
 
     # Base frame_id
-    base_frame_id: base_footprint #default: base_link
+    base_frame_id: base_link
     allow_multiple_cmd_vel_publishers: false
     odom_frame_id: '/raw_odom'
     enable_odom_tf: false

@@ -824,7 +824,7 @@ int main(int argc, char **argv) {
   ros::Subscriber status_sub = n->subscribe("/mower/status", 0, statusReceived, ros::TransportHints().tcpNoDelay(true));
   ros::Subscriber pose_sub =
       n->subscribe("/xbot_positioning/xb_pose", 0, poseReceived, ros::TransportHints().tcpNoDelay(true));
-  ros::Subscriber odom_sub = n->subscribe("/xbot_positioning/odom_out", 0, odomReceived, ros::TransportHints().tcpNoDelay(true));
+  ros::Subscriber odom_3d_sub = n->subscribe("/xbot_positioning/odom_3d_out", 0, odomReceived, ros::TransportHints().tcpNoDelay(true));
   ros::Subscriber joy_move_cmd = n->subscribe("/joy_vel", 0, joyVelReceived, ros::TransportHints().tcpNoDelay(true));
   ros::Subscriber joy_mower_cmd =
       n->subscribe("/joy_mower", 0, joyMowerReceived, ros::TransportHints().tcpNoDelay(true));
