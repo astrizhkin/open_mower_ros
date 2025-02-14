@@ -315,7 +315,8 @@ bool statusReceivedOrientation(const mower_msgs::Status::ConstPtr &msg) {
     yaw += M_PI * 2.0;
   }
 
-  tf2::Quaternion q_mag(0.0, 0.0, yaw);
+  tf2::Quaternion q_mag;
+  q_mag.setRPY(0.0, 0.0, yaw);
 
   r = yaw;
 
