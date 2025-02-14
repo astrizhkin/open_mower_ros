@@ -289,7 +289,8 @@ void gpsPositionReceivedF9R(const xbot_msgs::AbsolutePose::ConstPtr &msg) {
   while (r < 0) {
     r += M_PI * 2.0;
   }
-  tf2::Quaternion q_mag(0.0, 0.0, r);
+  tf2::Quaternion q_mag;
+  q_mag.setRPY(0.0, 0.0, r);
   orientation_result = tf2::toMsg(q_mag);
   last_gps_acc_m = gps_accuracy_m;
 }
@@ -353,7 +354,8 @@ bool statusReceivedGyro(const mower_msgs::Status::ConstPtr &msg) {
 
   double d_ticks = (d_wheel_l + d_wheel_r) / 2.0;
 
-  tf2::Quaternion q_mag(0.0, 0.0, r);
+  tf2::Quaternion q_mag;
+  q_mag.setRPY(0.0, 0.0, r);
   orientation_result = tf2::toMsg(q_mag);
   // orientation_result = q_mag;
 

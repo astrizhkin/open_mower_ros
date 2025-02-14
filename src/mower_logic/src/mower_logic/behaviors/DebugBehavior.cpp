@@ -50,7 +50,9 @@ void DebugBehavior::ellipse(nav_msgs::Path &path, double hRad, double vRad) {
         docking_pose_stamped_front.pose.position.x += cos(angle) * hRad;
         docking_pose_stamped_front.pose.position.y += sin(angle) * vRad;
         double tangentAngle = atan2(vRad * cos(angle), -hRad * sin(angle));
-        docking_pose_stamped_front.pose.orientation = tf2::toMsg(tf2::Quaternion(0,0,tangentAngle));
+        tf2::Quaternion q;
+        q.setRPY(0,0,tangentAngle);
+        docking_pose_stamped_front.pose.orientation = tf2::toMsg(q);
         path.poses.push_back(docking_pose_stamped_front);
     }
 
