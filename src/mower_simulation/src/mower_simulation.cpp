@@ -191,7 +191,8 @@ bool setPose(xbot_positioning::SetPoseSrvRequest &req, xbot_positioning::SetPose
     m.getRPY(unused1, unused2, yaw);
   }
 
-  tf2::Quaternion q(0.0, 0.0, yaw);
+  tf2::Quaternion q;
+  q.setRPY(0.0, 0.0, yaw);
 
   initialPoseMsg.header.stamp = ros::Time::now();
   initialPoseMsg.header.frame_id = "base_link";
