@@ -502,9 +502,9 @@ void sendWheelTickAndMeasuredTwist(ros::Time& stamp) {
   measured_odom_twist.twist.angular.z = (last_rear_odom.twist.twist.angular.z + last_front_odom.twist.twist.angular.z)/2;
   //measured_vel_pub.publish(measured_odom_twist);
 
-  ROS_INFO("[mower_comms] WheelTickTwist %+5.3f %+5.3f OdomTwist %+5.3f %+5.3f",
-    measured_wheel_tick_twist.twist.linear.x,measured_wheel_tick_twist.twist.angular.z,
-    measured_odom_twist.twist.linear.x,measured_odom_twist.twist.angular.z);
+  //ROS_INFO("[mower_comms] WheelTickTwist %+5.3f %+5.3f OdomTwist %+5.3f %+5.3f",
+  //  measured_wheel_tick_twist.twist.linear.x,measured_wheel_tick_twist.twist.angular.z,
+  //  measured_odom_twist.twist.linear.x,measured_odom_twist.twist.angular.z);
 }
 
 /*std::string getHallConfigsString(const HallConfig *hall_configs, const size_t size) {
