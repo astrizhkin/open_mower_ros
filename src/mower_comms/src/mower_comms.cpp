@@ -121,6 +121,8 @@ int imu_accel_idx[] = {-1, -1, -1};
 
 ros::ServiceClient highLevelClient;
 
+void sendWheelTickAndMeasuredTwist(ros::Time& stamp);
+
 void sendLLMessage(uint8_t *msg, size_t size) {
   crc.reset();
   crc.process_bytes(msg, size - 2);
