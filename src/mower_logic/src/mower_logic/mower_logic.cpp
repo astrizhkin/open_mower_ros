@@ -459,7 +459,8 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     if (last_status.emergency) {
       if (currentBehavior == &AreaRecordingBehavior::INSTANCE || currentBehavior == &IdleBehavior::INSTANCE ||
           currentBehavior == &IdleBehavior::DOCKED_INSTANCE) {
-        if (last_status.v_charge > 10.0) {
+        const auto last_config = getConfig();
+        if (last_status.v_charge > last_config.charger_min_voltage) {
           // emergency and docked and idle or area recording, so it's safe to reset the emergency mode, reset it. It's
           // safe since we won't start moving in this mode.
           setEmergencyMode(false, mower_msgs::EmergencyModeSrvRequest::EMERGENCY_LOW_BATTERY,

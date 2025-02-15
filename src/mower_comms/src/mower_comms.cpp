@@ -18,6 +18,7 @@
 //
 #include <dynamic_reconfigure/client.h>
 #include <geometry_msgs/Twist.h>
+#include <nav_msgs/Odometry.h>
 #include <hoverboard_driver/HoverboardStateStamped.h>
 #include <mower_msgs/Status.h>
 #include <sensor_msgs/Joy.h>
@@ -99,7 +100,11 @@ boost::crc_ccitt_type crc;
 xesc_driver::XescDriver *mow_xesc_interface;
 hoverboard_driver::HoverboardStateStamped last_rear_status;
 hoverboard_driver::HoverboardStateStamped last_front_status;
+nav_msgs::Odometry last_rear_odom;
+nav_msgs::Odometry last_front_odom;
 xesc_msgs::XescStateStamped last_mow_status;
+xbot_msgs::WheelTick prev_wheel_tick_msg;
+bool has_prev_wheel_tick_msg = false;
 
 std::mutex ll_status_mutex;
 struct ll_status last_ll_status = {0};
@@ -430,13 +435,18 @@ void publishStatus() {
   // publis topic status
   status_pub.publish(status_msg);
 
+  sendWheelTickAndMeasuredTwist(status_msg.stamp);
+
+}
+
+void sendWheelTickAndMeasuredTwist(ros::Time& stamp) {
   xbot_msgs::WheelTick wheel_tick_msg;
   wheel_tick_msg.valid_wheels = xbot_msgs::WheelTick::WHEEL_VALID_FL | xbot_msgs::WheelTick::WHEEL_VALID_FR |
                                 xbot_msgs::WheelTick::WHEEL_VALID_RL | xbot_msgs::WheelTick::WHEEL_VALID_RR;
   wheel_tick_msg.wheel_pos_to_tick_factor = 0;  // TODO: pass it for F9R
   wheel_tick_msg.wheel_radius = wheel_radius_m;
-  // wheel_tick_msg.wheel_separation = wheel_separation_m;
-  wheel_tick_msg.stamp = status_msg.stamp;
+  wheel_tick_msg.wheel_separation = wheel_separation_m;
+  wheel_tick_msg.stamp = stamp;
   // check compatibility .wheel_ticks_rl and hoverboard .wheelX_cnt (previosuly was tacho_absolute)
 
   wheel_tick_msg.wheel_pos_fl = last_front_status.state.wheelL_cnt;
@@ -455,32 +465,40 @@ void publishStatus() {
 
   wheel_tick_pub.publish(wheel_tick_msg);
 
-  //double dt = (wheel_tick_msg.stamp - last_ticks.stamp).toSec();
+  geometry_msgs::Twist wheelTickTwist;
+  
+  double dt = (wheel_tick_msg.stamp - prev_wheel_tick_msg.stamp).toSec();
 
-  //double rl_delta = msg->wheel_pos_rl - last_ticks.wheel_pos_rl;
-  //double fl_delta = msg->wheel_pos_fl - last_ticks.wheel_pos_fl;
-  //double rr_delta = msg->wheel_pos_rr - last_ticks.wheel_pos_rr;
-  //double fr_delta = msg->wheel_pos_fr - last_ticks.wheel_pos_fr;
+  double rl_delta = wheel_tick_msg.wheel_pos_rl - prev_wheel_tick_msg.wheel_pos_rl;
+  double fl_delta = wheel_tick_msg.wheel_pos_fl - prev_wheel_tick_msg.wheel_pos_fl;
+  double rr_delta = wheel_tick_msg.wheel_pos_rr - prev_wheel_tick_msg.wheel_pos_rr;
+  double fr_delta = wheel_tick_msg.wheel_pos_fr - prev_wheel_tick_msg.wheel_pos_fr;
 
-  //double d_wheel_l = (rl_delta + fl_delta) * msg->wheel_radius / 2;
-  //double d_wheel_r = (rr_delta + fr_delta) * msg->wheel_radius / 2;
+  double d_wheel_l = (rl_delta + fl_delta) * wheel_radius_m / 2;
+  double d_wheel_r = (rr_delta + fr_delta) * wheel_radius_m / 2;
 
-  //if (msg->wheel_direction_rl) {
-  //    d_wheel_l *= -1.0;
-  //}
-  //if (msg->wheel_direction_rr) {
-  //    d_wheel_r *= -1.0;
-  //}
+  double d_linear = (d_wheel_r + d_wheel_l) / 2.0;
+  double d_angular = (d_wheel_r - d_wheel_l) / wheel_separation_m;
+  geometry_msgs::Twist measured_wheel_tick_twist;
+  measured_wheel_tick_twist.linear.x = d_linear/dt;
+  measured_wheel_tick_twist.angular.z = d_angular/dt;
 
-  //double d_center = (d_wheel_l + d_wheel_r) / 2.0;
-  //linearVelocityWheels = d_center / dt;
-  //here we can calculate angular velocity from wheels
+  prev_wheel_tick_msg = wheel_tick_msg;
+  if (!has_prev_wheel_tick_msg) {
+    has_prev_wheel_tick_msg = true;
+    return;
+  }
 
-  //ROS_INFO("vx %f dist %f",vx,d_center);
-  //geometry_msgs::Twist measured_twist;
-  //measured_twist.linear.x=;
-  //measured_twist.angular.z=;
-  //measured_vel_pub.publish(measured_twist);
+  measured_vel_pub.publish(measured_wheel_tick_twist);
+
+  geometry_msgs::Twist measured_odom_twist;
+  measured_odom_twist.linear.x = (last_rear_odom.twist.twist.linear.x + last_front_odom.twist.twist.linear.x)/2;
+  measured_odom_twist.angular.z = (last_rear_odom.twist.twist.angular.z + last_front_odom.twist.twist.angular.z)/2;
+  //measured_vel_pub.publish(measured_odom_twist);
+
+  ROS_INFO("[mower_comms] WheelTickTwist %+5.3f %+5.3f OdomTwist %+5.3f %+5.3f",
+    measured_wheel_tick_twist.linear.x,measured_wheel_tick_twist.angular.z,
+    measured_odom_twist.linear.x,measured_odom_twist.angular.z);
 }
 
 /*std::string getHallConfigsString(const HallConfig *hall_configs, const size_t size) {
@@ -688,6 +706,17 @@ void onFrontStateReceived(const hoverboard_driver::HoverboardStateStamped::Const
   // ROS_INFO_STREAM("[mower_comms] Got front driver state: "<< +msg->state.connection_state);
   last_front_status = *msg;
 }
+
+void onRearOdomReceived(const nav_msgs::Odometry::ConstPtr &msg) {
+  // ROS_INFO_STREAM("[mower_comms] Got front driver state: "<< +msg->state.connection_state);
+  last_rear_odom = *msg;
+}
+
+void onFrontOdomReceived(const nav_msgs::Odometry::ConstPtr &msg) {
+  // ROS_INFO_STREAM("[mower_comms] Got front driver state: "<< +msg->state.connection_state);
+  last_front_odom = *msg;
+}
+
 
 void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {
   ROS_INFO_STREAM("[mower_comms] Got UI button with code:" << +ui_event->button_id
@@ -1012,7 +1041,7 @@ int main(int argc, char **argv) {
   sensor_imu_pub = n.advertise<sensor_msgs::Imu>("imu/data_raw", 1);
   sensor_mag_pub = n.advertise<sensor_msgs::MagneticField>("imu/mag", 1);
   cmd_vel_safe_pub = n.advertise<geometry_msgs::Twist>("cmd_vel_safe", 1);
-  measured_vel_pub = n.advertise<geometry_msgs::Twist>("measured_vel", 1);
+  measured_vel_pub = n.advertise<geometry_msgs::Twist>("mower/measured_vel", 1);
 
   ros::ServiceServer mow_service = n.advertiseService("mower_service/mow_enabled", setMowEnabled);
   ros::ServiceServer emergency_service = n.advertiseService("mower_service/emergency", setEmergencyMode);
@@ -1024,6 +1053,11 @@ int main(int argc, char **argv) {
       n.subscribe("/rear/hoverboard_driver/state", 0, onRearStateReceived, ros::TransportHints().tcpNoDelay(true));
   ros::Subscriber front_state_sub =
       n.subscribe("/front/hoverboard_driver/state", 0, onFrontStateReceived, ros::TransportHints().tcpNoDelay(true));
+
+  ros::Subscriber rear_odom_sub =
+      n.subscribe("/rear/hoverboard_velocity_controller/odom", 0, onRearOdomReceived, ros::TransportHints().tcpNoDelay(true));
+  ros::Subscriber front_odom_sub =
+      n.subscribe("/front/hoverboard_velocity_controller/odom", 0, onFrontOdomReceived, ros::TransportHints().tcpNoDelay(true));
 
   size_t buflen = 1000;
   uint8_t buffer[buflen];
