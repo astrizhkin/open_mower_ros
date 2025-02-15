@@ -17,7 +17,7 @@
 //
 //
 #include <dynamic_reconfigure/client.h>
-#include <geometry_msgs/Twist.h>
+#include <geometry_msgs/TwistStamped.h>
 #include <nav_msgs/Odometry.h>
 #include <hoverboard_driver/HoverboardStateStamped.h>
 #include <mower_msgs/Status.h>
@@ -481,9 +481,11 @@ void sendWheelTickAndMeasuredTwist(ros::Time& stamp) {
 
   double d_linear = (d_wheel_r + d_wheel_l) / 2.0;
   double d_angular = (d_wheel_r - d_wheel_l) / wheel_separation_m;
-  geometry_msgs::Twist measured_wheel_tick_twist;
-  measured_wheel_tick_twist.linear.x = d_linear/dt;
-  measured_wheel_tick_twist.angular.z = d_angular/dt;
+  geometry_msgs::TwistStamped measured_wheel_tick_twist;
+  measured_wheel_tick_twist.header.frame_id = "base_link";
+  measured_wheel_tick_twist.header.stamp = stamp;
+  measured_wheel_tick_twist.twist.linear.x = d_linear/dt;
+  measured_wheel_tick_twist.twist.angular.z = d_angular/dt;
 
   prev_wheel_tick_msg = wheel_tick_msg;
   if (!has_prev_wheel_tick_msg) {
@@ -493,14 +495,16 @@ void sendWheelTickAndMeasuredTwist(ros::Time& stamp) {
 
   measured_vel_pub.publish(measured_wheel_tick_twist);
 
-  geometry_msgs::Twist measured_odom_twist;
-  measured_odom_twist.linear.x = (last_rear_odom.twist.twist.linear.x + last_front_odom.twist.twist.linear.x)/2;
-  measured_odom_twist.angular.z = (last_rear_odom.twist.twist.angular.z + last_front_odom.twist.twist.angular.z)/2;
+  geometry_msgs::TwistStamped measured_odom_twist;
+  measured_odom_twist.header.frame_id = "base_link";
+  measured_odom_twist.header.stamp = stamp;
+  measured_odom_twist.twist.linear.x = (last_rear_odom.twist.twist.linear.x + last_front_odom.twist.twist.linear.x)/2;
+  measured_odom_twist.twist.angular.z = (last_rear_odom.twist.twist.angular.z + last_front_odom.twist.twist.angular.z)/2;
   //measured_vel_pub.publish(measured_odom_twist);
 
   ROS_INFO("[mower_comms] WheelTickTwist %+5.3f %+5.3f OdomTwist %+5.3f %+5.3f",
-    measured_wheel_tick_twist.linear.x,measured_wheel_tick_twist.angular.z,
-    measured_odom_twist.linear.x,measured_odom_twist.angular.z);
+    measured_wheel_tick_twist.twist.linear.x,measured_wheel_tick_twist.twist.angular.z,
+    measured_odom_twist.twist.linear.x,measured_odom_twist.twist.angular.z);
 }
 
 /*std::string getHallConfigsString(const HallConfig *hall_configs, const size_t size) {
@@ -1043,7 +1047,7 @@ int main(int argc, char **argv) {
   sensor_imu_pub = n.advertise<sensor_msgs::Imu>("imu/data_raw", 1);
   sensor_mag_pub = n.advertise<sensor_msgs::MagneticField>("imu/mag", 1);
   cmd_vel_safe_pub = n.advertise<geometry_msgs::Twist>("cmd_vel_safe", 1);
-  measured_vel_pub = n.advertise<geometry_msgs::Twist>("mower/measured_vel", 1);
+  measured_vel_pub = n.advertise<geometry_msgs::TwistStamped>("mower/measured_vel", 1);
 
   ros::ServiceServer mow_service = n.advertiseService("mower_service/mow_enabled", setMowEnabled);
   ros::ServiceServer emergency_service = n.advertiseService("mower_service/emergency", setEmergencyMode);
