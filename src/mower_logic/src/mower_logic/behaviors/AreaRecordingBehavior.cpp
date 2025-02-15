@@ -507,9 +507,9 @@ void AreaRecordingBehavior::handle_action(std::string action) {
   } else if (action == "mower_logic:area_recording/collect_point") {
     collect_point = true;
   } else if (action == "mower_logic:area_recording/start_manual_mowing") {
-    mower_enabled_flag = true;
+    setMowerEnabled(true);
   } else if (action == "mower_logic:area_recording/stop_manual_mowing") {
-    mower_enabled_flag = false;
+    setMowerEnabled(false);
   }
   update_actions();
 }

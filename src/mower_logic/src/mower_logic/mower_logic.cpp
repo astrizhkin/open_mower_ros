@@ -99,6 +99,8 @@ ros::Time last_rain_check;
 bool rain_detected = true;
 ros::Time rain_resume;
 
+float last_mower_power = 0.0;
+
 /**
  * Some thread safe methods to get a copy of the logic state
  */
@@ -276,6 +278,11 @@ bool setMowerEnabledEx(bool enabled, float power, bool direction) {
     ROS_WARN_STREAM("[mower_logic] setMowerEnabled() - Mower should be enabled but is hard-disabled in the config.");
     enabled = false;
   }
+  if(enabled) {
+    last_mower_power = power;
+  }else{
+    last_mower_power = 0.0;
+  }
 
   mower_msgs::MowerControlSrv mow_srv;
   mow_srv.request.mow_enabled = enabled;
@@ -299,40 +306,12 @@ bool setMowerEnabledEx(bool enabled, float power, bool direction) {
     ROS_ERROR_STREAM("[mower_logic] Error setting mower enabled. THIS SHOULD NEVER HAPPEN");
   }
 
-  // ROS_WARN_STREAM("[mower_logic] setMowerEnabled(" << enabled << ", " <<
-  // static_cast<unsigned>(mow_srv.request.mow_direction) << ") call completed within " << (ros::Time::now() -
-  // started).toSec() << "s");
-
-  // TODO: Spinup feedback & delay
-  /*    if (enabled) {
-          ROS_INFO_STREAM("enabled mower, waiting for it to speed up");
-
-          // TODO timeout and error
-          ros::Time started = ros::Time::now();
-          while (true) {
-              if (status_time > started) {
-                  // we have a current status message, wait for mower to speed up
-                  bool mower_running = (last_status.speed_mow_status & 0b10);
-                  if (mower_running) {
-                      ROS_INFO_STREAM("mower motor started");
-                      return true;
-                  }
-              }
-              if (ros::Time::now() - started > ros::Duration(25.0)) {
-                  // mower was not able to start
-                  ROS_ERROR_STREAM("error starting mower motor...");
-                  setMowerEnabled(false);
-                  return false;
-              }
-          }
-      }*/
-
   return true;
 }
 
 bool setMowerEnabled(bool enabled) {
-  ros::Time started = ros::Time::now();
-  bool reverseDirection = (started.sec & 0b111) == 0b11;  // Reverse mower direction for 1 sec after 7 sec
+  ros::Time now = ros::Time::now();
+  bool reverseDirection = (now.sec & 0b111) == 0b11;  // Reverse mower direction for 1 sec after 7 sec
   return setMowerEnabledEx(enabled, 0.6, !reverseDirection);
 }
 
@@ -445,11 +424,6 @@ void checkSafety(const ros::TimerEvent &timer_event) {
   const auto odom_time = getOdomTime();
   const auto status_time = getStatusTime();
   const auto last_good_gps = getLastGoodGPS();
-
-  // only disable mower if not allowed
-  if (currentBehavior != nullptr && !currentBehavior->redirect_joystick()) {
-    setMowerEnabled(currentBehavior->mower_enabled());
-  }
 
   high_level_status.emergency = last_status.emergency;
   high_level_status.is_charging = last_status.charging;
@@ -597,10 +571,20 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     }
   }
 
-  // enable the mower (if not aleady) if mowerAllowed is still true after checks and bahavior agrees
-  setMowerEnabled(currentBehavior != nullptr && currentBehavior->mower_enabled());
-
-  // double battery_percent = (last_status.v_battery - last_config.battery_empty_voltage) /
+  // enable the mower if is still true after checks and bahavior agrees
+  if(currentBehavior!=nullptr && currentBehavior->mower_enabled()) {
+      if(currentBehavior->redirect_joystick()){
+        //manual/joystick mower mode
+        setMowerEnabledEx(true, last_mower_power, true);
+      }else{
+        //automatic mower mode
+        setMowerEnabled(true);
+      }
+  }else{
+    setMowerEnabled(false);
+  }
+  
+   // double battery_percent = (last_status.v_battery - last_config.battery_empty_voltage) /
   //                        (last_config.battery_full_voltage - last_config.battery_empty_voltage);
   uint8_t battery_percent = last_status.battery_soc;
   if (battery_percent > 100) {
