@@ -1,9 +1,9 @@
-obstacle_range: 3.0
-raytrace_range: 4.0
+obstacle_range: 2.3
+raytrace_range: 2.55
 #footprint: [[x0, y0], [x1, y1], ... [xn, yn]]
 #footprint: [[-0.25, -0.25], [-0.25, 0.25], [0.25, 0.25], [0.25, -0.25]]
-#robot_radius: 0.3
-
+robot_radius: 0.3
+inflation_radius: 0.3
 max_obstacle_height: 1.0
 
 uss_layer:
@@ -13,5 +13,5 @@ uss_layer:
   clear_threshold: 0.20
   mark_threshold: 0.80
   debug_publisher: true
-  use_decay: true
+  use_decay: false
   pixel_decay: 10.0
