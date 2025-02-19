@@ -60,6 +60,7 @@ struct SensorConfig {
 void set_limits_battery_v(SensorConfig &sensor_config);
 void set_limits_battery_current(SensorConfig &sensor_config);
 void set_limits_battery_soc(SensorConfig &sensor_config);
+void set_limits_battery_temperature(SensorConfig &sensor_config);
 void set_limits_charge_v(SensorConfig &sensor_config);
 void set_limits_esc_temp(SensorConfig &sensor_config);
 void set_limits_mow_motor_current(SensorConfig &sensor_config);
@@ -153,7 +154,7 @@ void set_limits_battery_soc(SensorConfig &sensor_config) {
 }
 
 void set_limits_battery_temperature(SensorConfig &sensor_config) {
-  sensor_config.si.lower_critical_value = mower_logic_config.charge_min_battery_temperature;//maybe battery_shutdown_soc
+  sensor_config.si.lower_critical_value = mower_logic_config.charge_min_battery_temperature;
   sensor_config.si.upper_critical_value = mower_logic_config.charge_max_battery_temperature;
 }
 
