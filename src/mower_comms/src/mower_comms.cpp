@@ -907,7 +907,7 @@ void handleLowLevelConfig(struct ll_high_level_config *ll_config) {
       
         //uss group (4x8)
         //USS_ACTIVE = 40+32,//bool, address2 is requred
-        default:set successfully
+        default:
           ROS_WARN_STREAM("[mower_comms] Unknown config response address "<<(int)responseItem.address <<","<<(int)responseItem.address2<<"="<<(int)responseItem.value.int32Value);
       }
       // clang-format on
