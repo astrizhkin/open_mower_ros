@@ -594,11 +594,19 @@ struct {
     AddressAndValue &expected = scheduledUpdates.at(0);
     if(expected.address==response.address && expected.address2==response.address2) {
       if(type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_ERR) {
-        ROS_ERROR_STREAM("[mower_comms] Get error config response "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
+        if(response.address==ConfigAddress::COMMAND) {
+          ROS_ERROR_STREAM("[mower_comms] Command "<<(int)response.value.int8Value<<" execution failed");
+        }else{
+          ROS_ERROR_STREAM("[mower_comms] Get error config response "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
+        }
         return;
       } else if(type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_SET) {
-        ROS_INFO_STREAM("[mower_comms] New config value accepted "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
-        executedUpdates.push_back(response);
+        if(response.address==ConfigAddress::COMMAND) {
+          ROS_INFO_STREAM("[mower_comms] Command "<<(int)response.value.int8Value<<" executed successfully");
+        } else {
+          ROS_INFO_STREAM("[mower_comms] New config value accepted "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
+          executedUpdates.push_back(response);
+        }
       } else if(type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_GET) {
         ROS_INFO_STREAM("[mower_comms] Config value unchanged "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
       }
