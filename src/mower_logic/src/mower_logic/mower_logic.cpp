@@ -474,7 +474,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
   normalGravityAngle *= 180 / M_PI;
   if (normalGravityAngle > 30) {
     ROS_WARN_STREAM_THROTTLE(
-        5, "[mower_logic] EMERGENCY pose gravity angle is out of bound " << (ros::Time::now() - pose_time));
+        5, "[mower_logic] EMERGENCY pose gravity angle "<< normalGravityAngle <<" is out of bound " << (ros::Time::now() - pose_time));
     setEmergencyMode(true, mower_msgs::EmergencyModeSrvRequest::EMERGENCY_POSE,
                      "[mower_logic] pose gravity angle is out of bound", ros::Duration::ZERO);
     return;

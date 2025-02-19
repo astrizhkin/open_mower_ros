@@ -593,12 +593,19 @@ struct {
   void ackResponse(uint8_t type,AddressAndValue &response) {  // Call this on receive of a response packet to stop monitoring
     AddressAndValue &expected = scheduledUpdates.at(0);
     if(expected.address==response.address && expected.address2==response.address2) {
-      executedUpdates.push_back(response);
+      if(type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_ERR) {
+        ROS_ERROR_STREAM("[mower_comms] Get error config response "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
+        return;
+      } else if(type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_SET) {
+        ROS_INFO_STREAM("[mower_comms] New config value accepted "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
+        executedUpdates.push_back(response);
+      } else if(type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_GET) {
+        ROS_INFO_STREAM("[mower_comms] Config value unchanged "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
+      }
       scheduledUpdates.erase(scheduledUpdates.begin());
-      ROS_INFO_STREAM("[mower_comms] Got config packet "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
       tries_left = 5;
     }else{
-      ROS_WARN_STREAM("[mower_comms] Got unexpected config packet. Expected " << (int)expected.address <<","<<(int)expected.address2 << " received "<<(int)response.address <<","<<(int)response.address2);
+      ROS_ERROR_STREAM("[mower_comms] Got unexpected config packet. Expected " << (int)expected.address <<","<<(int)expected.address2 << " received "<<(int)response.address <<","<<(int)response.address2);
     }
   };
 
@@ -834,9 +841,6 @@ void handleLowLevelConfig(struct ll_high_level_config *ll_config) {
       .address2 = ll_config->address2,
       .value = ll_config->value
   };
-  if(ll_config->type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_ERR) {
-    ROS_ERROR_STREAM("[mower_comms] Get error config response address "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
-  }
 
   configTracker.ackResponse(ll_config->type,response);
   if(configTracker.isComplete()) {
@@ -845,6 +849,39 @@ void handleLowLevelConfig(struct ll_high_level_config *ll_config) {
     for(AddressAndValue &responseItem : allResponses) {
       // clang-format off
       switch(responseItem.address){
+        case ConfigAddress::CHARGE_START_SOC:
+          mower_logic_config.charge_start_soc= getNewSetChanged<double>(mower_logic_config.charge_start_soc, responseItem.value.int8Value, dirty);
+          break;
+        case ConfigAddress::CHARGE_START_VOLTAGE:
+          mower_logic_config.charge_start_voltage = getNewSetChanged<double>(mower_logic_config.charge_start_voltage, responseItem.value.floatValue, dirty);
+          break;
+        case ConfigAddress::CHARGE_STOP_SOC:
+          mower_logic_config.charge_stop_soc= getNewSetChanged<double>(mower_logic_config.charge_stop_soc, responseItem.value.int8Value, dirty);
+          break;
+        case ConfigAddress::CHARGE_STOP_VOLTAGE:
+          mower_logic_config.charge_stop_voltage = getNewSetChanged<double>(mower_logic_config.charge_stop_voltage, responseItem.value.floatValue, dirty);
+          break;
+        case ConfigAddress::CHARGE_STOP_CURRENT:
+          mower_logic_config.charge_stop_current = getNewSetChanged<double>(mower_logic_config.charge_stop_current, responseItem.value.floatValue, dirty);
+          break;
+        case ConfigAddress::CHARGE_MAX_CURRENT:
+          mower_logic_config.charge_max_current = getNewSetChanged<double>(mower_logic_config.charge_max_current, responseItem.value.floatValue, dirty);
+          break;
+        case ConfigAddress::CHARGER_MAX_VOLTAGE:
+          mower_logic_config.charger_max_voltage = getNewSetChanged<double>(mower_logic_config.charger_max_voltage, responseItem.value.floatValue, dirty);
+          break;
+        case ConfigAddress::CHARGER_MIN_VOLTAGE:
+          mower_logic_config.charger_min_voltage = getNewSetChanged<double>(mower_logic_config.charger_min_voltage, responseItem.value.floatValue, dirty);
+          break;
+        case ConfigAddress::CHARGE_MIN_BATTERY_TEMPERATURE:
+          mower_logic_config.charge_min_battery_temperature= getNewSetChanged<double>(mower_logic_config.charge_min_battery_temperature, responseItem.value.floatValue, dirty);
+          break;
+        case ConfigAddress::CHARGE_MAX_BATTERY_TEMPERATURE:
+          mower_logic_config.charge_max_battery_temperature = getNewSetChanged<double>(mower_logic_config.charge_max_battery_temperature, responseItem.value.floatValue, dirty);
+          break;
+        case ConfigAddress::CHARGE_STOP_BALANCER_TEMPERATURE:
+          mower_logic_config.charge_stop_balancer_temperature = getNewSetChanged<double>(mower_logic_config.charge_stop_balancer_temperature, responseItem.value.floatValue, dirty);
+          break;
         case ConfigAddress::BATTERY_EMPTY_VOLTAGE:
           mower_logic_config.battery_empty_voltage = getNewSetChanged<double>(mower_logic_config.battery_empty_voltage, responseItem.value.floatValue, dirty);
           break;
@@ -852,9 +889,25 @@ void handleLowLevelConfig(struct ll_high_level_config *ll_config) {
           mower_logic_config.battery_full_voltage = getNewSetChanged<double>(mower_logic_config.battery_full_voltage, responseItem.value.floatValue, dirty);
           break;
         case ConfigAddress::BATTERY_LOW_WARNING_SOC:
-          //mower_logic_config. = getNewSetChanged<double>(mower_logic_config., responseItem.value.int8Value, dirty);
+          mower_logic_config.battery_low_soc = getNewSetChanged<double>(mower_logic_config.battery_low_soc, responseItem.value.int8Value, dirty);
           break;
-        default:
+        case ConfigAddress::BATTERY_LOW_WARNING_VOLTAGE:
+          mower_logic_config.battery_low_voltage = getNewSetChanged<double>(mower_logic_config.battery_low_voltage, responseItem.value.floatValue, dirty);
+          break;
+        case ConfigAddress::BATTERY_SHUTDOWN_SOC:
+          mower_logic_config.battery_shutdown_soc = getNewSetChanged<double>(mower_logic_config.battery_shutdown_soc, responseItem.value.int8Value, dirty);
+          break;
+        case ConfigAddress::BATTERY_SHUTDOWN_VOLTAGE:
+          mower_logic_config.battery_shutdown_voltage = getNewSetChanged<double>(mower_logic_config.battery_shutdown_voltage, responseItem.value.floatValue, dirty);
+          break;
+        //contact group (4x8)
+        //CONTACT_MODE = 40,//ContactMode, address2 is requred
+        //CONTACT_ACTIVE_LOW = 41,//bool, address2 is requred
+        //CONTACT_TIMEOUT = 42,//bool, address2 is requred
+      
+        //uss group (4x8)
+        //USS_ACTIVE = 40+32,//bool, address2 is requred
+        default:set successfully
           ROS_WARN_STREAM("[mower_comms] Unknown config response address "<<(int)responseItem.address <<","<<(int)responseItem.address2<<"="<<(int)responseItem.value.int32Value);
       }
       // clang-format on

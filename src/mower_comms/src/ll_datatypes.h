@@ -190,24 +190,24 @@ typedef enum ConfigAddress {
 
   //charge group (20)
   CHARGE_START_SOC = 10, //int percent, 0 - disable
-  CHARGE_START_VOLTAGE = 11,//float volt, 0 - disable
+  CHARGE_START_VOLTAGE = 11,//float voltage, 0 - disable
   CHARGE_STOP_SOC = 12,  //int percent, 0 - disable
-  CHARGE_STOP_VOLTAGE = 13,//float volt, 0 - disable
+  CHARGE_STOP_VOLTAGE = 13,//float voltage, 0 - disable
   CHARGE_STOP_CURRENT = 14,//float current, 0 - disable
   CHARGE_MAX_CURRENT = 15,//float current, 0 - disable
-  CHARGER_MAX_VOLTAGE = 16,//float volt, 0 - disable
-  CHARGER_MIN_VOLTAGE = 17,//float volt, 0 - disable
-  CHARGE_MIN_BATTERY_TEMPERATURE = 18, //int percent, 0 - disable
-  CHARGE_MAX_BATTERY_TEMPERATURE = 19,//float volt, 0 - disable
-  CHARGE_STOP_BALANCER_TEMPERATURE = 20,//float volt, 0 - disable
+  CHARGER_MAX_VOLTAGE = 16,//float voltage, 0 - disable
+  CHARGER_MIN_VOLTAGE = 17,//float voltage, 0 - disable
+  CHARGE_MIN_BATTERY_TEMPERATURE = 18, //float temparature, 0 - disable
+  CHARGE_MAX_BATTERY_TEMPERATURE = 19,//float temparature, 0 - disable
+  CHARGE_STOP_BALANCER_TEMPERATURE = 20,//float temparature, 0 - disable
 
   //battery group (10)
-  BATTERY_EMPTY_VOLTAGE = 30,//float current, 0 - disable
-  BATTERY_FULL_VOLTAGE = 31,//float current, 0 - disable
+  BATTERY_EMPTY_VOLTAGE = 30,//float voltage, 0 - disable
+  BATTERY_FULL_VOLTAGE = 31,//float voltage, 0 - disable
   BATTERY_LOW_WARNING_SOC = 32,//int percent, 0 - disable
-  BATTERY_LOW_WARNING_VOLTAGE = 33,//float current, 0 - disable
+  BATTERY_LOW_WARNING_VOLTAGE = 33,//float voltage, 0 - disable
   BATTERY_SHUTDOWN_SOC = 34,//int percent, 0 - disable
-  BATTERY_SHUTDOWN_VOLTAGE = 35,//float current, 0 - disable
+  BATTERY_SHUTDOWN_VOLTAGE = 35,//float voltage, 0 - disable
 
   //contact group (4x8)
   CONTACT_MODE = 40,//ContactMode, address2 is requred
