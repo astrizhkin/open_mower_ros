@@ -25,6 +25,7 @@
             <param name="use_f9r_sensor_fusion" value="$(optenv OM_USE_F9R_SENSOR_FUSION False)"/>
             <param unless="$(env OM_USE_RELATIVE_POSITION)" name="datum_lat" value="$(env OM_DATUM_LAT)"/>
             <param unless="$(env OM_USE_RELATIVE_POSITION)" name="datum_long" value="$(env OM_DATUM_LONG)"/>
+            <param unless="$(env OM_USE_RELATIVE_POSITION)" name="datum_height" value="$(env OM_DATUM_HEIGHT)"/>
             <remap from="xbot_driver_gps/imu" to="driver_gps_node/imu"/>
             <remap from="xbot_driver_gps/xb_pose" to="driver_gps_node/xb_pose"/>
         </node>
