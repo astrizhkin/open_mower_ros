@@ -12,6 +12,6 @@ uss_layer:
   clear_on_max_reading: false
   clear_threshold: 0.20
   mark_threshold: 0.80
-  debug_publisher: true
+  debug_publisher: false
   use_decay: false
   pixel_decay: 10.0
