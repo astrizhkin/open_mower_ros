@@ -16,6 +16,10 @@
 // SOFTWARE.
 //
 //
+
+//#define WHEEL_TICKS_MSG
+//#define HOVERBOARD_ODOM
+
 #include <dynamic_reconfigure/client.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <nav_msgs/Odometry.h>
@@ -24,7 +28,9 @@
 #include <sensor_msgs/Joy.h>
 #include <sensor_msgs/Range.h>
 #include <serial/serial.h>
-#include <xbot_msgs/WheelTick.h>
+#ifdef WHEEL_TICKS_MSG
+  #include <xbot_msgs/WheelTick.h>
+#endif
 #include <xesc_driver/xesc_driver.h>
 #include <xesc_msgs/XescStateStamped.h>
 
@@ -46,7 +52,9 @@
 #include "std_msgs/Float64.h"
 
 ros::Publisher status_pub;
-ros::Publisher wheel_tick_pub;
+#ifdef WHEEL_TICKS_MSG
+  ros::Publisher wheel_tick_pub;
+#endif
 
 ros::Publisher sensor_imu_pub;
 ros::Publisher sensor_mag_pub;
@@ -80,6 +88,7 @@ uint8_t mower_direction = 0;
 double wheel_radius_m = 0.0;
 double wheel_separation_m = 0.0;
 double cmd_vel_timout = 0.0;
+bool publish_mag = false;
 
 bool mower_esc_enabled = false;
 
@@ -100,10 +109,17 @@ boost::crc_ccitt_type crc;
 xesc_driver::XescDriver *mow_xesc_interface;
 hoverboard_driver::HoverboardStateStamped last_rear_status;
 hoverboard_driver::HoverboardStateStamped last_front_status;
-nav_msgs::Odometry last_rear_odom;
-nav_msgs::Odometry last_front_odom;
+#ifdef HOVERBOARD_ODOM
+  nav_msgs::Odometry last_rear_odom;
+  nav_msgs::Odometry last_front_odom;
+#endif
 xesc_msgs::XescStateStamped last_mow_status;
-xbot_msgs::WheelTick prev_wheel_tick_msg;
+#ifdef WHEEL_TICKS_MSG
+  xbot_msgs::WheelTick prev_wheel_tick_msg;
+#else
+  double prev_wheel_pos_rl, prev_wheel_pos_fl, prev_wheel_pos_rr, prev_wheel_pos_fr;
+  ros::Time prev_wheel_pos_stamp;
+#endif
 bool has_prev_wheel_tick_msg = false;
 
 std::mutex ll_status_mutex;
@@ -442,39 +458,59 @@ void publishStatus() {
 }
 
 void sendWheelTickAndMeasuredTwist(ros::Time& stamp) {
-  xbot_msgs::WheelTick wheel_tick_msg;
-  wheel_tick_msg.valid_wheels = xbot_msgs::WheelTick::WHEEL_VALID_FL | xbot_msgs::WheelTick::WHEEL_VALID_FR |
-                                xbot_msgs::WheelTick::WHEEL_VALID_RL | xbot_msgs::WheelTick::WHEEL_VALID_RR;
-  wheel_tick_msg.wheel_pos_to_tick_factor = 0;  // TODO: pass it for F9R
-  wheel_tick_msg.wheel_radius = wheel_radius_m;
-  wheel_tick_msg.wheel_separation = wheel_separation_m;
-  wheel_tick_msg.stamp = stamp;
-  // check compatibility .wheel_ticks_rl and hoverboard .wheelX_cnt (previosuly was tacho_absolute)
+  #ifdef WHEEL_TICKS_MSG  
+    xbot_msgs::WheelTick wheel_tick_msg;
+    wheel_tick_msg.valid_wheels = xbot_msgs::WheelTick::WHEEL_VALID_FL | xbot_msgs::WheelTick::WHEEL_VALID_FR |
+                                  xbot_msgs::WheelTick::WHEEL_VALID_RL | xbot_msgs::WheelTick::WHEEL_VALID_RR;
+    wheel_tick_msg.wheel_pos_to_tick_factor = 0;  // TODO: pass it for F9R
+    wheel_tick_msg.wheel_radius = wheel_radius_m;
+    wheel_tick_msg.wheel_separation = wheel_separation_m;
+    wheel_tick_msg.stamp = stamp;
+    // check compatibility .wheel_ticks_rl and hoverboard .wheelX_cnt (previosuly was tacho_absolute)
 
-  wheel_tick_msg.wheel_pos_fl = last_front_status.state.wheelL_cnt;
-  // wheel_tick_msg.wheel_speed_fl = last_front_status.state.speedL_meas;
-  wheel_tick_msg.wheel_direction_fl = last_front_status.state.speedL_meas > 0;
-  wheel_tick_msg.wheel_pos_fr = last_front_status.state.wheelR_cnt;
-  // wheel_tick_msg.wheel_speed_fr = last_front_status.state.speedR_meas;
-  wheel_tick_msg.wheel_direction_fr = last_front_status.state.speedR_meas > 0;
+    wheel_tick_msg.wheel_pos_fl = last_front_status.state.wheelL_cnt;
+    // wheel_tick_msg.wheel_speed_fl = last_front_status.state.speedL_meas;
+    wheel_tick_msg.wheel_direction_fl = last_front_status.state.speedL_meas > 0;
+    wheel_tick_msg.wheel_pos_fr = last_front_status.state.wheelR_cnt;
+    // wheel_tick_msg.wheel_speed_fr = last_front_status.state.speedR_meas;
+    wheel_tick_msg.wheel_direction_fr = last_front_status.state.speedR_meas > 0;
 
-  wheel_tick_msg.wheel_pos_rl = last_rear_status.state.wheelL_cnt;
-  // wheel_tick_msg.wheel_speed_rl = last_rear_status.state.speedL_meas;
-  wheel_tick_msg.wheel_direction_rl = last_rear_status.state.speedL_meas > 0;
-  wheel_tick_msg.wheel_pos_rr = last_rear_status.state.wheelR_cnt;
-  // wheel_tick_msg.wheel_speed_rr = last_rear_status.state.speedR_meas;
-  wheel_tick_msg.wheel_direction_rr = last_rear_status.state.speedR_meas > 0;
+    wheel_tick_msg.wheel_pos_rl = last_rear_status.state.wheelL_cnt;
+    // wheel_tick_msg.wheel_speed_rl = last_rear_status.state.speedL_meas;
+    wheel_tick_msg.wheel_direction_rl = last_rear_status.state.speedL_meas > 0;
+    wheel_tick_msg.wheel_pos_rr = last_rear_status.state.wheelR_cnt;
+    // wheel_tick_msg.wheel_speed_rr = last_rear_status.state.speedR_meas;
+    wheel_tick_msg.wheel_direction_rr = last_rear_status.state.speedR_meas > 0;
 
-  wheel_tick_pub.publish(wheel_tick_msg);
+    wheel_tick_pub.publish(wheel_tick_msg);
 
-  geometry_msgs::Twist wheelTickTwist;
-  
-  double dt = (wheel_tick_msg.stamp - prev_wheel_tick_msg.stamp).toSec();
+    double dt = (wheel_tick_msg.stamp - prev_wheel_tick_msg.stamp).toSec();
+    double rl_delta = wheel_tick_msg.wheel_pos_rl - prev_wheel_tick_msg.wheel_pos_rl;
+    double fl_delta = wheel_tick_msg.wheel_pos_fl - prev_wheel_tick_msg.wheel_pos_fl;
+    double rr_delta = wheel_tick_msg.wheel_pos_rr - prev_wheel_tick_msg.wheel_pos_rr;
+    double fr_delta = wheel_tick_msg.wheel_pos_fr - prev_wheel_tick_msg.wheel_pos_fr;
 
-  double rl_delta = wheel_tick_msg.wheel_pos_rl - prev_wheel_tick_msg.wheel_pos_rl;
-  double fl_delta = wheel_tick_msg.wheel_pos_fl - prev_wheel_tick_msg.wheel_pos_fl;
-  double rr_delta = wheel_tick_msg.wheel_pos_rr - prev_wheel_tick_msg.wheel_pos_rr;
-  double fr_delta = wheel_tick_msg.wheel_pos_fr - prev_wheel_tick_msg.wheel_pos_fr;
+    prev_wheel_tick_msg = wheel_tick_msg;
+  #else
+    double dt = (stamp - prev_wheel_pos_stamp).toSec();
+    double rl_delta = last_rear_status.state.wheelL_cnt - prev_wheel_pos_rl;
+    double fl_delta = last_front_status.state.wheelL_cnt - prev_wheel_pos_fl;
+    double rr_delta = last_rear_status.state.wheelR_cnt - prev_wheel_pos_rr;
+    double fr_delta = last_front_status.state.wheelR_cnt - prev_wheel_pos_fr;
+
+    prev_wheel_pos_stamp = stamp;
+    prev_wheel_pos_rl = last_rear_status.state.wheelL_cnt;
+    prev_wheel_pos_fl = last_front_status.state.wheelL_cnt;
+    prev_wheel_pos_rr = last_rear_status.state.wheelR_cnt;
+    prev_wheel_pos_fr = last_front_status.state.wheelR_cnt;
+  #endif
+
+  //prev_wheel_tick_msg = wheel_tick_msg;
+  if (!has_prev_wheel_tick_msg) {
+    has_prev_wheel_tick_msg = true;
+    return;
+  }
+
 
   double d_wheel_l = (rl_delta + fl_delta) * wheel_radius_m / 2;
   double d_wheel_r = (rr_delta + fr_delta) * wheel_radius_m / 2;
@@ -487,20 +523,16 @@ void sendWheelTickAndMeasuredTwist(ros::Time& stamp) {
   measured_wheel_tick_twist.twist.linear.x = d_linear/dt;
   measured_wheel_tick_twist.twist.angular.z = d_angular/dt;
 
-  prev_wheel_tick_msg = wheel_tick_msg;
-  if (!has_prev_wheel_tick_msg) {
-    has_prev_wheel_tick_msg = true;
-    return;
-  }
-
   measured_vel_pub.publish(measured_wheel_tick_twist);
 
-  geometry_msgs::TwistStamped measured_odom_twist;
-  measured_odom_twist.header.frame_id = "base_link";
-  measured_odom_twist.header.stamp = stamp;
-  measured_odom_twist.twist.linear.x = (last_rear_odom.twist.twist.linear.x + last_front_odom.twist.twist.linear.x)/2;
-  measured_odom_twist.twist.angular.z = (last_rear_odom.twist.twist.angular.z + last_front_odom.twist.twist.angular.z)/2;
-  //measured_vel_pub.publish(measured_odom_twist);
+  #ifdef HOVERBOARD_ODOM
+    geometry_msgs::TwistStamped measured_odom_twist;
+    measured_odom_twist.header.frame_id = "base_link";
+    measured_odom_twist.header.stamp = stamp;
+    measured_odom_twist.twist.linear.x = (last_rear_odom.twist.twist.linear.x + last_front_odom.twist.twist.linear.x)/2;
+    measured_odom_twist.twist.angular.z = (last_rear_odom.twist.twist.angular.z + last_front_odom.twist.twist.angular.z)/2;
+    //measured_vel_pub.publish(measured_odom_twist);
+  #endif
 
   //ROS_INFO("[mower_comms] WheelTickTwist %+5.3f %+5.3f OdomTwist %+5.3f %+5.3f",
   //  measured_wheel_tick_twist.twist.linear.x,measured_wheel_tick_twist.twist.angular.z,
@@ -713,6 +745,7 @@ void onFrontStateReceived(const hoverboard_driver::HoverboardStateStamped::Const
   last_front_status = *msg;
 }
 
+#ifdef HOVERBOARD_ODOM
 void onRearOdomReceived(const nav_msgs::Odometry::ConstPtr &msg) {
   // ROS_INFO_STREAM("[mower_comms] Got front driver state: "<< +msg->state.connection_state);
   last_rear_odom = *msg;
@@ -722,6 +755,7 @@ void onFrontOdomReceived(const nav_msgs::Odometry::ConstPtr &msg) {
   // ROS_INFO_STREAM("[mower_comms] Got front driver state: "<< +msg->state.connection_state);
   last_front_odom = *msg;
 }
+#endif
 
 
 void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {
@@ -846,13 +880,6 @@ void handleLowLevelStatus(struct ll_status *status) {
 
 void handleLowLevelIMU(struct ll_imu *imu) {
   // imu_msg.dt = imu->dt_millis;
-  sensor_mag_msg.header.stamp = ros::Time::now();
-  sensor_mag_msg.header.seq++;
-  sensor_mag_msg.header.frame_id = "base_link";
-  sensor_mag_msg.magnetic_field.x = imu->mag_uT[0] / 1000.0;
-  sensor_mag_msg.magnetic_field.y = imu->mag_uT[1] / 1000.0;
-  sensor_mag_msg.magnetic_field.z = imu->mag_uT[2] / 1000.0;
-
   sensor_imu_msg.header.stamp = ros::Time::now();
   sensor_imu_msg.header.seq++;
   sensor_imu_msg.header.frame_id = "base_link";
@@ -864,7 +891,17 @@ void handleLowLevelIMU(struct ll_imu *imu) {
   sensor_imu_msg.angular_velocity.z = imu->gyro_rads[imu_gyro_idx[2]] * imu_gyro_multiplier[2];
 
   sensor_imu_pub.publish(sensor_imu_msg);
-  sensor_mag_pub.publish(sensor_mag_msg);
+
+  if(publish_mag) {
+    sensor_mag_msg.header.stamp = ros::Time::now();
+    sensor_mag_msg.header.seq++;
+    sensor_mag_msg.header.frame_id = "base_link";
+    sensor_mag_msg.magnetic_field.x = imu->mag_uT[0] / 1000.0;
+    sensor_mag_msg.magnetic_field.y = imu->mag_uT[1] / 1000.0;
+    sensor_mag_msg.magnetic_field.z = imu->mag_uT[2] / 1000.0;
+
+    sensor_mag_pub.publish(sensor_mag_msg);
+  }
 }
 
 int parseAxes(ros::NodeHandle &paramNh, double *axes_multiplier, int *axes_idx, const std::string &axes_param) {
@@ -1020,6 +1057,10 @@ int main(int argc, char **argv) {
     ROS_INFO_STREAM("[mower_comms] Configured cmd_vel_timout: " << cmd_vel_timout);
   }
 
+  if (paramNh.param("publish_mag", publish_mag, false)) {
+    ROS_INFO_STREAM("[mower_comms] Configured publish_mag: " << publish_mag);
+  }
+
   if (!parseAxes(paramNh, imu_accel_multiplier, imu_accel_idx, "imu_accel_axes")) {
     return 1;
   }
@@ -1043,9 +1084,13 @@ int main(int argc, char **argv) {
 
   status_pub = n.advertise<mower_msgs::Status>("mower/status", 1);
   uss_pub = n.advertise<sensor_msgs::Range>("mower/uss", USS_COUNT);
-  wheel_tick_pub = n.advertise<xbot_msgs::WheelTick>("mower/wheel_ticks", 1);
+  #ifdef WHEEL_TICKS_MSG
+    wheel_tick_pub = n.advertise<xbot_msgs::WheelTick>("mower/wheel_ticks", 1);
+  #endif
   sensor_imu_pub = n.advertise<sensor_msgs::Imu>("imu/data_raw", 1);
-  sensor_mag_pub = n.advertise<sensor_msgs::MagneticField>("imu/mag", 1);
+  if(publish_mag) {
+    sensor_mag_pub = n.advertise<sensor_msgs::MagneticField>("imu/mag", 1);
+  }
   cmd_vel_safe_pub = n.advertise<geometry_msgs::Twist>("cmd_vel_safe", 1);
   measured_vel_pub = n.advertise<geometry_msgs::TwistStamped>("mower/measured_vel", 1);
 
@@ -1060,10 +1105,12 @@ int main(int argc, char **argv) {
   ros::Subscriber front_state_sub =
       n.subscribe("/front/hoverboard_driver/state", 0, onFrontStateReceived, ros::TransportHints().tcpNoDelay(true));
 
-  ros::Subscriber rear_odom_sub =
+  #ifdef HOVERBOARD_ODOM
+    ros::Subscriber rear_odom_sub =
       n.subscribe("/rear/hoverboard_velocity_controller/odom", 0, onRearOdomReceived, ros::TransportHints().tcpNoDelay(true));
-  ros::Subscriber front_odom_sub =
+    ros::Subscriber front_odom_sub =
       n.subscribe("/front/hoverboard_velocity_controller/odom", 0, onFrontOdomReceived, ros::TransportHints().tcpNoDelay(true));
+  #endif
 
   size_t buflen = 1000;
   uint8_t buffer[buflen];

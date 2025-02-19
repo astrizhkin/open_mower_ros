@@ -93,7 +93,7 @@ int main(int argc, char **argv) {
 
     ros::Subscriber global_point_sub = n.subscribe("/move_base_flex/FTCPlanner/global_point", 0, onControlPoint);
     ros::Subscriber tf_sub = n.subscribe("/tf", 0, onTransformation);
-    ros::Subscriber odom_sub = n.subscribe("/xbot_positioning/odom_2d_out", 0, onOdom);
+    ros::Subscriber odom_sub = n.subscribe("/xbot_positioning/odom_3d_out", 0, onOdom);
 
     error_pub = paramNh.advertise<ftc_local_planner::PID>("test_error", 10, false);
 
