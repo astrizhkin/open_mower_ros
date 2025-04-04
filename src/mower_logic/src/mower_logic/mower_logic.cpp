@@ -731,7 +731,7 @@ void actionReceived(const std_msgs::String::ConstPtr &action) {
 void joyVelReceived(const geometry_msgs::Twist::ConstPtr &joy_vel) {
   joy_vel_time = ros::Time::now();
   if (currentBehavior && currentBehavior->redirect_joystick()) {
-    ROS_INFO_STREAM("[mower_logic] redirect joystic cmd " << joy_vel->linear.x << ", " << joy_vel->angular.z);
+    ROS_INFO_STREAM_THROTTLE(2,"[mower_logic] redirect joystic cmd " << joy_vel->linear.x << ", " << joy_vel->angular.z);
     if (joy_vel->linear.x < 0) {
       // reverse angular speed for more intuitive reverse contol
       geometry_msgs::Twist reverse_joy_vel;
@@ -746,7 +746,7 @@ void joyVelReceived(const geometry_msgs::Twist::ConstPtr &joy_vel) {
 
 void joyMowerReceived(const std_msgs::Float32::ConstPtr &joy_mower) {
   if (currentBehavior && currentBehavior->redirect_joystick() && currentBehavior->mower_enabled()) {
-    ROS_INFO_STREAM("[mower_logic] joy mower cmd " << joy_mower->data);
+    ROS_INFO_STREAM_THROTTLE(2,"[mower_logic] joy mower cmd " << joy_mower->data);
     float power = (joy_mower->data + 1.0) / 2.0;
     setMowerEnabledEx(true, power, true);
   }
