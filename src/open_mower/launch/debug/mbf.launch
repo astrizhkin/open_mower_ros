@@ -1,0 +1,9 @@
+<launch>
+  <param name="use_sim_time" value="true"/>
+
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find open_mower)/rviz/sim_mower_logic.rviz" required="true" />
+
+  <include file="$(find open_mower)/launch/include/_move_base.launch"/>
+
+  <node pkg="mower_map" type="mower_map_service" name="map_service" output="screen"/>
+</launch>
