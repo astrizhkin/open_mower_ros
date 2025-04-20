@@ -17,6 +17,7 @@ local_costmap:
     - {name: static_layer,    type: "costmap_2d::StaticLayer"}
 #    - {name: obstacle_layer,  type: "costmap_2d::ObstacleLayer"}
     - {name: uss_layer, type: "range_sensor_layer::RangeSensorLayer"}
+    - {name: contact_layer, type: "contact_sensor_layer::ContactSensorLayer"}
     - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
   
 

@@ -144,6 +144,29 @@
       </visual>
     </link>
 
+    <link name="contact_1">
+      <visual>
+        <geometry>
+          <box size="0.05 0.01 0.01"/>
+        </geometry>
+        <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+        <material name="silver">
+          <color rgba="0.7 0.7 0.7 0.6"/>
+        </material>
+      </visual>
+    </link>
+    <link name="contact_2">
+      <visual>
+        <geometry>
+          <box size="0.05 0.01 0.01"/>
+        </geometry>
+        <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+        <material name="silver">
+          <color rgba="0.7 0.7 0.7 0.6"/>
+        </material>
+      </visual>
+    </link>
+
     <link name="gps">
       <visual>
         <geometry>
@@ -210,6 +233,16 @@
       <parent link="base_link"/>
       <child link="uss_4"/>
       <origin rpy="0.0 0.0 -1.05" xyz="0.25 -0.2 0.17"/>
+    </joint>
+    <joint name="base_to_contact_1" type="fixed">
+      <parent link="base_link"/>
+      <child link="contact_1"/>
+      <origin rpy="0.0 0.0 0.0" xyz="0.32 -0.2 0.04"/>
+    </joint>
+    <joint name="base_to_contact_2" type="fixed">
+      <parent link="base_link"/>
+      <child link="contact_2"/>
+      <origin rpy="0.0 0.0 0.0" xyz="0.32 0.2 0.04"/>
     </joint>
     <joint name="base_to_gps" type="fixed">
       <parent link="base_link"/>

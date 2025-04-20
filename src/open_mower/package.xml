@@ -38,6 +38,7 @@
   <exec_depend>diff_drive_controller</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>range_sensor_layer</exec_depend>
+  <exec_depend>contact_sensor_layer</exec_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

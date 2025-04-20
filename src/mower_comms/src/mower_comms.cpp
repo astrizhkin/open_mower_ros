@@ -27,6 +27,7 @@
 #include <mower_msgs/Status.h>
 #include <sensor_msgs/Joy.h>
 #include <sensor_msgs/Range.h>
+#include <contact_sensor_layer/Contact.h>
 #include <serial/serial.h>
 #ifdef WHEEL_TICKS_MSG
   #include <xbot_msgs/WheelTick.h>
@@ -59,6 +60,7 @@ ros::Publisher status_pub;
 ros::Publisher sensor_imu_pub;
 ros::Publisher sensor_mag_pub;
 ros::Publisher uss_pub;
+ros::Publisher contact_pub;
 
 ros::Publisher cmd_vel_safe_pub;
 ros::Publisher measured_vel_pub;
@@ -127,6 +129,8 @@ struct ll_status last_ll_status = {0};
 ros::Time last_ll_status_time(0.0);
 ros::Time last_ll_status_esc_enabled(0.0);
 ros::Time last_uss_stamp[USS_COUNT];
+
+int contact_mode[CONTACT_COUNT];
 
 sensor_msgs::MagneticField sensor_mag_msg;
 sensor_msgs::Imu sensor_imu_msg;
@@ -387,6 +391,19 @@ void publishStatus() {
     range_msg.max_range=2.55;
     range_msg.radiation_type = sensor_msgs::Range::ULTRASOUND;
     uss_pub.publish(range_msg);
+  }
+
+  for (int i=0;i<CONTACT_COUNT;i++) {
+    if (contact_mode[i]!=ContactMode::MONITOR) {
+      continue;
+    }
+    contact_sensor_layer::Contact contact_msg;
+    contact_msg.header.stamp = last_ll_status_time;
+    std::ostringstream contact_frame_id;
+    contact_frame_id << "contact_" << i;
+    contact_msg.header.frame_id=contact_frame_id.str();
+    contact_msg.is_active = last_ll_status.contacts&(1 << i);
+    contact_pub.publish(contact_msg);
   }
 
   // overwrite emergency with the LL value.
@@ -1053,7 +1070,8 @@ void reconfigCB(const mower_logic::MowerLogicConfig &config) {
     configTracker.scheduleUpdate(ConfigAddress::CONTACT_ACTIVE_LOW,contact_idx,low_active);
     configTracker.scheduleUpdate(ConfigAddress::CONTACT_MODE,contact_idx,(uint8_t)mode);
     configTracker.scheduleUpdate(ConfigAddress::CONTACT_TIMEOUT,contact_idx,timeout);
-    
+    contact_mode[contact_idx] = mode;
+
     contact_token = strtok(NULL, ",");
     contact_idx++;
   }
@@ -1145,6 +1163,8 @@ int main(int argc, char **argv) {
 
   status_pub = n.advertise<mower_msgs::Status>("mower/status", 1);
   uss_pub = n.advertise<sensor_msgs::Range>("mower/uss", USS_COUNT);
+  contact_pub = n.advertise<contact_sensor_layer::Contact>("mower/bumper", CONTACT_COUNT);
+
   #ifdef WHEEL_TICKS_MSG
     wheel_tick_pub = n.advertise<xbot_msgs::WheelTick>("mower/wheel_ticks", 1);
   #endif

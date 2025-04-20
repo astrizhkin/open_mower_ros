@@ -15,3 +15,11 @@ uss_layer:
   debug_publisher: false
   use_decay: false
   pixel_decay: 10.0
+
+contact_layer:
+  topics: ["/mower/bumper"]
+#  topics: ["/bumper"]
+#  no_readings_timeout: 1.0
+  debug_publisher: false
+  obstacle_radius: 0.25
+  obstacle_forward_offset: 0.1
