@@ -7,7 +7,9 @@
     <include file="$(find open_mower)/launch/include/_teleop.launch"/>
 
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find open_mower)/rviz/sim_navigation_test.rviz" required="true" />
-    <node pkg="mower_map" type="mower_map_service" name="mower_map" required="true" />
+    <node pkg="mower_map" type="mower_map_service" name="mower_map" required="true">
+        <param name="map_filename" value="map.geojson"/>
+    </node>
 
     <node pkg="twist_mux" type="twist_mux" name="twist_mux" output="screen">
         <remap from="cmd_vel_out" to="/cmd_vel"/>

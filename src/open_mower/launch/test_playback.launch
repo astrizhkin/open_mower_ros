@@ -18,7 +18,9 @@
 
     <node pkg="xbot_monitoring" type="xbot_monitoring" name="xbot_monitoring" output="screen" required="true">
     </node>
-    <node pkg="mower_map" type="mower_map_service" name="map_service" output="screen"/>
+    <node pkg="mower_map" type="mower_map_service" name="map_service" output="screen">
+        <param name="map_filename" value="map.geojson"/>
+    </node>
     <node pkg="mower_logic" type="monitoring" name="monitoring" output="screen"/>
 
 

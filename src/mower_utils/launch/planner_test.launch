@@ -6,6 +6,7 @@
     <node pkg="mower_map" type="mower_map_service" name="mower_map" required="true" output="screen">
         <param name="areaPerimeterTolerance" value="0.05"/>
         <param name="mapResolution" value="0.1"/>
+        <param name="map_filename" value="map.geojson"/>
     </node>
     <node pkg="slic3r_coverage_planner" type="slic3r_coverage_planner" name="slic3r_coverage_planner" required="true" output="screen"/>
     <node

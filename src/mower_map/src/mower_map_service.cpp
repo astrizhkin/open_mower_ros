@@ -1202,9 +1202,13 @@ int main(int argc, char **argv) {
     ROS_WARN("[mower_map_service] setDatum service not found");
   }
 
-
-  // Load the default map file
-  readMapFromFile("map.geojson");
+  std::string map_filename = "map.geojson";
+  if (!paramNh.getParam("map_filename", map_filename)) {
+    ROS_WARN_STREAM("[mower_map_service] No map filename. Using default " << map_filename);
+  }
+  
+  // Load the map file
+  readMapFromFile(map_filename);
   //readMapFromFile("load_bag.geojson");
   // generateTestMap();
 
