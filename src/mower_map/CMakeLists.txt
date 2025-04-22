@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(mower_map)
 
+include(FetchContent)
+
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
+FetchContent_MakeAvailable(json)
+
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
 
@@ -16,6 +21,7 @@ find_package(catkin REQUIRED
         std_msgs
         geometry_msgs
         message_generation
+        robot_localization
         grid_map_core
         grid_map_ros
         grid_map_filters
@@ -23,6 +29,7 @@ find_package(catkin REQUIRED
         rosbag
         xbot_msgs
         slic3r_wrapper
+        xbot_driver_gps
         )
 
 ## System dependencies are found with CMake's conventions
@@ -62,7 +69,6 @@ find_package(catkin REQUIRED
 add_message_files(
         FILES
         MapArea.msg
-        MapAreas.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -175,11 +181,12 @@ include_directories(
 add_executable(mower_map_service src/mower_map_service.cpp)
 add_dependencies(mower_map_service ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(mower_map_service 
+        PRIVATE 
+        nlohmann_json::nlohmann_json        
         ${catkin_LIBRARIES} 
         ${OpenCV_LIBS}
         ${Boost_LIBRARIES}
         )
-
 #############
 ## Install ##
 #############

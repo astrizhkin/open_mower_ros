@@ -17,6 +17,7 @@
 //
 #include "grid_map_cv/GridMapCvConverter.hpp"
 #include "grid_map_ros/GridMapRosConverter.hpp"
+#include "robot_localization/navsat_conversions.h"
 
 // Slic3r Polygon tools
 #include "ClipperUtils.hpp"
@@ -33,7 +34,6 @@
 #include "geometry_msgs/Polygon.h"
 #include "geometry_msgs/PoseStamped.h"
 #include "mower_map/MapArea.h"
-#include "mower_map/MapAreas.h"
 
 // Include Service Messages
 #include "mower_map/AddMowingAreaSrv.h"
@@ -47,13 +47,21 @@
 #include "mower_map/SetDockingPointSrv.h"
 #include "mower_map/SetNavPointSrv.h"
 
+#include "xbot_driver_gps/SetDatumSrv.h"
+
 // Monitoring
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
+//JSON
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
+
 #include "xbot_msgs/Map.h"
 
+ros::ServiceClient setDatumClient;
+
 // Publishes the map as occupancy grid
-ros::Publisher map_pub, map_areas_pub;
+ros::Publisher map_pub;
 
 // Publishes the map as markers for rviz
 ros::Publisher map_server_viz_array_pub;
@@ -73,6 +81,14 @@ geometry_msgs::Pose fake_obstacle_pose;
 
 // The grid map. This is built from the polygons loaded from the file.
 grid_map::GridMap map;
+std::string map_name;
+
+geometry_msgs::Point base_point;
+double base_point_e_;
+double base_point_n_;
+double base_point_u_;
+std::string base_point_zone_;
+bool has_base_point = false;
 
 //area perimeter tolerance for simplification algorithm
 double areaPerimeterTolerance = 0.05;
@@ -102,11 +118,18 @@ void publishMapMonitoring() {
   ros::Time t1 = ros::Time::now();
 
   xbot_msgs::Map xb_map;
+  xb_map.name = map_name;
   xb_map.mapWidth = map.getSize().x() * map.getResolution();
   xb_map.mapHeight = map.getSize().y() * map.getResolution();
   auto mapPos = map.getPosition();
   xb_map.mapCenterX = mapPos.x();
   xb_map.mapCenterY = mapPos.y();
+
+  if(has_base_point) {
+    xb_map.baseX = base_point.x;
+    xb_map.baseY = base_point.y;
+    xb_map.baseZ = base_point.z;
+  }
 
   xb_map.dockX = docking_point.position.x;
   xb_map.dockY = docking_point.position.y;
@@ -137,13 +160,7 @@ void publishMapMonitoring() {
  */
 void visualizeAreas() {
   ros::Time t1 = ros::Time::now();
-  mower_map::MapAreas mapAreas;
-
-  mapAreas.mapWidth = map.getSize().x() * map.getResolution();
-  mapAreas.mapHeight = map.getSize().y() * map.getResolution();
   auto mapPos = map.getPosition();
-  mapAreas.mapCenterX = mapPos.x();
-  mapAreas.mapCenterY = mapPos.y();
 
   visualization_msgs::MarkerArray markerArray;
 
@@ -151,7 +168,6 @@ void visualizeAreas() {
 
   for (auto area : areas) {
     // Push it to mapAreas
-    mapAreas.areas.push_back(area);
     {
       // Create a marker
       fromMessage(area.area, p);
@@ -201,7 +217,6 @@ void visualizeAreas() {
   }
 
   map_server_viz_array_pub.publish(markerArray);
-  map_areas_pub.publish(mapAreas);
   ros::Time t2 = ros::Time::now();
   ROS_INFO_STREAM("[mower_map_service] Visualize map areas in " << (t2 - t1).toSec() << " s");
 }
@@ -409,26 +424,189 @@ void buildMap() {
   visualizeAreas();
 }
 
+inline bool ends_with(std::string const & value, std::string const & ending)
+{
+    if (ending.size() > value.size()) return false;
+    return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+}
+
 /**
  * Saves the current polygons to a bag file.
  * We don't need to save the map, since we can easily build it again after loading.
  */
-void saveMapToFile() {
-  ros::Time t1 = ros::Time::now();
-  rosbag::Bag bag;
-  bag.open("map.bag", rosbag::bagmode::Write);
 
-  for (auto &area : areas) {
-    bag.write("areas", ros::Time::now(), area);
-  }
+void saveMapToBagFile(const std::string &filename) {
+  rosbag::Bag bag;
+  bag.open(filename, rosbag::bagmode::Write);
 
   if (has_docking_point) {
     bag.write("docking_point", ros::Time::now(), docking_point);
   }
+  if(has_base_point) {
+    bag.write("base_point", ros::Time::now(), base_point);
+  }
+
+  json areas_json;
+  for (auto &area : areas) {
+    bag.write("areas", ros::Time::now(), area);
+  }
 
   bag.close();
+}
+
+void saveMapToGeoJsonFile(const std::string &filename) {
+  json map_geojson;
+  map_geojson["type"] = "FeatureCollection";
+  
+  json features_properties_geojson;
+  features_properties_geojson["name"] = map_name;
+  map_geojson["properties"] = features_properties_geojson;
+
+  json features_geojson;
+  if (has_docking_point) {
+    json docking_point_feature_json;
+    docking_point_feature_json["type"] = "Feature";
+    json docking_point_geometry_json;
+    docking_point_geometry_json["type"] = "Point";
+
+    double e, n, u;
+    e = docking_point.position.x + base_point_e_;
+    n = docking_point.position.y + base_point_n_;
+    u = docking_point.position.z + base_point_u_;
+    double lat, lon;
+    RobotLocalization::NavsatConversions::UTMtoLL(n, e, base_point_zone_, lat, lon);
+
+    json docking_point_geometry_coordinates_json;
+    docking_point_geometry_coordinates_json.push_back(lon);
+    docking_point_geometry_coordinates_json.push_back(lat);
+    docking_point_geometry_coordinates_json.push_back(u);
+    docking_point_geometry_json["coordinates"] = docking_point_geometry_coordinates_json; 
+
+    docking_point_feature_json["geometry"] = docking_point_geometry_json;
+
+    json docking_point_properties_json;
+    docking_point_properties_json["name"] = "docking_point";
+
+    json docking_point_orientation_json;
+    docking_point_orientation_json.push_back(docking_point.orientation.w);
+    docking_point_orientation_json.push_back(docking_point.orientation.x);
+    docking_point_orientation_json.push_back(docking_point.orientation.y);
+    docking_point_orientation_json.push_back(docking_point.orientation.z);
+    docking_point_properties_json["orientation"] = docking_point_orientation_json;
+
+    docking_point_feature_json["properties"] = docking_point_properties_json;
+
+    features_geojson.push_back(docking_point_feature_json);
+  }
+  if(has_base_point) {
+    json base_point_feature_json;
+    base_point_feature_json["type"] = "Feature";
+
+    json base_point_geometry_json;
+    base_point_geometry_json["type"] = "Point";
+
+    json base_point_geometry_coordinates_json;
+    base_point_geometry_coordinates_json.push_back(base_point.x);//lon
+    base_point_geometry_coordinates_json.push_back(base_point.y);//lat
+    base_point_geometry_coordinates_json.push_back(base_point.z);//height
+    base_point_geometry_json["coordinates"] = base_point_geometry_coordinates_json; 
+
+    base_point_feature_json["geometry"] = base_point_geometry_json;
+
+    json base_point_properties_json;
+    base_point_properties_json["name"] = "base_point";
+    base_point_feature_json["properties"] = base_point_properties_json;
+
+    features_geojson.push_back(base_point_feature_json);
+  }
+
+
+  for (auto &area : areas) {
+
+    json area_feature_json;
+    area_feature_json["type"] = "Feature";
+    json area_geometry_json;
+    area_geometry_json["type"] = "Polygon";
+    json area_properties_json;
+    area_properties_json["name"] = area.name;
+    area_properties_json["area_type"] = area.area_type;
+    area_properties_json["simplified"] = true;
+    switch(area.area_type) {
+      case mower_map::MapArea::AREA_MOWING:
+        area_properties_json["fill"] = "#00FF00";
+        break;
+      case mower_map::MapArea::AREA_NAVIGATION:
+        area_properties_json["fill"] = "#A0A0A0";
+        break;
+      case mower_map::MapArea::AREA_PROHIBITED:
+        area_properties_json["fill"] = "#202020";
+        break;
+    }
+    area_feature_json["properties"] = area_properties_json;
+
+    json area_geometry_coordinates_json;
+    json area_geometry_coordinates_polygon_json;
+    for(auto &pt : area.area.points) {
+      double e, n, u;
+      e = pt.x + base_point_e_;
+      n = pt.y + base_point_n_;
+      u = pt.z + base_point_u_;
+      double lat, lon;
+      RobotLocalization::NavsatConversions::UTMtoLL(n, e, base_point_zone_, lat, lon);
+      json pt_json;
+      pt_json.push_back(lon);
+      pt_json.push_back(lat);
+      //pt_json.push_back(pt.x);
+      //pt_json.push_back(pt.y);
+      area_geometry_coordinates_polygon_json.push_back(pt_json);
+    }
+    area_geometry_coordinates_json.push_back(area_geometry_coordinates_polygon_json);
+    area_geometry_json["coordinates"] = area_geometry_coordinates_json;
+
+    area_feature_json["geometry"] = area_geometry_json;
+
+    features_geojson.push_back(area_feature_json);
+  }
+ 
+  map_geojson["features"] = features_geojson;
+
+  std::ofstream out(filename);
+  out << map_geojson.dump(1);
+  out.close();
+}
+
+/* Accept base point in lat/lon format */
+void setBasePoint(double lon, double lat, double height) {
+  base_point.x = lon;
+  base_point.y = lat;
+  base_point.z = height;
+  has_base_point = true;
+
+  std::string zone;
+  double e, n;
+  RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
+  base_point_e_ = e;
+  base_point_n_ = n;
+  base_point_u_ = height;
+  base_point_zone_ = zone;
+}
+
+void saveMapToFile(const std::string &filename) {
+  ros::Time t1 = ros::Time::now();
+  if(ends_with(filename, ".bag")){
+    saveMapToBagFile(filename);
+  }else if(ends_with(filename, ".geojson")){
+    saveMapToGeoJsonFile(filename);
+  }else{
+    ROS_ERROR_STREAM("[mower_map_service] Save to unsupported file format " << filename << " (expected *.bag or *.geojson)");
+  }
   ros::Time t2 = ros::Time::now();
   ROS_INFO_STREAM("[mower_map_service] Saved " << areas.size() << " areas to file in " << (t2 - t1).toSec() << " s");
+}
+
+void saveMap() {
+  saveMapToFile("map.bag");
+  saveMapToFile("map.geojson");
 }
 
 /**
@@ -437,18 +615,16 @@ void saveMapToFile() {
  * @param filename The file to load.
  * @param append True to append the loaded map to the current one.
  */
-void readMapFromFile(const std::string &filename, bool append = false) {
-  if (!append) {
-    areas.clear();
-  }
+
+void readMapFromBagFile(const std::string &filename) {
   rosbag::Bag bag;
   try {
     bag.open(filename);
   } catch (rosbag::BagIOException &e) {
-    ROS_WARN("[mower_map_service] Error opening stored mowing areas.");
+    ROS_WARN("[mower_map_service] Error opening stored mowing areas bag.");
     return;
   }
-  ros::Time t1 = ros::Time::now();
+  map_name = filename;
   {
     rosbag::View view(bag, rosbag::TopicQuery("areas"));
     for (rosbag::MessageInstance const m : view) {
@@ -473,9 +649,269 @@ void readMapFromFile(const std::string &filename, bool append = false) {
       docking_point = empty;
     }
   }
+  {
+    has_base_point = false;
+    rosbag::View view(bag, rosbag::TopicQuery("base_point"));
+    for (rosbag::MessageInstance const m : view) {
+      auto pt = m.instantiate<geometry_msgs::Point>();
+      setBasePoint(pt->x, pt->y, pt->z);
+      break;
+    }
+  }
+}
+
+std::string readMapFromGeoJsonFile(const std::string &filename) {
+  std::ifstream f(filename);
+  json map_json;
+  try {
+    map_json = json::parse(f);
+  } catch (json::parse_error& ex) {
+    ROS_WARN_STREAM("[mower_map_service] Error opening stored mowing areas json: " << ex.what() << " at byte " << (int)ex.byte);
+    return "GeoJSON parse error";
+  }
+
+  if(map_json["type"]!="FeatureCollection") {
+    return "root element is not a FeatureCollection";
+  }
+  if(!map_json.contains("features")) {
+    return "root element must contain 'features'";
+  }
+  if(map_json.contains("properties")){
+    json map_properties_json = map_json["properties"];
+    if(map_properties_json.contains("name")) {
+      map_name = map_properties_json["name"];
+    }
+  }
+  json features_json = map_json["features"];
+  //lookup the base_point
+  has_base_point = false;
+  for(auto &feature_json : features_json) {
+    if(feature_json["type"] != "Feature") {
+      ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping " << feature_json["type"] << " element");
+      continue;
+    }
+    if(!feature_json.contains("geometry")){
+      ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping Feature element without 'geometry'");
+      continue;
+    }
+    json geometry_json = feature_json["geometry"];
+    if(!geometry_json.contains("coordinates")){
+      ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping Feature element without 'geometry' 'coordinates'");
+      continue;
+    }
+    json coordinates_json = geometry_json["coordinates"];
+    if(!geometry_json.contains("type")) {
+      ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping Feature element without 'geometry' 'type'");
+      continue;
+    }
+    if(!feature_json.contains("properties")) {
+      ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping Feature element without 'properties'");
+      continue;
+    }
+    json properties_json = feature_json["properties"];
+
+    if(properties_json["name"] == "base_point"){
+      //we found it
+      if(geometry_json["type"] != "Point"){
+        return "base_point 'geometry' element must be of 'Point' type";
+      }
+      if(!coordinates_json.is_array() || coordinates_json.size()!=3){
+        return "base_point 'coordinates' element must be an array of size 3";
+      }
+      double lon = coordinates_json[0];
+      double lat = coordinates_json[1];
+      double height = coordinates_json[2];
+      ROS_INFO_STREAM("[mower_map_service] Load GeoJSON found a base point " << lon << "E, " << lat << "N, " << height);
+      setBasePoint(lon, lat, height);
+      break;
+    }
+  }
+  if(!has_base_point) {
+    return "No base_point found (features[ type = Feature , properties[name] = base_point ] )";
+  }
+
+  //lookup for docking point and polygons
+  has_docking_point = false;
+  for(auto &feature_json : features_json) {
+    if(feature_json["type"] != "Feature") {
+      ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping " << feature_json["type"] << " element");
+      continue;
+    }
+    if(!feature_json.contains("geometry")){
+      ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping Feature element without 'geometry'");
+      continue;
+    }
+    json geometry_json = feature_json["geometry"];
+    if(!geometry_json.contains("coordinates")){
+      ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping Feature element without 'geometry' 'coordinates'");
+      continue;
+    }
+    json coordinates_json = geometry_json["coordinates"];
+    if(!geometry_json.contains("type")) {
+      ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping Feature element without 'geometry' 'type'");
+      continue;
+    }
+    if(!feature_json.contains("properties")) {
+      ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping Feature element without 'properties'");
+      continue;
+    }
+    json properties_json = feature_json["properties"];
+
+    if(properties_json["name"] == "base_point"){
+      continue;
+    } else if(properties_json["name"] == "docking_point"){
+      //we found docking point
+      if(geometry_json["type"] != "Point"){
+        return "docking_point 'geometry' element must be of 'Point' type";
+      }
+      if(!coordinates_json.is_array() || coordinates_json.size()!=3){
+        return "docking_point 'coordinates' element must be an array of size 3";
+      }
+      double lon = coordinates_json[0];
+      double lat = coordinates_json[1];
+      double height = coordinates_json[2];
+      if(!properties_json.contains("orientation")){
+        return "docking_point element must have orientation property";
+      }
+      json orientation_json = properties_json["orientation"];
+      if(!orientation_json.is_array() || orientation_json.size()!=4){
+        return "docking_point orientation property must be an array of size 4";
+      }
+
+      double e, n, u;
+      std::string zone;
+      RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
+      e = e - base_point_e_;
+      n = n - base_point_n_;
+      u = height - base_point_u_;
+
+      docking_point.position.x = e;
+      docking_point.position.y = n;
+      docking_point.position.z = u;
+
+      docking_point.orientation.w = orientation_json[0];
+      docking_point.orientation.x = orientation_json[1];
+      docking_point.orientation.y = orientation_json[2];
+      docking_point.orientation.z = orientation_json[3];
+  
+      ROS_INFO_STREAM("[mower_map_service] Load GeoJSON found a docking point " << lon << "E, " << lat << "N, " << height);
+      has_docking_point = true;
+    } else if(properties_json.contains("area_type")) {
+      //we found area
+      if(!properties_json["area_type"].is_number_integer()){
+        ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping area with non-integer area_type property");
+        continue;
+      }
+      if(geometry_json["type"] != "Polygon"){
+        ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping area on unknown geometry type " << geometry_json["type"]);
+        continue;
+      }
+      if(!properties_json.contains("name") || !properties_json["name"].is_string()) {
+        ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping area without name");
+        continue;
+      }
+      if(!coordinates_json.is_array() || coordinates_json.size()!=1){
+        ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping area Polygon with non-array 'coordinates' or array size > 1");
+        continue;
+      }
+      mower_map::MapArea mapArea;
+      mapArea.name = properties_json["name"];
+      mapArea.area_type = properties_json["area_type"];
+      bool simplified = false;
+      if(properties_json.contains("simplified") && properties_json["simplified"].is_boolean()){
+        simplified = properties_json["simplified"];
+      }
+      for(auto &coordinates_array_json : coordinates_json) {
+        if(!coordinates_array_json.is_array()) {
+          ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping area Polygon with non-array of array 'coordinates'");
+          continue;
+        }
+        for(auto &coordinates_array_array_json : coordinates_array_json) {
+          if(!coordinates_array_array_json.is_array() || coordinates_array_array_json.size()!=2) {
+            ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping area Polygon with non-array of array of array of size 2 'coordinates'");
+            continue;
+          }
+          double lon = coordinates_array_array_json[0];
+          double lat = coordinates_array_array_json[1];
+
+          double e, n, u;
+          std::string zone;
+          RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
+          e = e - base_point_e_;
+          n = n - base_point_n_;
+          //u = height - base_point_u_;
+    
+          geometry_msgs::Point32 pt;
+          pt.x = e;
+          pt.y = n;
+          mapArea.area.points.push_back(pt);
+        }
+      }
+
+      if (areaPerimeterTolerance == 0 || simplified || simplifyArea(areaPerimeterTolerance, mapArea)) {
+        areas.push_back(mapArea);
+      }
+    } else {
+      ROS_WARN_STREAM("[mower_map_service] Load GeoJSON skipping Feature element without 'area_type' property or 'name' is unknown");
+      continue;
+    }
+  }
+  return "ok";
+}
+
+void readMapFromFile(const std::string &filename, bool append = false) {
+  if (!append) {
+    areas.clear();
+  }
+  ros::Time t1 = ros::Time::now();
+  ROS_INFO_STREAM("[mower_map_service] Start load map from file " << filename);
+  if(ends_with(filename,".bag")) {
+    readMapFromBagFile(filename);
+    //init 
+    if(!has_base_point) {
+      setBasePoint(29.43348637, 60.97728809, 56);
+    }
+    saveMapToFile("autoload_bag.geojson");
+    saveMapToFile("autoload_bag.bag");
+  } else if(ends_with(filename,".geojson")) {
+    std::string errorMsg = readMapFromGeoJsonFile(filename);
+    if(errorMsg!="ok") {
+      ROS_ERROR_STREAM("[mower_map_service] Load GeoJSON failed with message " << errorMsg);
+    }
+    saveMapToFile("autoload_geojson.geojson");
+    saveMapToFile("autoload_geojson.bag");
+  } else {
+    ROS_ERROR_STREAM("[mower_map_service] Unsupported map file " << filename << " (expected *.bag or *.geojson)");
+  }
+  if(!has_docking_point) {
+    ROS_WARN_STREAM("[mower_map_service] Loaded map missing docking_point");
+  }
+  if(setDatumClient.exists()) {
+    xbot_driver_gps::SetDatumSrv srv;
+    if(has_base_point) {
+      srv.request.revert_default = false;
+      srv.request.longitute = base_point.x;
+      srv.request.latitude = base_point.y;
+      srv.request.height = base_point.z;
+      ROS_INFO_STREAM("[mower_map_service] Publishing base_point");
+      
+      if(!setDatumClient.call(srv)) {
+        ROS_WARN_STREAM("[mower_map_service] base_point was not published!");
+      }
+    } else {
+      srv.request.revert_default = true;
+      ROS_INFO_STREAM("[mower_map_service] Reverting base_point to defaults");
+      if(!setDatumClient.call(srv)) {
+        ROS_WARN_STREAM("[mower_map_service] base_point revert fail");
+      }
+    }
+  } else {
+    ROS_WARN_STREAM("[mower_map_service] Skip publishing base_point because setDatum service is not available");
+  }
   ros::Time t2 = ros::Time::now();
   ROS_INFO_STREAM("[mower_map_service] Loaded " << areas.size() << " areas from file in " << (t2 - t1).toSec() << " s");
 }
+
 
 void generateTestMap() {
   areas.clear();
@@ -598,7 +1034,7 @@ bool addMowingArea(mower_map::AddMowingAreaSrvRequest &req, mower_map::AddMowing
 
   areas.push_back(req.area);
 
-  saveMapToFile();
+  saveMap();
   buildMap();
   return true;
 }
@@ -638,7 +1074,7 @@ bool deleteMowingArea(mower_map::DeleteMowingAreaSrvRequest &req, mower_map::Del
 
   areas.erase(areas.begin() + req.index);
 
-  saveMapToFile();
+  saveMap();
   buildMap();
 
   return true;
@@ -655,7 +1091,7 @@ bool convertToNavigationArea(mower_map::ConvertToNavigationAreaSrvRequest &req,
 
   areas[req.index].area_type = mower_map::MapArea::AREA_NAVIGATION;
 
-  saveMapToFile();
+  saveMap();
   buildMap();
 
   return true;
@@ -666,7 +1102,7 @@ bool appendMapFromFile(mower_map::AppendMapSrvRequest &req, mower_map::AppendMap
 
   readMapFromFile(req.bagfile, true);
 
-  saveMapToFile();
+  saveMap();
   buildMap();
 
   return true;
@@ -678,7 +1114,7 @@ bool setDockingPoint(mower_map::SetDockingPointSrvRequest &req, mower_map::SetDo
   docking_point = req.docking_pose;
   has_docking_point = true;
 
-  saveMapToFile();
+  saveMap();
   buildMap();
 
   return true;
@@ -721,7 +1157,8 @@ bool clearMap(mower_map::ClearMapSrvRequest &req, mower_map::ClearMapSrvResponse
   areas.clear();
   has_docking_point = false;
 
-  saveMapToFile();
+  saveMap();
+  buildMap();
   return true;
 }
 
@@ -753,12 +1190,22 @@ int main(int argc, char **argv) {
   }
 
   map_pub = n.advertise<nav_msgs::OccupancyGrid>("mower_map_service/map", 10, true);
-  map_areas_pub = n.advertise<mower_map::MapAreas>("mower_map_service/map_areas", 10, true);
   map_server_viz_array_pub = n.advertise<visualization_msgs::MarkerArray>("mower_map_service/map_viz", 10, true);
   xbot_monitoring_map_pub = n.advertise<xbot_msgs::Map>("xbot_monitoring/map", 10, true);
 
+
+  setDatumClient = n.serviceClient<xbot_driver_gps::SetDatumSrv>("xbot_driver_gps/set_datum");
+  ros::Rate r(1.0);
+
+  ROS_INFO("[mower_map_service] Waiting for setDatum service");
+  if (!setDatumClient.waitForExistence(ros::Duration(8.0, 0.0))) {
+    ROS_WARN("[mower_map_service] setDatum service not found");
+  }
+
+
   // Load the default map file
-  readMapFromFile("map.bag");
+  readMapFromFile("map.geojson");
+  //readMapFromFile("load_bag.geojson");
   // generateTestMap();
 
   buildMap();
