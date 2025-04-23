@@ -467,6 +467,8 @@ void saveMapToBagFile(const std::string &filename) {
 }
 
 void saveMapToGeoJsonFile(const std::string &filename) {
+  //GeoJSON by default in absolute WSG84 coordinate system. Our maps are X,Y,Z from UTM relative or absolute
+
   json map_geojson;
   map_geojson["type"] = "FeatureCollection";
   
@@ -733,6 +735,8 @@ void readMapFromBagFile(const std::string &filename) {
 }
 
 std::string readMapFromGeoJsonFile(const std::string &filename) {
+  //GeoJSON by default in absolute WSG84 coordinate system. Our maps are X,Y,Z from UTM relative or absolute. Exept base point which is always WSG84
+
   std::ifstream f(filename);
   json map_json;
   try {
