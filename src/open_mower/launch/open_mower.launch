@@ -11,6 +11,11 @@
         <!--param name="areaPerimeterTolerance" value="0.05"/>
         <param name="mapResolution" value="0.1"/-->
         <param name="map_filename" value="$(env OM_MAP_FILENAME)"/>
+        <param name="mode" value="absolute" unless="$(env OM_USE_RELATIVE_POSITION)"/>
+        <param name="mode" value="relative" if="$(env OM_USE_RELATIVE_POSITION)"/>
+        <param unless="$(env OM_USE_RELATIVE_POSITION)" name="datum_lat" value="$(env OM_DATUM_LAT)"/>
+        <param unless="$(env OM_USE_RELATIVE_POSITION)" name="datum_long" value="$(env OM_DATUM_LONG)"/>
+        <param unless="$(env OM_USE_RELATIVE_POSITION)" name="datum_height" value="$(env OM_DATUM_HEIGHT)"/>
     </node>
     <node pkg="mower_logic" type="mower_logic" name="mower_logic" output="screen">
         <param name="automatic_mode" value="$(optenv OM_AUTOMATIC_MODE 0)"/>

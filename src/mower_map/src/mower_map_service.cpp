@@ -83,6 +83,15 @@ geometry_msgs::Pose fake_obstacle_pose;
 grid_map::GridMap map;
 std::string map_name;
 
+double datum_lat, datum_long, datum_height;
+bool has_datum;
+
+enum Mode {
+  ABSOLUTE = 1,
+  RELATIVE = 2
+};
+Mode map_mode;
+
 geometry_msgs::Point base_point;
 double base_point_e_;
 double base_point_n_;
@@ -93,6 +102,7 @@ bool has_base_point = false;
 //area perimeter tolerance for simplification algorithm
 double areaPerimeterTolerance = 0.05;
 double mapResolution = 0.1;
+
 
 /**
  * Convert a geometry_msgs::Polygon to a grid_map::Polygon.
@@ -576,19 +586,50 @@ void saveMapToGeoJsonFile(const std::string &filename) {
 }
 
 /* Accept base point in lat/lon format */
-void setBasePoint(double lon, double lat, double height) {
+void setBasePoint(bool has_bp, double lon, double lat, double height) {
   base_point.x = lon;
   base_point.y = lat;
   base_point.z = height;
-  has_base_point = true;
+  has_base_point = has_bp;
 
-  std::string zone;
-  double e, n;
-  RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
-  base_point_e_ = e;
-  base_point_n_ = n;
-  base_point_u_ = height;
-  base_point_zone_ = zone;
+  if(has_bp) {
+    std::string zone;
+    double e, n;
+    RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
+    base_point_e_ = e;
+    base_point_n_ = n;
+    base_point_u_ = height;
+    base_point_zone_ = zone;
+  } else {
+    base_point_e_ = NAN;
+    base_point_n_ = NAN;
+    base_point_u_ = NAN;
+    base_point_zone_ = "";
+  }
+
+  if(setDatumClient.exists()) {
+    xbot_driver_gps::SetDatumSrv srv;
+    if(has_base_point) {
+      srv.request.revert_default = false;
+      srv.request.longitute = base_point.x;
+      srv.request.latitude = base_point.y;
+      srv.request.height = base_point.z;
+      ROS_INFO_STREAM("[mower_map_service] Publishing base_point");
+      
+      if(!setDatumClient.call(srv)) {
+        ROS_WARN_STREAM("[mower_map_service] base_point was not published!");
+      }
+    } else {
+      srv.request.revert_default = true;
+      ROS_INFO_STREAM("[mower_map_service] Reverting base_point to defaults");
+      if(!setDatumClient.call(srv)) {
+        ROS_WARN_STREAM("[mower_map_service] base_point revert fail");
+      }
+    }
+  } else {
+    ROS_WARN_STREAM("[mower_map_service] Skip publishing base_point because setDatum service is not available");
+  }
+
 }
 
 void saveMapToFile(const std::string &filename) {
@@ -654,7 +695,7 @@ void readMapFromBagFile(const std::string &filename) {
     rosbag::View view(bag, rosbag::TopicQuery("base_point"));
     for (rosbag::MessageInstance const m : view) {
       auto pt = m.instantiate<geometry_msgs::Point>();
-      setBasePoint(pt->x, pt->y, pt->z);
+      setBasePoint(true, pt->x, pt->y, pt->z);
       break;
     }
   }
@@ -722,13 +763,17 @@ std::string readMapFromGeoJsonFile(const std::string &filename) {
       double lat = coordinates_json[1];
       double height = coordinates_json[2];
       ROS_INFO_STREAM("[mower_map_service] Load GeoJSON found a base point " << lon << "E, " << lat << "N, " << height);
-      setBasePoint(lon, lat, height);
+      setBasePoint(true, lon, lat, height);
       break;
     }
   }
   if(!has_base_point) {
-    return "No base_point found (features[ type = Feature , properties[name] = base_point ] )";
-  }
+    if(map_mode == Mode::ABSOLUTE) {
+      return "No base_point found which is required for absolute mode (features[ type = Feature , properties[name] = base_point ] )";
+    } else {
+      setBasePoint(false, NAN, NAN, NAN);
+    }
+  } 
 
   //lookup for docking point and polygons
   has_docking_point = false;
@@ -778,12 +823,14 @@ std::string readMapFromGeoJsonFile(const std::string &filename) {
         return "docking_point orientation property must be an array of size 4";
       }
 
-      double e, n, u;
+      double e, n, u = height;
       std::string zone;
       RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
-      e = e - base_point_e_;
-      n = n - base_point_n_;
-      u = height - base_point_u_;
+      if(map_mode == Mode::ABSOLUTE) {
+        e = e - base_point_e_;
+        n = n - base_point_n_;
+        u = u - base_point_u_;
+      }
 
       docking_point.position.x = e;
       docking_point.position.y = n;
@@ -837,8 +884,10 @@ std::string readMapFromGeoJsonFile(const std::string &filename) {
           double e, n, u;
           std::string zone;
           RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
-          e = e - base_point_e_;
-          n = n - base_point_n_;
+          if(map_mode == Mode::ABSOLUTE) {
+            e = e - base_point_e_;
+            n = n - base_point_n_;
+          }
           //u = height - base_point_u_;
     
           geometry_msgs::Point32 pt;
@@ -869,7 +918,14 @@ void readMapFromFile(const std::string &filename, bool append = false) {
     readMapFromBagFile(filename);
     //init 
     if(!has_base_point) {
-      setBasePoint(29.43348637, 60.97728809, 56);
+      if (!has_datum) {
+        if(map_mode == Mode::ABSOLUTE) {
+          ROS_WARN_STREAM("[mower_map_service] You need to provide datum_lat and datum_long and datum_height in order to save in geojson format in absolute mode");
+        } 
+        setBasePoint(false, NAN, NAN, NAN);
+      } else {
+        setBasePoint(true, datum_long, datum_lat, datum_height);
+      }
     }
     saveMapToFile("autoload_bag.geojson");
     saveMapToFile("autoload_bag.bag");
@@ -885,28 +941,6 @@ void readMapFromFile(const std::string &filename, bool append = false) {
   }
   if(!has_docking_point) {
     ROS_WARN_STREAM("[mower_map_service] Loaded map missing docking_point");
-  }
-  if(setDatumClient.exists()) {
-    xbot_driver_gps::SetDatumSrv srv;
-    if(has_base_point) {
-      srv.request.revert_default = false;
-      srv.request.longitute = base_point.x;
-      srv.request.latitude = base_point.y;
-      srv.request.height = base_point.z;
-      ROS_INFO_STREAM("[mower_map_service] Publishing base_point");
-      
-      if(!setDatumClient.call(srv)) {
-        ROS_WARN_STREAM("[mower_map_service] base_point was not published!");
-      }
-    } else {
-      srv.request.revert_default = true;
-      ROS_INFO_STREAM("[mower_map_service] Reverting base_point to defaults");
-      if(!setDatumClient.call(srv)) {
-        ROS_WARN_STREAM("[mower_map_service] base_point revert fail");
-      }
-    }
-  } else {
-    ROS_WARN_STREAM("[mower_map_service] Skip publishing base_point because setDatum service is not available");
   }
   ros::Time t2 = ros::Time::now();
   ROS_INFO_STREAM("[mower_map_service] Loaded " << areas.size() << " areas from file in " << (t2 - t1).toSec() << " s");
@@ -1196,6 +1230,28 @@ int main(int argc, char **argv) {
 
   setDatumClient = n.serviceClient<xbot_driver_gps::SetDatumSrv>("xbot_driver_gps/set_datum");
   ros::Rate r(1.0);
+
+  std::string mode = paramNh.param("mode", std::string("absolute"));
+  if (mode == "absolute") {
+      ROS_INFO_STREAM("[mower_map_service] Using absolute mode for maps");
+      map_mode == Mode::ABSOLUTE;
+      has_datum = true;
+      has_datum &= paramNh.getParam("datum_lat", datum_lat);
+      has_datum &= paramNh.getParam("datum_long", datum_long);
+      has_datum &= paramNh.getParam("datum_height", datum_height);
+      if (!has_datum) {
+          ROS_ERROR_STREAM(
+                  "[mower_map_service] You need to provide datum_lat and datum_long and datum_height in order to use the absolute mode");
+          return 2;
+      }
+  } else if (mode == "relative") {
+      ROS_INFO_STREAM("[mower_map_service] Using relative mode for maps");
+      map_mode == Mode::RELATIVE;
+      has_datum = false;
+  } else {
+    ROS_ERROR_STREAM("[mower_map_service] Unsupported map mode "<<mode);
+    return 2;
+  }
 
   ROS_INFO("[mower_map_service] Waiting for setDatum service");
   if (!setDatumClient.waitForExistence(ros::Duration(8.0, 0.0))) {
