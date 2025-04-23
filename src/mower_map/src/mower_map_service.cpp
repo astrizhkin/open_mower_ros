@@ -102,6 +102,7 @@ bool has_base_point = false;
 //area perimeter tolerance for simplification algorithm
 double areaPerimeterTolerance = 0.05;
 double mapResolution = 0.1;
+bool simplifyOnLoad = false;
 
 
 /**
@@ -670,7 +671,7 @@ void readMapFromBagFile(const std::string &filename) {
     rosbag::View view(bag, rosbag::TopicQuery("areas"));
     for (rosbag::MessageInstance const m : view) {
       mower_map::MapAreaPtr areaPtr = m.instantiate<mower_map::MapArea>();
-      if (areaPerimeterTolerance == 0 || simplifyArea(areaPerimeterTolerance, *areaPtr)) {
+      if (areaPerimeterTolerance == 0 || !simplifyOnLoad || simplifyArea(areaPerimeterTolerance, *areaPtr)) {
         areas.push_back(*areaPtr);
       }
     }
@@ -897,7 +898,7 @@ std::string readMapFromGeoJsonFile(const std::string &filename) {
         }
       }
 
-      if (areaPerimeterTolerance == 0 || simplified || simplifyArea(areaPerimeterTolerance, mapArea)) {
+      if (areaPerimeterTolerance == 0 || simplified || !simplifyOnLoad || simplifyArea(areaPerimeterTolerance, mapArea)) {
         areas.push_back(mapArea);
       }
     } else {
@@ -1221,6 +1222,10 @@ int main(int argc, char **argv) {
   if (mapResolution <= 0 || mapResolution > 1) {
     ROS_FATAL_STREAM("[mower_map_service] mapResolution parameter is out of range (0-1]m");
     return 1;
+  }
+
+  if(!paramNh.getParam("simplifyOnLoad", simplifyOnLoad)) {
+    ROS_WARN_STREAM("[mower_map_service] No simplifyOnLoad parameter specified. Using default " << simplifyOnLoad);
   }
 
   map_pub = n.advertise<nav_msgs::OccupancyGrid>("mower_map_service/map", 10, true);
