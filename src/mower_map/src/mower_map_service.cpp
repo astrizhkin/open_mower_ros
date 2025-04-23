@@ -82,6 +82,8 @@ geometry_msgs::Pose fake_obstacle_pose;
 // The grid map. This is built from the polygons loaded from the file.
 grid_map::GridMap map;
 std::string map_name;
+std::string map_filename;
+
 
 double datum_lat, datum_long, datum_height;
 bool has_datum;
@@ -679,8 +681,7 @@ void saveMapToFile(const std::string &filename) {
 }
 
 void saveMap() {
-  saveMapToFile("map.bag");
-  saveMapToFile("map.geojson");
+  saveMapToFile(map_filename);
 }
 
 /**
@@ -1307,7 +1308,7 @@ int main(int argc, char **argv) {
     ROS_WARN("[mower_map_service] setDatum service not found");
   }
 
-  std::string map_filename = "map.geojson";
+  map_filename = "map.geojson";
   if (!paramNh.getParam("map_filename", map_filename)) {
     ROS_WARN_STREAM("[mower_map_service] No map filename. Using default " << map_filename);
   }
