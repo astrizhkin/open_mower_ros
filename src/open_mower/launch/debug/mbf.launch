@@ -6,6 +6,11 @@
   <include file="$(find open_mower)/launch/include/_move_base.launch"/>
 
   <node pkg="mower_map" type="mower_map_service" name="map_service" output="screen">
-    <param name="map_filename" value="map.geojson"/>
+    <param name="map_filename" value="my-apr2025-edit1.geojson"/>
+    <param name="mode" value="absolute" unless="$(env OM_USE_RELATIVE_POSITION)"/>
+    <param name="mode" value="relative" if="$(env OM_USE_RELATIVE_POSITION)"/>
+    <param unless="$(env OM_USE_RELATIVE_POSITION)" name="datum_lat" value="$(env OM_DATUM_LAT)"/>
+    <param unless="$(env OM_USE_RELATIVE_POSITION)" name="datum_long" value="$(env OM_DATUM_LONG)"/>
+    <param unless="$(env OM_USE_RELATIVE_POSITION)" name="datum_height" value="$(env OM_DATUM_HEIGHT)"/>
   </node>
 </launch>

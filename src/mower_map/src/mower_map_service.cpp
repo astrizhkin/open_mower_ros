@@ -448,18 +448,19 @@ inline bool ends_with(std::string const & value, std::string const & ending)
 
 void saveMapToBagFile(const std::string &filename) {
   rosbag::Bag bag;
+  ros::Time min_time = ros::TIME_MIN;
   bag.open(filename, rosbag::bagmode::Write);
 
   if (has_docking_point) {
-    bag.write("docking_point", ros::Time::now(), docking_point);
+    bag.write("docking_point", min_time, docking_point);
   }
   if(has_base_point) {
-    bag.write("base_point", ros::Time::now(), base_point);
+    bag.write("base_point", min_time, base_point);
   }
 
   json areas_json;
   for (auto &area : areas) {
-    bag.write("areas", ros::Time::now(), area);
+    bag.write("areas", min_time, area);
   }
 
   bag.close();
@@ -481,11 +482,22 @@ void saveMapToGeoJsonFile(const std::string &filename) {
     docking_point_geometry_json["type"] = "Point";
 
     double e, n, u;
-    e = docking_point.position.x + base_point_e_;
-    n = docking_point.position.y + base_point_n_;
-    u = docking_point.position.z + base_point_u_;
+    e = docking_point.position.x;
+    n = docking_point.position.y;
+    u = docking_point.position.z;
+
+    if(map_mode == Mode::ABSOLUTE) {
+      e += base_point_e_;
+      n += base_point_n_;
+      u += base_point_u_;
+    }
     double lat, lon;
-    RobotLocalization::NavsatConversions::UTMtoLL(n, e, base_point_zone_, lat, lon);
+    try {
+      RobotLocalization::NavsatConversions::UTMtoLL(n, e, base_point_zone_, lat, lon);
+    } catch(GeographicLib::GeographicErr &ex) {
+      ROS_ERROR_STREAM("[mower_map_service] Convert docking point UTM to LL coordinates fail " << ex.what() << " " << e << "E, " << n << "N, " << base_point_zone_);
+      throw ex; 
+    }
 
     json docking_point_geometry_coordinates_json;
     docking_point_geometry_coordinates_json.push_back(lon);
@@ -559,11 +571,22 @@ void saveMapToGeoJsonFile(const std::string &filename) {
     json area_geometry_coordinates_polygon_json;
     for(auto &pt : area.area.points) {
       double e, n, u;
-      e = pt.x + base_point_e_;
-      n = pt.y + base_point_n_;
-      u = pt.z + base_point_u_;
+      e = pt.x;
+      n = pt.y;
+      u = pt.z;
+      if(map_mode == Mode::ABSOLUTE) {
+        e += base_point_e_;
+        n += base_point_n_;
+        u += base_point_u_;
+      }
       double lat, lon;
-      RobotLocalization::NavsatConversions::UTMtoLL(n, e, base_point_zone_, lat, lon);
+      try {
+        RobotLocalization::NavsatConversions::UTMtoLL(n, e, base_point_zone_, lat, lon);
+      } catch(GeographicLib::GeographicErr &ex) {
+        ROS_ERROR_STREAM("[mower_map_service] Convert area point UTM to LL coordinates fail " << ex.what() << " " << e << "E, " << n << "N, " << base_point_zone_);
+        throw ex; 
+      }
+  
       json pt_json;
       pt_json.push_back(lon);
       pt_json.push_back(lat);
@@ -596,7 +619,12 @@ void setBasePoint(bool has_bp, double lon, double lat, double height) {
   if(has_bp) {
     std::string zone;
     double e, n;
-    RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
+    try {
+      RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
+    } catch(GeographicLib::GeographicErr &ex) {
+      ROS_ERROR_STREAM("[mower_map_service] Convert base point LL to UTM coordinates fail "<<ex.what()<<+" LL("<<lon<<"E, "<<lat<<"N, "<<height << ")");
+      throw ex; 
+    }
     base_point_e_ = e;
     base_point_n_ = n;
     base_point_u_ = height;
@@ -607,6 +635,7 @@ void setBasePoint(bool has_bp, double lon, double lat, double height) {
     base_point_u_ = NAN;
     base_point_zone_ = "";
   }
+  ROS_INFO_STREAM("[mower_map_service] Stored a new base point LL("<<lon<<"E, "<<lat<<"N, "<<height << ") AbsUTM(" << base_point_e_ << "x, " << base_point_n_ << "y, " << base_point_u_ << "z, "<< base_point_zone_ << ")");
 
   if(setDatumClient.exists()) {
     xbot_driver_gps::SetDatumSrv srv;
@@ -634,6 +663,7 @@ void setBasePoint(bool has_bp, double lon, double lat, double height) {
 }
 
 void saveMapToFile(const std::string &filename) {
+  ROS_INFO_STREAM("[mower_map_service] Saving map to " << filename);
   ros::Time t1 = ros::Time::now();
   if(ends_with(filename, ".bag")){
     saveMapToBagFile(filename);
@@ -763,7 +793,7 @@ std::string readMapFromGeoJsonFile(const std::string &filename) {
       double lon = coordinates_json[0];
       double lat = coordinates_json[1];
       double height = coordinates_json[2];
-      ROS_INFO_STREAM("[mower_map_service] Load GeoJSON found a base point " << lon << "E, " << lat << "N, " << height);
+      ROS_INFO_STREAM("[mower_map_service] Load GeoJSON found a base point LL(" << lon << "E, " << lat << "N, " << height <<")");
       setBasePoint(true, lon, lat, height);
       break;
     }
@@ -826,7 +856,12 @@ std::string readMapFromGeoJsonFile(const std::string &filename) {
 
       double e, n, u = height;
       std::string zone;
-      RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
+      try {
+        RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
+      } catch(GeographicLib::GeographicErr &ex) {
+        ROS_ERROR_STREAM("[mower_map_service] Convert docking point LL to UTM coordinates fail "<<ex.what()<<+" "<<lon<<"E, "<<lat<<"N, "<<height);
+        throw ex; 
+      }
       if(map_mode == Mode::ABSOLUTE) {
         e = e - base_point_e_;
         n = n - base_point_n_;
@@ -842,7 +877,7 @@ std::string readMapFromGeoJsonFile(const std::string &filename) {
       docking_point.orientation.y = orientation_json[2];
       docking_point.orientation.z = orientation_json[3];
   
-      ROS_INFO_STREAM("[mower_map_service] Load GeoJSON found a docking point " << lon << "E, " << lat << "N, " << height);
+      ROS_INFO_STREAM("[mower_map_service] Load GeoJSON found a docking point LL(" << lon << "E, " << lat << "N, " << height << ") RelUTM(" << e <<"x, " << n << "y, " << u << "z, " << zone << ")");
       has_docking_point = true;
     } else if(properties_json.contains("area_type")) {
       //we found area
@@ -884,7 +919,12 @@ std::string readMapFromGeoJsonFile(const std::string &filename) {
 
           double e, n, u;
           std::string zone;
-          RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
+          try {
+            RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
+          } catch(GeographicLib::GeographicErr &ex) {
+            ROS_ERROR_STREAM("[mower_map_service] Convert area point LL to UTM coordinates fail "<<ex.what()<<+" "<<lon<<"E, "<<lat<<"N");
+            throw ex; 
+          }
           if(map_mode == Mode::ABSOLUTE) {
             e = e - base_point_e_;
             n = n - base_point_n_;
@@ -1239,7 +1279,7 @@ int main(int argc, char **argv) {
   std::string mode = paramNh.param("mode", std::string("absolute"));
   if (mode == "absolute") {
       ROS_INFO_STREAM("[mower_map_service] Using absolute mode for maps");
-      map_mode == Mode::ABSOLUTE;
+      map_mode = Mode::ABSOLUTE;
       has_datum = true;
       has_datum &= paramNh.getParam("datum_lat", datum_lat);
       has_datum &= paramNh.getParam("datum_long", datum_long);
@@ -1251,7 +1291,7 @@ int main(int argc, char **argv) {
       }
   } else if (mode == "relative") {
       ROS_INFO_STREAM("[mower_map_service] Using relative mode for maps");
-      map_mode == Mode::RELATIVE;
+      map_mode = Mode::RELATIVE;
       has_datum = false;
   } else {
     ROS_ERROR_STREAM("[mower_map_service] Unsupported map mode "<<mode);
