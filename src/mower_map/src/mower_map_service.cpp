@@ -491,6 +491,9 @@ void saveMapToGeoJsonFile(const std::string &filename) {
     u = docking_point.position.z;
 
     if(map_mode == Mode::ABSOLUTE) {
+      if(!has_base_point) {
+        throw GeographicLib::GeographicErr("base point is required for docking point UTM to LL convertion");
+      }
       e += base_point_e_;
       n += base_point_n_;
       u += base_point_u_;
@@ -500,7 +503,7 @@ void saveMapToGeoJsonFile(const std::string &filename) {
       RobotLocalization::NavsatConversions::UTMtoLL(n, e, base_point_zone_, lat, lon);
     } catch(GeographicLib::GeographicErr &ex) {
       ROS_ERROR_STREAM("[mower_map_service] Convert docking point UTM to LL coordinates fail " << ex.what() << " " << e << "E, " << n << "N, " << base_point_zone_);
-      throw ex; 
+      throw; 
     }
 
     json docking_point_geometry_coordinates_json;
@@ -579,6 +582,9 @@ void saveMapToGeoJsonFile(const std::string &filename) {
       n = pt.y;
       u = pt.z;
       if(map_mode == Mode::ABSOLUTE) {
+        if(!has_base_point) {
+          throw GeographicLib::GeographicErr("base point is required for area point UTM to LL convertion");
+        }
         e += base_point_e_;
         n += base_point_n_;
         u += base_point_u_;
@@ -588,7 +594,7 @@ void saveMapToGeoJsonFile(const std::string &filename) {
         RobotLocalization::NavsatConversions::UTMtoLL(n, e, base_point_zone_, lat, lon);
       } catch(GeographicLib::GeographicErr &ex) {
         ROS_ERROR_STREAM("[mower_map_service] Convert area point UTM to LL coordinates fail " << ex.what() << " " << e << "E, " << n << "N, " << base_point_zone_);
-        throw ex; 
+        throw; 
       }
   
       json pt_json;
@@ -627,7 +633,7 @@ void setBasePoint(bool has_bp, double lon, double lat, double height) {
       RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
     } catch(GeographicLib::GeographicErr &ex) {
       ROS_ERROR_STREAM("[mower_map_service] Convert base point LL to UTM coordinates fail "<<ex.what()<<+" LL("<<lon<<"E, "<<lat<<"N, "<<height << ")");
-      throw ex; 
+      throw; 
     }
     base_point_e_ = e;
     base_point_n_ = n;
@@ -735,23 +741,18 @@ void readMapFromBagFile(const std::string &filename) {
   }
 }
 
-std::string readMapFromGeoJsonFile(const std::string &filename) {
+void readMapFromGeoJsonFile(const std::string &filename) {
   //GeoJSON by default in absolute WSG84 coordinate system. Our maps are X,Y,Z from UTM relative or absolute. Exept base point which is always WSG84
 
   std::ifstream f(filename);
-  json map_json;
-  try {
-    map_json = json::parse(f);
-  } catch (json::parse_error& ex) {
-    ROS_WARN_STREAM("[mower_map_service] Error opening stored mowing areas json: " << ex.what() << " at byte " << (int)ex.byte);
-    return "GeoJSON parse error";
-  }
+  json map_json = json::parse(f);
+  //try {} catch (json::parse_error& ex) {}
 
   if(map_json["type"]!="FeatureCollection") {
-    return "root element is not a FeatureCollection";
+    throw std::runtime_error("root element is not a FeatureCollection");
   }
   if(!map_json.contains("features")) {
-    return "root element must contain 'features'";
+    throw std::runtime_error("root element must contain 'features'");
   }
   if(map_json.contains("properties")){
     json map_properties_json = map_json["properties"];
@@ -790,10 +791,10 @@ std::string readMapFromGeoJsonFile(const std::string &filename) {
     if(properties_json["name"] == "base_point"){
       //we found it
       if(geometry_json["type"] != "Point"){
-        return "base_point 'geometry' element must be of 'Point' type";
+        throw std::runtime_error("base_point 'geometry' element must be of 'Point' type");
       }
       if(!coordinates_json.is_array() || coordinates_json.size()!=3){
-        return "base_point 'coordinates' element must be an array of size 3";
+        throw std::runtime_error("base_point 'coordinates' element must be an array of size 3");
       }
       double lon = coordinates_json[0];
       double lat = coordinates_json[1];
@@ -805,10 +806,8 @@ std::string readMapFromGeoJsonFile(const std::string &filename) {
   }
   if(!has_base_point) {
     if(map_mode == Mode::ABSOLUTE) {
-      return "No base_point found which is required for absolute mode (features[ type = Feature , properties[name] = base_point ] )";
-    } else {
-      setBasePoint(false, NAN, NAN, NAN);
-    }
+      throw std::runtime_error("No base_point found which is required for absolute mode (features[ type = Feature , properties[name] = base_point ] )");
+    } 
   } 
 
   //lookup for docking point and polygons
@@ -843,20 +842,20 @@ std::string readMapFromGeoJsonFile(const std::string &filename) {
     } else if(properties_json["name"] == "docking_point"){
       //we found docking point
       if(geometry_json["type"] != "Point"){
-        return "docking_point 'geometry' element must be of 'Point' type";
+        throw std::runtime_error("docking_point 'geometry' element must be of 'Point' type");
       }
       if(!coordinates_json.is_array() || coordinates_json.size()!=3){
-        return "docking_point 'coordinates' element must be an array of size 3";
+        throw std::runtime_error("docking_point 'coordinates' element must be an array of size 3");
       }
       double lon = coordinates_json[0];
       double lat = coordinates_json[1];
       double height = coordinates_json[2];
-      if(!properties_json.contains("orientation")){
-        return "docking_point element must have orientation property";
+      if(!properties_json.contains("orientation")) {
+        throw std::runtime_error("docking_point element must have orientation property");
       }
       json orientation_json = properties_json["orientation"];
-      if(!orientation_json.is_array() || orientation_json.size()!=4){
-        return "docking_point orientation property must be an array of size 4";
+      if(!orientation_json.is_array() || orientation_json.size()!=4) {
+        throw std::runtime_error("docking_point orientation property must be an array of size 4");
       }
 
       double e, n, u = height;
@@ -865,9 +864,14 @@ std::string readMapFromGeoJsonFile(const std::string &filename) {
         RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
       } catch(GeographicLib::GeographicErr &ex) {
         ROS_ERROR_STREAM("[mower_map_service] Convert docking point LL to UTM coordinates fail "<<ex.what()<<+" "<<lon<<"E, "<<lat<<"N, "<<height);
-        throw ex; 
+        throw; 
       }
       if(map_mode == Mode::ABSOLUTE) {
+        if(!has_base_point) {
+          //unreachable statement
+          throw GeographicLib::GeographicErr("base point is required for docking point LL to UTM convertion");
+        }
+
         e = e - base_point_e_;
         n = n - base_point_n_;
         u = u - base_point_u_;
@@ -928,9 +932,13 @@ std::string readMapFromGeoJsonFile(const std::string &filename) {
             RobotLocalization::NavsatConversions::LLtoUTM(lat, lon, n, e, zone);
           } catch(GeographicLib::GeographicErr &ex) {
             ROS_ERROR_STREAM("[mower_map_service] Convert area point LL to UTM coordinates fail "<<ex.what()<<+" "<<lon<<"E, "<<lat<<"N");
-            throw ex; 
+            throw; 
           }
           if(map_mode == Mode::ABSOLUTE) {
+            if(!has_base_point) {
+              //unreachable statement
+              throw GeographicLib::GeographicErr("base point is required for area point LL to UTM convertion");
+            }
             e = e - base_point_e_;
             n = n - base_point_n_;
           }
@@ -951,7 +959,6 @@ std::string readMapFromGeoJsonFile(const std::string &filename) {
       continue;
     }
   }
-  return "ok";
 }
 
 void readMapFromFile(const std::string &filename, bool append = false) {
@@ -962,34 +969,36 @@ void readMapFromFile(const std::string &filename, bool append = false) {
   ROS_INFO_STREAM("[mower_map_service] Start load map from file " << filename);
   if(ends_with(filename,".bag")) {
     readMapFromBagFile(filename);
-    //init 
-    if(!has_base_point) {
-      if (!has_datum) {
-        if(map_mode == Mode::ABSOLUTE) {
-          ROS_WARN_STREAM("[mower_map_service] You need to provide datum_lat and datum_long and datum_height in order to save in geojson format in absolute mode");
-        } 
-        setBasePoint(false, NAN, NAN, NAN);
-      } else {
-        setBasePoint(true, datum_long, datum_lat, datum_height);
-      }
-    }
-    saveMapToFile("autoload_bag.geojson");
-    saveMapToFile("autoload_bag.bag");
   } else if(ends_with(filename,".geojson")) {
-    std::string errorMsg = readMapFromGeoJsonFile(filename);
-    if(errorMsg!="ok") {
-      ROS_ERROR_STREAM("[mower_map_service] Load GeoJSON failed with message " << errorMsg);
+    try {
+      readMapFromGeoJsonFile(filename);
+    } catch (std::exception &ex) {
+      ROS_ERROR_STREAM("[mower_map_service] Load GeoJSON failed: " << ex.what());
     }
-    saveMapToFile("autoload_geojson.geojson");
-    saveMapToFile("autoload_geojson.bag");
   } else {
     ROS_ERROR_STREAM("[mower_map_service] Unsupported map file " << filename << " (expected *.bag or *.geojson)");
   }
+  
+  //init 
+  if(!has_base_point) {
+    if (!has_datum) {
+      if(map_mode == Mode::ABSOLUTE) {
+        ROS_WARN_STREAM("[mower_map_service] datum_lat, datum_long, datum_height parameeters are required for save in geojson format in absolute mode");
+      } 
+      setBasePoint(false, NAN, NAN, NAN);
+    } else {
+      setBasePoint(true, datum_long, datum_lat, datum_height);
+    }
+  }
+
   if(!has_docking_point) {
     ROS_WARN_STREAM("[mower_map_service] Loaded map missing docking_point");
   }
   ros::Time t2 = ros::Time::now();
   ROS_INFO_STREAM("[mower_map_service] Loaded " << areas.size() << " areas from file in " << (t2 - t1).toSec() << " s");
+
+  saveMapToFile("autoload.geojson");
+  saveMapToFile("autoload.bag");
 }
 
 
