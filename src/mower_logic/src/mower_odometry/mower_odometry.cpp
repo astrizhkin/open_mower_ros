@@ -116,7 +116,7 @@ void publishOdometry() {
 
   xbot_msgs::AbsolutePose pose;
   pose.header = odom.header;
-  pose.sensor_stamp = 0;
+  pose.epoch_ms = 0;
   pose.received_stamp = 0;
   pose.source = xbot_msgs::AbsolutePose::SOURCE_SENSOR_FUSION;
   pose.flags = 0;
