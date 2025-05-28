@@ -167,9 +167,15 @@ add_executable(mower_comms
         src/COBS.h
         src/ll_datatypes.h
         )
-
 add_dependencies(mower_comms ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(mower_comms ${catkin_LIBRARIES})
+
+add_executable(antislip
+        src/antislip.cpp
+        )
+add_dependencies(antislip ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(antislip ${catkin_LIBRARIES})
+
 
 #############
 ## Install ##

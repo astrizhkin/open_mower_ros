@@ -510,10 +510,10 @@ void sendWheelTickAndMeasuredTwist(ros::Time& stamp) {
     prev_wheel_tick_msg = wheel_tick_msg;
   #else
     double dt = (stamp - prev_wheel_pos_stamp).toSec();
-    double rl_delta = last_rear_status.state.wheelL_cnt - prev_wheel_pos_rl;
-    double fl_delta = last_front_status.state.wheelL_cnt - prev_wheel_pos_fl;
-    double rr_delta = last_rear_status.state.wheelR_cnt - prev_wheel_pos_rr;
-    double fr_delta = last_front_status.state.wheelR_cnt - prev_wheel_pos_fr;
+    double rl_delta_rad = last_rear_status.state.wheelL_cnt - prev_wheel_pos_rl;
+    double fl_delta_rad = last_front_status.state.wheelL_cnt - prev_wheel_pos_fl;
+    double rr_delta_rad = last_rear_status.state.wheelR_cnt - prev_wheel_pos_rr;
+    double fr_delta_rad = last_front_status.state.wheelR_cnt - prev_wheel_pos_fr;
 
     prev_wheel_pos_stamp = stamp;
     prev_wheel_pos_rl = last_rear_status.state.wheelL_cnt;
@@ -529,8 +529,11 @@ void sendWheelTickAndMeasuredTwist(ros::Time& stamp) {
   }
 
 
-  double d_wheel_l = (rl_delta + fl_delta) * wheel_radius_m / 2;
-  double d_wheel_r = (rr_delta + fr_delta) * wheel_radius_m / 2;
+  double d_wheel_l_rad = (rl_delta_rad + fl_delta_rad) / 2;
+  double d_wheel_r_rad = (rr_delta_rad + fr_delta_rad) / 2;
+
+  double d_wheel_l = d_wheel_l_rad * wheel_radius_m;
+  double d_wheel_r = d_wheel_r_rad * wheel_radius_m;
 
   double d_linear = (d_wheel_r + d_wheel_l) / 2.0;
   double d_angular = (d_wheel_r - d_wheel_l) / wheel_separation_m;

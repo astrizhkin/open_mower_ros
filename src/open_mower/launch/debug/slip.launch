@@ -1,0 +1,18 @@
+<launch>
+  <arg name="bagfile" />
+  <arg name="s" default="0" />
+  <arg name="r" default="1" />
+  
+  <param name="use_sim_time" value="true"/>
+
+   
+  <node pkg="mower_comms" type="antislip" name="antislip" output="screen">
+      <remap from="~imu_in" to="/imu/data_raw"/>
+      <!--remap from="~wheel_ticks_in" to="/mower/wheel_ticks"/-->
+      <remap from="~twist_in" to="/mower/measured_vel"/>
+      <remap from="~odom3d_in" to="/xbot_positioning/odom_3d_out"/>
+  </node>
+
+   <!--clock-->
+  <node pkg="rosbag" type="play" name="player" output="log" args="--clock $(arg bagfile) -s$(arg s) -r$(arg r)"/>
+</launch>
