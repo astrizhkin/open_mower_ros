@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
   if (paramNh.param("relative_angular_difference", relativeAngularDifference, 10.0)) {
     ROS_INFO_STREAM("[antislip] Configured relative angular difference: " << relativeAngularDifference);
   }
-  if (paramNh.param("absolute_angular_difference", absoluteAngularDifference, 0.6)) {
+  if (paramNh.param("absolute_angular_difference", absoluteAngularDifference, 0.5)) {
     ROS_INFO_STREAM("[antislip] Configured absolute angular difference: " << absoluteAngularDifference);
   }
   if (paramNh.param("antislip_vel", antislipVel, 0.3)) {
