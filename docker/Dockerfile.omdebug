@@ -2,6 +2,12 @@
 FROM osrf/ros:noetic-desktop-full AS base
 ENV DEBIAN_FRONTEND=noninteractive
 
+#Update GPG keys
+#https://zenn.dev/tiryoh/articles/2025-06-02-ros-noetic-apt-get-update
+#RUN sudo gpg --show-keys /usr/share/keyrings/ros1-latest-archive-keyring.gpg
+COPY --link ./ros.key /usr/share/keyrings/ros1-latest-archive-keyring.gpg
+#RUN curl -sS https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros1-latest-archive-keyring.gpg
+
 # Install required packages
 #   - git
 #   - mosquitto broker
