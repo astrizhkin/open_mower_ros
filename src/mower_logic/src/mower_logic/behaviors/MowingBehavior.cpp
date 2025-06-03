@@ -495,7 +495,7 @@ bool MowingBehavior::execute_mowing_plan() {
       // Only skip/trim if goal execution began
       if (current_status.state_ != actionlib::SimpleClientGoalState::PENDING &&
           current_status.state_ != actionlib::SimpleClientGoalState::RECALLED) {
-        ROS_INFO_STREAM(">> MowingBehavior: (MOW) PlannerGetProgress currentMowingPathIndex = "
+        ROS_INFO_STREAM("[MowingBehavior] (MOW) PlannerGetProgress currentMowingPathIndex = "
                         << currentMowingPathIndex << " of " << path.path.poses.size());
         printNavState(current_status.state_);
         // if we have fully processed the segment or we have encountered an error, drop the path segment
@@ -505,7 +505,7 @@ bool MowingBehavior::execute_mowing_plan() {
         if (currentMowingPathIndex >= path.path.poses.size() ||
             (path.path.poses.size() - currentMowingPathIndex) < 5)  // fully mowed the path ?
         {
-          ROS_INFO_STREAM("MowingBehavior: (MOW) Mow path finished, skipping to next mow path.");
+          ROS_INFO_STREAM("[MowingBehavior] (MOW) Mow path finished, skipping to next mow path.");
           currentMowingPath++;
           currentMowingPathIndex = 0;
           // continue with next segment
@@ -518,7 +518,7 @@ bool MowingBehavior::execute_mowing_plan() {
           // currentMowingPathIndex might be 0 if we never consumed one of the points, we advance at least 1 point
           if (currentMowingPathIndex == 0) currentMowingPathIndex++;
           if (!requested_pause_flag) {
-            ROS_INFO_STREAM("MowingBehavior: (MOW) PAUSED due to MBF Error at " << currentMowingPathIndex);
+            ROS_INFO_STREAM("[MowingBehavior] (MOW) PAUSED due to MBF Error at " << currentMowingPathIndex);
             this->setPause();
             update_actions(true);
           }
@@ -536,7 +536,7 @@ bool MowingBehavior::execute_mowing_plan() {
 void MowingBehavior::command_home() {
   if (shared_state->active_semiautomatic_task) {
     // We are in semiautomatic task, mark it as manually paused.
-    ROS_INFO_STREAM("[MoeingBehavior] Manually pausing semiautomatic task");
+    ROS_INFO_STREAM("[MowingBehavior] Manually pausing semiautomatic task");
     shared_state->semiautomatic_task_paused = true;
   }
   if (paused) {
@@ -572,7 +572,7 @@ bool MowingBehavior::redirect_joystick() {
 }
 
 uint8_t MowingBehavior::get_sub_state() {
-  return 0;
+  return currentMowingArea;
 }
 
 uint8_t MowingBehavior::get_state() {
