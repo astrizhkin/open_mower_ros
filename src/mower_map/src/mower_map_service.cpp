@@ -239,7 +239,7 @@ double area(mower_map::MapArea &inArea) {
   for (auto &pt : inArea.area.points) {
     poly.points.push_back(Point(scale_(pt.x), scale_(pt.y)));
   }
-  return poly.area();
+  return unscale(unscale(poly.area()));
 }
 
 void analyzeMap() {
