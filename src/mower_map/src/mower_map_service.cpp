@@ -179,7 +179,7 @@ void visualizeAreas() {
 
   grid_map::Polygon p;
 
-  for (auto area : areas) {
+  for (auto &area : areas) {
     // Push it to mapAreas
     {
       // Create a marker
@@ -232,6 +232,34 @@ void visualizeAreas() {
   map_server_viz_array_pub.publish(markerArray);
   ros::Time t2 = ros::Time::now();
   ROS_INFO_STREAM("[mower_map_service] Visualize map areas in " << (t2 - t1).toSec() << " s");
+}
+
+double area(mower_map::MapArea &inArea) {
+  Polygon poly;
+  for (auto &pt : inArea.area.points) {
+    poly.points.push_back(Point(scale_(pt.x), scale_(pt.y)));
+  }
+  return poly.area();
+}
+
+void analyzeMap() {
+  ROS_INFO_STREAM("[mower_map_service] Map areas");
+  double mowArea = 0;
+  double porhibitiedArea = 0;
+  double navArea = 0;
+  for(auto &a : areas) {
+    double area_m2 = area(a);
+    ROS_INFO_STREAM("[mower_map_service] Name " << a.name << ", Type " << a.area_type << ", Area "<<area_m2);
+    if (a.area_type == mower_map::MapArea::AREA_MOWING) {
+      mowArea+=area_m2;
+    } else if (a.area_type == mower_map::MapArea::AREA_PROHIBITED) {
+      porhibitiedArea+=area_m2;
+    } else if (a.area_type == mower_map::MapArea::AREA_NAVIGATION) {
+      navArea+=area_m2;
+    } else {
+    }
+  }
+  ROS_INFO_STREAM("[mower_map_service] Total Area Mowing " << mowArea << ", Phohibited "<<porhibitiedArea<<", Navigation "<<navArea);
 }
 
 bool simplifyArea(double areaPerimeterTolerance, mower_map::MapArea &inArea) {
@@ -996,6 +1024,7 @@ void readMapFromFile(const std::string &filename, bool append = false) {
   }
   ros::Time t2 = ros::Time::now();
   ROS_INFO_STREAM("[mower_map_service] Loaded " << areas.size() << " areas from file in " << (t2 - t1).toSec() << " s");
+  analyzeMap();
 
   saveMapToFile("autoload.geojson");
   saveMapToFile("autoload.bag");
