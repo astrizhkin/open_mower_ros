@@ -31,3 +31,6 @@
 [submodule "src/lib/Slic3r"]
 	path = src/lib/Slic3r
 	url = https://github.com/astrizhkin/Slic3r
+[submodule "src/lib/navigation_layers"]
+	path = src/lib/navigation_layers
+	url = https://github.com/astrizhkin/navigation_layers

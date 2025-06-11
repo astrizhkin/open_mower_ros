@@ -5,7 +5,7 @@
 <launch>
     <!-- TODO: Add parameter for simulation -->
 
-    <node pkg="mower_comms" type="mower_comms" name="mower_comms" output="screen">
+    <node pkg="mower_comms" type="mower_comms" name="mower_comms" unless="$(optenv OM_NO_COMMS False)" output="screen">
         <rosparam unless="$(eval env('OM_MOWER')=='CUSTOM')" file="$(find open_mower)/params/hardware_specific/$(env OM_MOWER)/comms_general_params.yaml"/>
         <rosparam unless="$(eval env('OM_MOWER')=='CUSTOM')" file="$(find open_mower)/params/hardware_specific/$(env OM_MOWER)/comms_$(env OM_MOWER_ESC_TYPE)_params.yaml"/>
         <rosparam if="$(eval env('OM_MOWER')=='CUSTOM')" file="$(env HOME)/mower_params/comms_params.yaml"/>
@@ -15,6 +15,13 @@
         <!-- param name="imu_accel_axes" value="+y+x-z" /-->
         <!-- param name="imu_gyro_axes" value="+y-x-z" /-->
         <param name="mower_esc_enabled" value="$(env OM_ENABLE_MOWER)"/>
+    </node>
+
+    <node pkg="mower_comms" type="antislip" name="antislip" output="screen">
+      <remap from="~imu_in" to="/imu/data_raw"/>
+      <!--remap from="~wheel_ticks_in" to="/mower/wheel_ticks"/-->
+      <remap from="~twist_in" to="/mower/measured_vel"/>
+      <!--remap from="~odom3d_in" to="/xbot_positioning/odom_3d_out"/-->
     </node>
     
     <include file="$(find open_mower)/launch/include/_hoverboard4x4.launch" />

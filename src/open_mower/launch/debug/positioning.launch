@@ -1,0 +1,27 @@
+<launch>
+  <arg name="bagfile" />
+  <arg name="s" default="0" />
+  <arg name="r" default="1" />
+  
+  <param name="use_sim_time" value="true"/>
+
+  <!--node name="rviz" pkg="rviz" type="rviz" args="-d $(find open_mower)/rviz/sim_mower_logic.rviz" required="true" /-->
+  <include file="$(find open_mower)/launch/include/_localization.launch"/>
+   
+   <!--clock-->
+  <node pkg="rosbag" type="play" name="player" output="log" args="--clock $(arg bagfile) -s$(arg s) -r$(arg r) 
+    /xbot_positioning/odom_3d_out:=/bag/xbot_positioning/odom_3d_out 
+    /xbot_positioning/odom_2d_out:=/bag/xbot_positioning/odom_2d_out
+    /xbot_positioning/xb_pose:=/bag/xbot_positioning/xb_pose
+    /xbot_positioning/debug_expected_motion_vector:=/bag/xbot_positioning/debug_expected_motion_vector
+    /xbot_positioning/kalman_state:=/bag/xbot_positioning/kalman_state"/>
+
+   <!-- 
+    /tf:=/null/tf 
+    odom_3d_out
+    odom_2d_out
+    xb_pose_out->xbot_positioning/xb_pose
+    debug_expected_motion_vector
+    kalman_state -->
+
+</launch>

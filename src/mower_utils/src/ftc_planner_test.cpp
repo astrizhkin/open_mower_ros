@@ -58,7 +58,7 @@ void onControlPoint(const geometry_msgs::PoseStamped::ConstPtr &msg) {
 
     Eigen::Affine3d local_control_point;
     //transform
-    geometry_msgs::TransformStamped map_to_base = tfBuffer.lookupTransform("base_link", "map", ros::Time(), ros::Duration(1.0));
+    geometry_msgs::TransformStamped map_to_base = tfBuffer.lookupTransform("base_footprint", "map", ros::Time(), ros::Duration(1.0));
     //map_to_base.transform.rotation.
     //geometry_msgs::TransformStamped transform = last_transform.transforms.at(0);
     //tf2::fromMsg(last_transform);
@@ -93,7 +93,7 @@ int main(int argc, char **argv) {
 
     ros::Subscriber global_point_sub = n.subscribe("/move_base_flex/FTCPlanner/global_point", 0, onControlPoint);
     ros::Subscriber tf_sub = n.subscribe("/tf", 0, onTransformation);
-    ros::Subscriber odom_sub = n.subscribe("/xbot_positioning/odom_out", 0, onOdom);
+    ros::Subscriber odom_sub = n.subscribe("/xbot_positioning/odom_3d_out", 0, onOdom);
 
     error_pub = paramNh.advertise<ftc_local_planner::PID>("test_error", 10, false);
 

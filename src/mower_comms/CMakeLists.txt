@@ -8,6 +8,7 @@ project(mower_comms)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  dynamic_reconfigure
   mower_msgs
         sensor_msgs
         roscpp
@@ -17,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
         xesc_interface
         hoverboard_driver
         xbot_msgs
+        contact_sensor_layer
 )
 
 find_package(
@@ -165,9 +167,15 @@ add_executable(mower_comms
         src/COBS.h
         src/ll_datatypes.h
         )
-
 add_dependencies(mower_comms ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(mower_comms ${catkin_LIBRARIES})
+
+add_executable(antislip
+        src/antislip.cpp
+        )
+add_dependencies(antislip ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(antislip ${catkin_LIBRARIES})
+
 
 #############
 ## Install ##

@@ -6,5 +6,7 @@
     <include file="$(find open_mower)/launch/include/_localization.launch"/>
     <include file="$(find open_mower)/launch/include/_teleop.launch"/>
 
-    <node pkg="mower_map" type="mower_map_service" name="map_service" output="screen"/>
+    <node pkg="mower_map" type="mower_map_service" name="map_service" output="screen">
+        <param name="map_filename" value="map.geojson"/>
+    </node>
 </launch>

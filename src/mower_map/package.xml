@@ -12,6 +12,7 @@
 
     <build_depend>roscpp</build_depend>
     <build_depend>message_generation</build_depend>
+    <build_depend>robot_localization</build_depend>
     <build_depend>geometry_msgs</build_depend>
     <build_depend>grid_map_core</build_depend>
     <build_depend>grid_map_ros</build_depend>
@@ -19,6 +20,8 @@
     <build_depend>grid_map_cv</build_depend>
     <build_depend>rosbag</build_depend>
     <build_depend>slic3r_wrapper</build_depend>
+    <build_depend>xbot_driver_gps</build_depend>
+    
 
     <build_export_depend>roscpp</build_export_depend>
     <build_export_depend>message_generation</build_export_depend>

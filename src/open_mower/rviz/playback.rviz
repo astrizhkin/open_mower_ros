@@ -90,7 +90,7 @@ Visualization Manager:
         Shaft Length: 0.20000000298023224
         Shaft Radius: 0.019999999552965164
         Value: Arrow
-      Topic: /xbot_positioning/odom_out
+      Topic: /xbot_positioning/odom_3d_out
       Unreliable: false
       Value: true
     - Angle Tolerance: 0.10000000149011612

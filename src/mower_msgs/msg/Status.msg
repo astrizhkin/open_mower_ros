@@ -16,8 +16,8 @@ bool ll_timeout
 #internal status from LL
 bool battery_empty
 
-float32[5] uss_ranges
-uint16[5] uss_age_ms
+#float32[5] uss_ranges
+#uint16[5] uss_age_ms
 bool emergency
 bool temporary_emergency
 #percent 0-100
@@ -26,6 +26,9 @@ float32 v_charge
 float32 v_battery
 #charging positive, discharging negative
 float32 battery_current
+float32 battery_temperature
+float32 balancer_temperature
+bool mow_enabled
 
 # ESC stuff
 ESCStatus rear_left_esc_status
@@ -33,4 +36,3 @@ ESCStatus rear_right_esc_status
 ESCStatus front_left_esc_status
 ESCStatus front_right_esc_status
 ESCStatus mow_esc_status
-

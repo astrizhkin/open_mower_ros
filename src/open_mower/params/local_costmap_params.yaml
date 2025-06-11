@@ -1,12 +1,23 @@
 local_costmap:
-  inflation_radius: 0.0
+  #global_frame: odom
   global_frame: map
-  robot_base_frame: base_link
-  update_frequency: 5.0
+  robot_base_frame: base_footprint
+  update_frequency: 4.0
   publish_frequency: 2.0
   rolling_window: true
-  width: 1.5
-  height: 1.5
-  resolution: 0.15
+  width: 5
+  height: 5
+  resolution: 0.05
+  #static_map: false
   static_map: true
+  #transform_tolerance: 1???
+  #observation_persistence: 0.0???
   map_topic: mower_map_service/map
+  plugins:
+    - {name: static_layer,    type: "costmap_2d::StaticLayer"}
+#    - {name: obstacle_layer,  type: "costmap_2d::ObstacleLayer"}
+    - {name: uss_layer, type: "range_sensor_layer::RangeSensorLayer"}
+    - {name: contact_layer, type: "contact_sensor_layer::ContactSensorLayer"}
+    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+  
+

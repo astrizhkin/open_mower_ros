@@ -1,5 +1,13 @@
 <launch>
 
+  <param name="robot_model" textfile="$(find open_mower)/params/hardware_specific/CUSTOM/urdf.xml"/>
+    
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="rob_st_pub" output="screen">
+    <remap from="robot_description" to="robot_model" />
+    <remap from="joint_states" to="different_joint_states" />
+    <param name="publish_frequency" value="5"/>
+  </node>
+
   <node name="move_base_flex" pkg="mbf_costmap_nav" type="mbf_costmap_nav" required="true" output="screen">
     <remap from="cmd_vel" to="/nav_vel"/>
     <rosparam file="$(find open_mower)/params/costmap_common_params.yaml" command="load" ns="global_costmap" />
@@ -12,7 +20,7 @@
     <rosparam file="$(find open_mower)/params/global_planner_params.yaml" command="load" />
   </node>
 
-  <node name="move_base_legacy_relay" pkg="mbf_costmap_nav" type="move_base_legacy_relay.py">
+  <node name="move_base_legacy_relay" pkg="mbf_costmap_nav" type="move_base_legacy_relay.py" output="screen">
     <param name="base_local_planner" value="FTCPlanner" />
     <param name="base_global_planner" value="GlobalPlanner" />
   </node>
