@@ -261,29 +261,10 @@ bool DebugBehavior::waitForGPS() {
 }
 
 DebugBehavior::DebugBehavior() {
-    xbot_msgs::ActionInfo abort_debug_action;
-    abort_debug_action.action_id = "abort";
-    abort_debug_action.enabled = false;
-    abort_debug_action.action_name = "Stop Debug";
+    this->sub_state = 2;
 
     actions.clear();
-    actions.push_back(abort_debug_action);
-}
-
-void DebugBehavior::command_home() {
-
-}
-
-void DebugBehavior::command_start() {
-
-}
-
-void DebugBehavior::command_s1() {
-
-}
-
-void DebugBehavior::command_s2() {
-
+    actions.push_back(createAction("abort","Stop Debug"));
 }
 
 bool DebugBehavior::redirect_joystick() {
@@ -291,10 +272,6 @@ bool DebugBehavior::redirect_joystick() {
 }
 
 
-uint8_t DebugBehavior::get_sub_state() {
-    return 2;
-
-}
 uint8_t DebugBehavior::get_state() {
     return mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_AUTONOMOUS;
 }
@@ -312,7 +289,7 @@ void DebugBehavior::update_actions(bool enable) {
     registerActions("mower_logic:behavior", actions);
 }
 
-void DebugBehavior::handle_action(std::string action) {
+void DebugBehavior::handle_action(const std::string& action, const std::string& parameters) {
     if (action == "mower_logic:behavior/abort") {
         ROS_INFO_STREAM("[DebugBehavior] got abort command");
         this->abort();

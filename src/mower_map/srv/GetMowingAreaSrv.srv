@@ -1,4 +1,4 @@
-uint32 index
+string name
 ---
 MapArea area
 geometry_msgs/Polygon[] prohibited_areas

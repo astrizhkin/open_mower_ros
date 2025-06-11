@@ -23,11 +23,13 @@ extern ros::ServiceClient dockingPointClient;
 extern actionlib::SimpleActionClient<mbf_msgs::ExePathAction> *mbfClientExePath;
 extern xbot_msgs::AbsolutePose getPose();
 extern mower_msgs::Status getStatus();
+extern mower_logic::MowerLogicConfig getConfig();
 
 extern void setRobotPose(geometry_msgs::Pose &pose, std::string reason);
 extern void stopMoving(std::string reason);
 extern bool isGpsGood();
 extern bool setGPS(bool enabled, std::string reason);
+extern void registerActions(std::string prefix, const std::vector<xbot_msgs::ActionInfo> &actions);
 
 UndockingBehavior UndockingBehavior::INSTANCE(&MowingBehavior::INSTANCE);
 UndockingBehavior UndockingBehavior::RETRY_INSTANCE(&DockingBehavior::INSTANCE);
@@ -136,11 +138,13 @@ void UndockingBehavior::enter() {
   docking_pose_stamped.header.stamp = ros::Time::now();
 
   // set the robot's position to the dock if we're actually docked
-  if (getStatus().v_charge > 5.0) {
+  
+  if (getStatus().v_charge > getConfig().charger_min_voltage) {
     ROS_INFO_STREAM(
         "[UndockingBehavior] Currently inside the docking station, we set the robot's pose to the docks pose.");
     setRobotPose(docking_pose_stamped.pose, "undocking init");
   }
+  update_actions();
 }
 
 void UndockingBehavior::exit() {
@@ -182,30 +186,34 @@ bool UndockingBehavior::waitForGPS() {
 
 UndockingBehavior::UndockingBehavior(Behavior *next) {
   this->nextBehavior = next;
-}
+  this->sub_state = 2;
 
-void UndockingBehavior::command_home() {
-}
-
-void UndockingBehavior::command_start() {
-}
-
-void UndockingBehavior::command_s1() {
-}
-
-void UndockingBehavior::command_s2() {
+  actions.clear();
+  actions.push_back(createAction("abort_undocking","Stop Undocking"));
 }
 
 bool UndockingBehavior::redirect_joystick() {
   return false;
 }
 
-uint8_t UndockingBehavior::get_sub_state() {
-  return 2;
-}
 uint8_t UndockingBehavior::get_state() {
   return mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_AUTONOMOUS;
 }
 
-void UndockingBehavior::handle_action(std::string action) {
+void UndockingBehavior::handle_action(const std::string& action, const std::string& parameters) {
+  if (action == "mower_logic:undocking/abort_undocking") {
+    ROS_INFO_STREAM("[DockingBehavior] got abort undocking command");
+    this->abort();
+  }
 }
+
+void UndockingBehavior::update_actions() {
+  for (auto &a : actions) {
+    a.enabled = true;
+  }
+
+  registerActions("mower_logic:undocking", actions);
+}
+
+
+

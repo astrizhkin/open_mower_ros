@@ -1,5 +1,5 @@
 int32 currentMowingPath
-int32 currentMowingArea
+string currentMowingAreaName
 int32 currentMowingPathIndex
 string currentMowingPlanDigest
 float32 currentMowingAngleIncrementSum

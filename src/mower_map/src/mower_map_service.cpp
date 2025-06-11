@@ -44,6 +44,7 @@
 #include "mower_map/DeleteMowingAreaSrv.h"
 #include "mower_map/GetDockingPointSrv.h"
 #include "mower_map/GetMowingAreaSrv.h"
+#include "mower_map/GetMowingAreasSrv.h"
 #include "mower_map/SetDockingPointSrv.h"
 #include "mower_map/SetNavPointSrv.h"
 
@@ -1157,25 +1158,39 @@ bool addMowingArea(mower_map::AddMowingAreaSrvRequest &req, mower_map::AddMowing
   return true;
 }
 
-bool getMowingArea(mower_map::GetMowingAreaSrvRequest &req, mower_map::GetMowingAreaSrvResponse &res) {
-  ROS_INFO_STREAM("[mower_map_service] Got getMowingArea call with index: " << req.index);
+bool getMowingAreas(mower_map::GetMowingAreasSrvRequest &req, mower_map::GetMowingAreasSrvResponse &res) {
+  ROS_INFO_STREAM("[mower_map_service] Got getMowingsArea call");
 
-  int mowingAreaIndex = 0;
+  for (auto &area : areas) {
+    if (area.area_type == mower_map::MapArea::AREA_MOWING) {
+      res.areas.push_back(area);
+    } 
+  }
+
+  return !res.areas.empty();
+}
+
+
+bool getMowingArea(mower_map::GetMowingAreaSrvRequest &req, mower_map::GetMowingAreaSrvResponse &res) {
+  ROS_INFO_STREAM("[mower_map_service] Got getMowingArea call: " << req.name);
+
   bool found = false;
   for (auto &area : areas) {
     if (area.area_type == mower_map::MapArea::AREA_MOWING) {
-      if (mowingAreaIndex == req.index) {
+      if (area.name == req.name) {
+        if (found) {
+          ROS_WARN_STREAM("[mower_map_service] Area with duplicate name found: " << req.name);
+        } 
         res.area = area;
         found = true;
       }
-      mowingAreaIndex++;
     } else if (area.area_type == mower_map::MapArea::AREA_PROHIBITED) {
       res.prohibited_areas.push_back(area.area);
     }
   }
 
   if (!found) {
-    ROS_ERROR_STREAM("[mower_map_service] No mowing area with index: " << req.index);
+    ROS_ERROR_STREAM("[mower_map_service] No mowing area with name: " << req.name);
     return false;
   }
 
@@ -1360,6 +1375,7 @@ int main(int argc, char **argv) {
 
   ros::ServiceServer add_area_srv = n.advertiseService("mower_map_service/add_mowing_area", addMowingArea);
   ros::ServiceServer get_area_srv = n.advertiseService("mower_map_service/get_mowing_area", getMowingArea);
+  ros::ServiceServer get_areas_srv = n.advertiseService("mower_map_service/get_mowing_areas", getMowingAreas);
   ros::ServiceServer delete_area_srv = n.advertiseService("mower_map_service/delete_mowing_area", deleteMowingArea);
   ros::ServiceServer append_maps_srv = n.advertiseService("mower_map_service/append_maps", appendMapFromFile);
   ros::ServiceServer convert_maps_srv = n.advertiseService("mower_map_service/convert_to_navigation_area", convertToNavigationArea);

@@ -23,6 +23,7 @@ extern ros::ServiceClient dockingPointClient;
 extern actionlib::SimpleActionClient<mbf_msgs::MoveBaseAction> *mbfClient;
 extern actionlib::SimpleActionClient<mbf_msgs::ExePathAction> *mbfClientExePath;
 extern mower_msgs::Status getStatus();
+extern mower_logic::MowerLogicConfig getConfig();
 
 extern void stopMoving(std::string reason);
 extern bool setGPS(bool enabled, std::string reason);
@@ -32,13 +33,52 @@ extern void registerActions(std::string prefix, const std::vector<xbot_msgs::Act
 DockingBehavior DockingBehavior::INSTANCE;
 
 DockingBehavior::DockingBehavior() {
-  xbot_msgs::ActionInfo abort_docking_action;
-  abort_docking_action.action_id = "abort_docking";
-  abort_docking_action.enabled = false;
-  abort_docking_action.action_name = "Stop Docking";
+  this->sub_state = 1;
 
   actions.clear();
-  actions.push_back(abort_docking_action);
+  actions.push_back(createAction("abort_docking","Stop Docking"));
+}
+
+actionlib::SimpleClientGoalState DockingBehavior::sendGoalAndWait(mbf_msgs::ExePathGoal &goal) {
+  mbfClientExePath->sendGoal(goal);
+  return waitRunningGoal<mbf_msgs::ExePathAction>(mbfClientExePath);
+}
+
+actionlib::SimpleClientGoalState DockingBehavior::sendGoalAndWait(mbf_msgs::MoveBaseGoal &goal) {
+  mbfClient->sendGoal(goal);
+  return waitRunningGoal<mbf_msgs::MoveBaseAction>(mbfClient);
+}
+
+template actionlib::SimpleClientGoalState DockingBehavior::waitRunningGoal<mbf_msgs::ExePathAction>(actionlib::SimpleActionClient<mbf_msgs::ExePathAction> *client);
+template actionlib::SimpleClientGoalState DockingBehavior::waitRunningGoal<mbf_msgs::MoveBaseAction>(actionlib::SimpleActionClient<mbf_msgs::MoveBaseAction> *client);
+
+template <typename T> actionlib::SimpleClientGoalState DockingBehavior::waitRunningGoal(actionlib::SimpleActionClient<T> *client) {
+//actionlib::SimpleClientGoalState DockingBehavior::waitRunningGoal() {
+  sleep(1);
+  actionlib::SimpleClientGoalState current_status(actionlib::SimpleClientGoalState::PENDING);
+  ros::Rate r(10);
+    // wait for path execution to finish
+  while (ros::ok()) {
+    current_status = client->getState();
+    if (current_status.state_ == actionlib::SimpleClientGoalState::ACTIVE ||
+        current_status.state_ == actionlib::SimpleClientGoalState::PENDING) {
+      // path is being executed, everything seems fine.
+      // check if we should pause or abort mowing
+      if (aborted) {
+        ROS_INFO_STREAM("[DockingBehavior] ABORT was requested - stopping path execution.");
+        client->cancelAllGoals();
+        current_status = actionlib::SimpleClientGoalState::ABORTED;
+        break;
+      }
+    } else {
+      ROS_INFO_STREAM("[DockingBehavior] Got status "
+                      << current_status.toString() << " from MBF/FTCPlanner -> Stopping path execution.");
+      // we're done, break out of the loop
+      break;
+    }
+    r.sleep();
+  }
+  return current_status;
 }
 
 bool DockingBehavior::approach_docking_point() {
@@ -59,17 +99,18 @@ bool DockingBehavior::approach_docking_point() {
     mbf_msgs::MoveBaseGoal moveBaseGoal;
     moveBaseGoal.target_pose = docking_approach_point;
     moveBaseGoal.controller = "FTCPlanner";
-    auto result = mbfClient->sendGoalAndWait(moveBaseGoal);
-    if (result.state_ != result.SUCCEEDED) {
+    
+    ROS_INFO_STREAM("[DockingBehavior] Executing Initial Approach");
+    actionlib::SimpleClientGoalState current_status = sendGoalAndWait(moveBaseGoal);
+
+    if (current_status.state_ != actionlib::SimpleClientGoalState::SUCCEEDED) {
       return false;
     }
   }
 
   {
     mbf_msgs::ExePathGoal exePathGoal;
-
     nav_msgs::Path path;
-
     int dock_point_count = config.docking_approach_distance * 10.0;
     for (int i = 0; i <= dock_point_count; i++) {
       geometry_msgs::PoseStamped docking_pose_stamped_front = docking_pose_stamped;
@@ -85,8 +126,9 @@ bool DockingBehavior::approach_docking_point() {
     exePathGoal.controller = "FTCPlanner";
     ROS_INFO_STREAM("[DockingBehavior] Executing Docking Approach");
 
-    auto approachResult = mbfClientExePath->sendGoalAndWait(exePathGoal);
-    if (approachResult.state_ != approachResult.SUCCEEDED) {
+    actionlib::SimpleClientGoalState current_status = sendGoalAndWait(exePathGoal);
+
+    if (current_status.state_ != actionlib::SimpleClientGoalState::SUCCEEDED) {
       return false;
     }
   }
@@ -186,7 +228,7 @@ std::string DockingBehavior::state_name() {
 
 Behavior *DockingBehavior::execute() {
   // Check if already docked (e.g. carried to base during emergency) and skip
-  if (getStatus().v_charge > 5.0) {
+  if (getStatus().v_charge > getConfig().charger_min_voltage) {
     ROS_INFO_STREAM("[DockingBehavior] Already inside docking station, going directly to idle.");
     stopMoving("docking unnecessary");
     return &IdleBehavior::DOCKED_INSTANCE;
@@ -203,7 +245,7 @@ Behavior *DockingBehavior::execute() {
     ROS_ERROR("[DockingBehavior] Error during docking approach.");
 
     retryCount++;
-    if (retryCount <= config.docking_retry_count) {
+    if (retryCount <= config.docking_retry_count && !aborted) {
       ROS_ERROR("[DockingBehavior] Retrying docking approach");
       return &DockingBehavior::INSTANCE;
     }
@@ -271,30 +313,15 @@ bool DockingBehavior::needs_gps() {
   return inApproachMode;
 }
 
-void DockingBehavior::command_home() {
-}
-
-void DockingBehavior::command_start() {
-}
-
-void DockingBehavior::command_s1() {
-}
-
-void DockingBehavior::command_s2() {
-}
-
 bool DockingBehavior::redirect_joystick() {
   return false;
 }
 
-uint8_t DockingBehavior::get_sub_state() {
-  return 1;
-}
 uint8_t DockingBehavior::get_state() {
   return mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_AUTONOMOUS;
 }
 
-void DockingBehavior::handle_action(std::string action) {
+void DockingBehavior::handle_action(const std::string& action, const std::string& parameters) {
   if (action == "mower_logic:docking/abort_docking") {
     ROS_INFO_STREAM("[DockingBehavior] got abort docking command");
     this->abort();

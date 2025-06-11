@@ -27,9 +27,11 @@
 #include "mower_logic/CheckPoint.h"
 #include "mower_map/ClearNavPointSrv.h"
 #include "mower_map/GetMowingAreaSrv.h"
+#include "mower_map/GetMowingAreasSrv.h"
 #include "mower_map/SetNavPointSrv.h"
 
-extern ros::ServiceClient mapClient;
+extern ros::ServiceClient getAreaClient;
+extern ros::ServiceClient getAreasClient;
 extern ros::ServiceClient pathClient;
 extern ros::ServiceClient pathProgressClient;
 extern ros::ServiceClient setNavPointClient;
@@ -43,6 +45,7 @@ extern void setConfig(mower_logic::MowerLogicConfig);
 extern void registerActions(std::string prefix, const std::vector<xbot_msgs::ActionInfo> &actions);
 
 MowingBehavior MowingBehavior::INSTANCE;
+const std::string MowingBehavior::ALL_AREAS = "*";
 
 std::string MowingBehavior::state_name() {
   if (paused) {
@@ -51,11 +54,32 @@ std::string MowingBehavior::state_name() {
   return "MOWING";
 }
 
+std::string MowingBehavior::sub_state_name() {
+  return currentMowingArea < mowingAreas.size() ? mowingAreas[currentMowingArea] : "-";
+}
+
+void MowingBehavior::setMowingAreas(const std::string &mowAreas) {
+  mowingAreas.clear();
+  if(mowAreas != ALL_AREAS) {
+    ROS_INFO_STREAM("[MowingBehavior] Set mowing areas for next cycle: "<<mowAreas);
+    std::istringstream mowAreasStream(mowAreas);
+    std::string mowArea;
+
+    while (std::getline(mowAreasStream, mowArea, ',')) {
+      mowingAreas.push_back(mowArea);
+      ROS_INFO_STREAM("[MowingBehavior] Area " << mowArea);
+    }
+  } else {
+    ROS_INFO_STREAM("[MowingBehavior] Set ALL mowing areas for next cycle");
+  }
+}
+
 Behavior *MowingBehavior::execute() {
   shared_state->active_semiautomatic_task = true;
 
-  while (ros::ok() && !aborted) {
-    if (currentMowingPaths.empty() && !create_mowing_plan(currentMowingArea)) {
+  while (ros::ok() && !aborted && currentMowingArea<mowingAreas.size()) {
+    std::string &area_name = mowingAreas[currentMowingArea];
+    if (currentMowingPaths.empty() && !create_mowing_plan(area_name)) {
       ROS_INFO_STREAM("[MowingBehavior] Could not create mowing plan, docking");
       // Start again from first area next time.
       reset();
@@ -64,17 +88,18 @@ Behavior *MowingBehavior::execute() {
     }
 
     // We have a plan, execute it
-    ROS_INFO_STREAM("[MowingBehavior] Executing mowing plan");
+    ROS_INFO_STREAM("[MowingBehavior] Executing area "<<area_name<<" idx:"<<currentMowingArea<<" mowing plan");
     bool finished = execute_mowing_plan();
     if (finished) {
       // skip to next area if current
-      ROS_INFO_STREAM("[MowingBehavior] Executing mowing plan - finished");
+      ROS_INFO_STREAM("[MowingBehavior] Executing area "<<area_name<<" idx:"<<currentMowingArea<<" mowing plan - finished");
       currentMowingArea++;
       currentMowingPaths.clear();
       currentMowingPath = 0;
       currentMowingPathIndex = 0;
     }
   }
+  ROS_INFO_STREAM("[MowingBehavior] No more mowing areas or aborted");
 
   if (!ros::ok()) {
     // something went wrong
@@ -89,6 +114,21 @@ void MowingBehavior::enter() {
   skip_path = false;
   mower_enabled_flag = mower_enabled_flag_before_pause = paused = aborted = false;
 
+  if(mowingAreas.empty()){
+    ROS_INFO_STREAM("[MowingBehavior] No active mowing areas configured. Assume we should mow ALL.");
+    mower_map::GetMowingAreasSrv getAreas;
+    if (!getAreasClient.call(getAreas)) {
+      ROS_ERROR_STREAM("[MowingBehavior] Error loading mowing area");
+    }
+    for(auto &area : getAreas.response.areas) {
+      mowingAreas.push_back(area.name);
+    }
+  }
+
+  if(!restore_checkpoint()){
+    reset_checkpoint();
+  }
+
   update_actions(true);
 }
 
@@ -97,6 +137,7 @@ void MowingBehavior::exit() {
 }
 
 void MowingBehavior::reset() {
+  mowingAreas.clear();
   currentMowingPaths.clear();
   currentMowingArea = 0;
   currentMowingPath = 0;
@@ -115,22 +156,22 @@ bool MowingBehavior::needs_gps() {
   return true;
 }
 
-bool MowingBehavior::create_mowing_plan(int area_index) {
-  ROS_INFO_STREAM("[MowingBehavior] Creating mowing plan for area: " << area_index);
+bool MowingBehavior::create_mowing_plan(const std::string &area_name) {
+  ROS_INFO_STREAM("[MowingBehavior] Creating area "<<area_name<<" mowing plan");
   // Delete old plan and progress.
   currentMowingPaths.clear();
 
   // get the mowing area
-  mower_map::GetMowingAreaSrv mapSrv;
-  mapSrv.request.index = area_index;
-  if (!mapClient.call(mapSrv)) {
+  mower_map::GetMowingAreaSrv getArea;
+  getArea.request.name = area_name;
+  if (!getAreaClient.call(getArea)) {
     ROS_ERROR_STREAM("[MowingBehavior] Error loading mowing area");
     return false;
   }
 
   // Area orientation is the same as the first point
   double angle = 0;
-  auto points = mapSrv.response.area.area.points;
+  auto points = getArea.response.area.area.points;
   if (points.size() >= 1) {
     ROS_INFO_STREAM("[MowingBehavior] Mowing area num points: " << (int)points.size());
   } else {
@@ -169,8 +210,8 @@ bool MowingBehavior::create_mowing_plan(int area_index) {
   pathSrv.request.angle = angle;
   pathSrv.request.outline_count = config.outline_count;
   pathSrv.request.outline_overlap_count = config.outline_overlap_count;
-  pathSrv.request.outline = mapSrv.response.area.area;
-  pathSrv.request.holes = mapSrv.response.prohibited_areas;
+  pathSrv.request.outline = getArea.response.area.area;
+  pathSrv.request.holes = getArea.response.prohibited_areas;
   pathSrv.request.fill_type = slic3r_coverage_planner::PlanPathRequest::FILL_LINEAR;
   pathSrv.request.outer_offset = config.outline_offset;
   pathSrv.request.distance = config.tool_width;
@@ -335,7 +376,7 @@ bool MowingBehavior::execute_mowing_plan() {
             ROS_INFO_STREAM("[MowingBehavior] (FIRST POINT) SKIP AREA was requested.");
             // remove all paths in current area and return true
             this->setMowerEnabled(false);
-            mbfClientExePath->cancelAllGoals();
+            mbfClient->cancelAllGoals();
             currentMowingPaths.clear();
             skip_area = false;
             return true;
@@ -348,13 +389,13 @@ bool MowingBehavior::execute_mowing_plan() {
           }
           if (aborted) {
             ROS_INFO_STREAM("[MowingBehavior] (FIRST POINT) ABORT was requested - stopping path execution.");
-            mbfClientExePath->cancelAllGoals();
+            mbfClient->cancelAllGoals();
             this->setMowerEnabled(false);
             return false;
           }
           if (requested_pause_flag) {
             ROS_INFO_STREAM("[MowingBehavior] (FIRST POINT) PAUSE was requested - stopping path execution.");
-            mbfClientExePath->cancelAllGoals();
+            mbfClient->cancelAllGoals();
             this->setMowerEnabled(false);
             return false;
           }
@@ -578,53 +619,31 @@ uint8_t MowingBehavior::get_sub_state() {
 uint8_t MowingBehavior::get_state() {
   return mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_AUTONOMOUS;
 }
+
 int16_t MowingBehavior::get_current_area() {
   return currentMowingArea;
 }
+
 int16_t MowingBehavior::get_current_path() {
   return currentMowingPath;
 }
+
 int16_t MowingBehavior::get_current_path_index() {
   return currentMowingPathIndex;
 }
 
 MowingBehavior::MowingBehavior() {
   last_checkpoint = ros::Time(0.0);
-  xbot_msgs::ActionInfo pause_action;
-  pause_action.action_id = "pause";
-  pause_action.enabled = false;
-  pause_action.action_name = "Pause Mowing";
-
-  xbot_msgs::ActionInfo continue_action;
-  continue_action.action_id = "continue";
-  continue_action.enabled = false;
-  continue_action.action_name = "Continue Mowing";
-
-  xbot_msgs::ActionInfo abort_mowing_action;
-  abort_mowing_action.action_id = "abort_mowing";
-  abort_mowing_action.enabled = false;
-  abort_mowing_action.action_name = "Stop Mowing";
-
-  xbot_msgs::ActionInfo skip_area_action;
-  skip_area_action.action_id = "skip_area";
-  skip_area_action.enabled = false;
-  skip_area_action.action_name = "Skip Area";
-
-  xbot_msgs::ActionInfo skip_path_action;
-  skip_path_action.action_id = "skip_path";
-  skip_path_action.enabled = false;
-  skip_path_action.action_name = "Skip Path";
-
+  
   actions.clear();
-  actions.push_back(pause_action);
-  actions.push_back(continue_action);
-  actions.push_back(abort_mowing_action);
-  actions.push_back(skip_area_action);
-  actions.push_back(skip_path_action);
-  restore_checkpoint();
+  actions.push_back(createAction("pause","Pause Mowing"));
+  actions.push_back(createAction("continue","Continue Mowing"));
+  actions.push_back(createAction("abort_mowing","Stop Mowing"));
+  actions.push_back(createAction("skip_area","Skip Area"));
+  actions.push_back(createAction("skip_path","Skip Path"));
 }
 
-void MowingBehavior::handle_action(std::string action) {
+void MowingBehavior::handle_action(const std::string& action, const std::string& parameters) {
   if (action == "mower_logic:mowing/pause") {
     ROS_INFO_STREAM("[MowingBehavior] got pause command");
     this->requestPause(ePauseReason::PAUSE_MANUAL);
@@ -667,7 +686,7 @@ void MowingBehavior::checkpoint() {
   rosbag::Bag bag;
   mower_logic::CheckPoint cp;
   cp.currentMowingPath = currentMowingPath;
-  cp.currentMowingArea = currentMowingArea;
+  cp.currentMowingAreaName = currentMowingArea < mowingAreas.size() ? mowingAreas[currentMowingArea] : "-";
   cp.currentMowingPathIndex = currentMowingPathIndex;
   cp.currentMowingPlanDigest = currentMowingPlanDigest;
   cp.currentMowingAngleIncrementSum = currentMowingAngleIncrementSum;
@@ -677,6 +696,14 @@ void MowingBehavior::checkpoint() {
   last_checkpoint = ros::Time::now();
 }
 
+void MowingBehavior::reset_checkpoint() {
+  ROS_INFO_STREAM("[MowingBehavior] Reset checkpint");
+  currentMowingArea = 0;
+  currentMowingPath = 0;
+  currentMowingPathIndex = 0;
+  currentMowingAngleIncrementSum = 0;
+}
+
 bool MowingBehavior::restore_checkpoint() {
   rosbag::Bag bag;
   bool found = false;
@@ -684,10 +711,6 @@ bool MowingBehavior::restore_checkpoint() {
     bag.open("checkpoint.bag");
   } catch (rosbag::BagIOException &e) {
     // Checkpoint does not exist or is corrupt, start at the very beginning
-    currentMowingArea = 0;
-    currentMowingPath = 0;
-    currentMowingPathIndex = 0;
-    currentMowingAngleIncrementSum = 0;
     return false;
   }
   {
@@ -695,18 +718,30 @@ bool MowingBehavior::restore_checkpoint() {
     for (rosbag::MessageInstance const m : view) {
       auto cp = m.instantiate<mower_logic::CheckPoint>();
       if (cp) {
-        ROS_INFO_STREAM("Restoring checkpoint for plan ("
+        int32_t cpAreaIndex = -1;
+        for(int32_t i = 0;i<mowingAreas.size();i++) {
+          if(mowingAreas[i] == cp->currentMowingAreaName) {
+            cpAreaIndex = i;
+            break;
+          }
+        }
+
+        if(cpAreaIndex != -1) {        
+          ROS_INFO_STREAM("[MowingBehavior] Restoring checkpoint for plan ("
                         << cp->currentMowingPlanDigest << ")"
-                        << " area: " << cp->currentMowingArea << " path: " << cp->currentMowingPath
+                        << " area: " << cp->currentMowingAreaName << " path: " << cp->currentMowingPath
                         << " index: " << cp->currentMowingPathIndex
                         << " angle increment sum: " << cp->currentMowingAngleIncrementSum);
-        currentMowingPath = cp->currentMowingPath;
-        currentMowingArea = cp->currentMowingArea;
-        currentMowingPathIndex = cp->currentMowingPathIndex;
-        currentMowingPlanDigest = cp->currentMowingPlanDigest;
-        currentMowingAngleIncrementSum = cp->currentMowingAngleIncrementSum;
-        found = true;
-        break;
+          currentMowingPath = cp->currentMowingPath;
+          currentMowingArea = cpAreaIndex;
+          currentMowingPathIndex = cp->currentMowingPathIndex;
+          currentMowingPlanDigest = cp->currentMowingPlanDigest;
+          currentMowingAngleIncrementSum = cp->currentMowingAngleIncrementSum;
+          found = true;
+          break;
+        } else {
+          ROS_INFO_STREAM("[MowingBehavior] Restore checkpoint area missing "<<cp->currentMowingAreaName);
+        }
       }
     }
     bag.close();

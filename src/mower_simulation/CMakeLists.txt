@@ -161,6 +161,10 @@ add_executable(mower_simulation src/mower_simulation.cpp)
 add_dependencies(mower_simulation ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(mower_simulation ${catkin_LIBRARIES})
 
+add_executable(mower_comms_sim src/mower_comms_sim.cpp)
+add_dependencies(mower_comms_sim ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(mower_comms_sim ${catkin_LIBRARIES})
+
 #############
 ## Install ##
 #############

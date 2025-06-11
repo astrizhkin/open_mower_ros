@@ -54,11 +54,12 @@
 #include "std_msgs/String.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "xbot_msgs/AbsolutePose.h"
+#include "xbot_msgs/ActionData.h"
 #include "xbot_msgs/RegisterActionsSrv.h"
 #include "xbot_positioning/GPSControlSrv.h"
 #include "xbot_positioning/SetPoseSrv.h"
 
-ros::ServiceClient pathClient, mapClient, dockingPointClient, gpsClient, mowClient, emergencyClient, pathProgressClient,
+ros::ServiceClient pathClient, getAreaClient, getAreasClient, dockingPointClient, gpsClient, mowClient, emergencyClient, pathProgressClient,
     setNavPointClient, clearNavPointClient, clearMapClient, positioningClient, actionRegistrationClient;
 
 ros::NodeHandle *n;
@@ -401,8 +402,9 @@ bool isGpsGood() {
   // GPS is good if orientation is valid, we have low accuracy and we have a recent GPS update.
   // TODO: think about the "recent gps flag" since it only looks at the time. E.g. if we were standing still this would
   // still pause even if no GPS updates are needed during standstill.
-  return last_pose2D.orientation_valid && last_pose2D.position_accuracy < last_config.max_position_accuracy &&
-         (last_pose2D.flags & xbot_msgs::AbsolutePose::FLAG_SENSOR_FUSION_RECENT_ABSOLUTE_POSE);
+  return last_config.ignore_gps_errors ||
+   (last_pose2D.orientation_valid && last_pose2D.position_accuracy < last_config.max_position_accuracy &&
+         (last_pose2D.flags & xbot_msgs::AbsolutePose::FLAG_SENSOR_FUSION_RECENT_ABSOLUTE_POSE));
 }
 
 double getNormalGravityAngle() {
@@ -728,6 +730,17 @@ void actionReceived(const std_msgs::String::ConstPtr &action) {
   }
 }
 
+void actionExtReceived(const xbot_msgs::ActionData::ConstPtr &action) {
+  if (action->action_id == "mower_logic/reset_emergency") {
+    ROS_WARN_STREAM("Got reset emergency action.");
+    setEmergencyMode(false, mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ALL, "[mower_logic] reset action", ros::Duration::ZERO);
+    return;
+  }
+
+  if (currentBehavior) {
+    currentBehavior->handle_action(action->action_id, action->parameters);
+  }
+}
 void joyVelReceived(const geometry_msgs::Twist::ConstPtr &joy_vel) {
   joy_vel_time = ros::Time::now();
   if (currentBehavior && currentBehavior->redirect_joystick()) {
@@ -784,7 +797,8 @@ int main(int argc, char **argv) {
   high_level_state_publisher = n->advertise<mower_msgs::HighLevelStatus>("mower_logic/current_state", 100, true);
 
   pathClient = n->serviceClient<slic3r_coverage_planner::PlanPath>("slic3r_coverage_planner/plan_path");
-  mapClient = n->serviceClient<mower_map::GetMowingAreaSrv>("mower_map_service/get_mowing_area");
+  getAreaClient = n->serviceClient<mower_map::GetMowingAreaSrv>("mower_map_service/get_mowing_area");
+  getAreasClient = n->serviceClient<mower_map::GetMowingAreasSrv>("mower_map_service/get_mowing_areas");
   clearMapClient = n->serviceClient<mower_map::ClearMapSrv>("mower_map_service/clear_map");
 
   gpsClient = n->serviceClient<xbot_positioning::GPSControlSrv>("xbot_positioning/set_gps_state");
@@ -814,6 +828,7 @@ int main(int argc, char **argv) {
   ros::Subscriber joy_mower_cmd =
       n->subscribe("/joy_mower", 0, joyMowerReceived, ros::TransportHints().tcpNoDelay(true));
   ros::Subscriber action = n->subscribe("xbot/action", 0, actionReceived, ros::TransportHints().tcpNoDelay(true));
+  ros::Subscriber action_ext = n->subscribe("xbot/action_ext", 0, actionExtReceived, ros::TransportHints().tcpNoDelay(true));
 
   ROS_INFO("[mower_logic] Subscribed to all topics");
   ros::ServiceServer high_level_control_srv = n->advertiseService("mower_service/high_level_control", highLevelCommand);
@@ -905,8 +920,15 @@ int main(int argc, char **argv) {
     return 1;
   }
   ROS_INFO("[mower_logic] Waiting for map server");
-  if (!mapClient.waitForExistence(ros::Duration(60.0, 0.0))) {
-    ROS_ERROR("[mower_logic] Map server service not found.");
+  if (!getAreaClient.waitForExistence(ros::Duration(60.0, 0.0))) {
+    ROS_ERROR("[mower_logic] Get map area service not found.");
+    delete (reconfigServer);
+    delete (mbfClient);
+    delete (mbfClientExePath);
+    return 2;
+  }
+  if (!getAreasClient.waitForExistence(ros::Duration(60.0, 0.0))) {
+    ROS_ERROR("[mower_logic] Get map areas service not found.");
     delete (reconfigServer);
     delete (mbfClient);
     delete (mbfClientExePath);

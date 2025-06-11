@@ -44,6 +44,8 @@ class UndockingBehavior : public Behavior {
 
   bool waitForGPS();
 
+  void update_actions();
+
  public:
   std::string state_name() override;
 
@@ -55,23 +57,13 @@ class UndockingBehavior : public Behavior {
 
   void reset() override;
 
-    bool needs_gps() override;
-
-  void command_home() override;
-
-  void command_start() override;
-
-  void command_s1() override;
-
-  void command_s2() override;
+  bool needs_gps() override;
 
   bool redirect_joystick() override;
 
-  uint8_t get_sub_state() override;
-
   uint8_t get_state() override;
 
-  void handle_action(std::string action) override;
+  void handle_action(const std::string& action, const std::string& parameters = std::string()) override;
 };
 
 #endif  // SRC_UNDOCKINGBEHAVIOR_H

@@ -173,7 +173,7 @@ bool isTemporaryEmergency() {
       return false;
     }
   }
-  return true && (emergency_low_level_bits == EMERGENCY_HIGH_LEVEL || emergency_low_level_bits == 0);
+  return true && (emergency_low_level_bits == 1<<EMERGENCY_HIGH_LEVEL || emergency_low_level_bits == 0);
 }
 
 void updateEmergencyBits() {
