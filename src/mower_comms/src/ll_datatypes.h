@@ -67,6 +67,16 @@
 #define MOTOR_STATUS_BATTERY_L1             13
 #define MOTOR_STATUS_BATTERY_L2             14
 
+#define POWER_REQUEST_PI                            0
+#define POWER_REQUEST_MOTOR                         1
+#define POWER_REQUEST_LED                           2
+#define POWER_REQUEST_RESERVED                      3
+
+#define POWER_REQUEST_BITS_OFF                      0
+#define POWER_REQUEST_BITS_ON                       1
+#define POWER_REQUEST_BITS_LOW_FREQ                 2
+#define POWER_REQUEST_BITS_HIGH_FREQ                3
+
 #define USS_COUNT 5
 #define CONTACT_COUNT 4
 
@@ -80,9 +90,8 @@ struct ll_status {
     // Bit 2: Charging enabled
     // Bit 3: ESC power enabled
     // Bit 4: Rain detected
-    // Bit 5: don't care
-    // Bit 6: don't care
-    // Bit 7: don't care
+    // Bit 5-15: don't care
+
     uint16_t status_bitmask;
     // USS range in m
     uint8_t uss_ranges_cm[USS_COUNT];
@@ -131,21 +140,23 @@ struct ll_imu {
 struct ll_heartbeat {
     // Type of this message. Has to be PACKET_ID_LL_HEARTBEAT.
     uint8_t type;
+    // 4 x 2 bits per power output (see POWER_REQUEST_... defines)
+    uint8_t power_request;
     //high level emergency bits (e.g. navigation error, ...)
     uint8_t emergency_high_level;
     uint16_t crc;
 } __attribute__((packed));
 #pragma pack(pop)
 
-#pragma pack(push, 1)
-struct ll_ui_event {
-  // Type of this message. Has to be PACKET_ID_LL_UI_EVENT
-  uint8_t type;
-  uint8_t button_id;
-  uint8_t press_duration;  // 0 for single press, 1 for long, 2 for very long press
-  uint16_t crc;
-} __attribute__((packed));
-#pragma pack(pop)
+//#pragma pack(push, 1)
+//struct ll_ui_event {
+//  // Type of this message. Has to be PACKET_ID_LL_UI_EVENT
+//  uint8_t type;
+//  uint8_t button_id;
+//  uint8_t press_duration;  // 0 for single press, 1 for long, 2 for very long press
+//  uint16_t crc;
+//} __attribute__((packed));
+//#pragma pack(pop)
 
 #pragma pack(push, 1)
 struct ll_high_level_state {

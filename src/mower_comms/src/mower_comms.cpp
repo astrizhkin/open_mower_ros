@@ -225,6 +225,10 @@ void publishActuators() {
 
   struct ll_heartbeat heartbeat = {.type = PACKET_ID_LL_HEARTBEAT,
                                    // send high level emergency bits
+                                   .power_request = POWER_REQUEST_BITS_ON << (POWER_REQUEST_PI<<1) | 
+                                                    POWER_REQUEST_BITS_ON << (POWER_REQUEST_MOTOR<<1) |
+                                                    POWER_REQUEST_BITS_ON << (POWER_REQUEST_LED<<1) |
+                                                    POWER_REQUEST_BITS_ON << (POWER_REQUEST_RESERVED<<1)
                                    .emergency_high_level = emergency_high_level_bits};
   sendLLMessage((uint8_t *)&heartbeat, sizeof(struct ll_heartbeat));
 }

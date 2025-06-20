@@ -67,8 +67,7 @@ ros::Time emergency_high_level_end[] = {ros::Time::ZERO, ros::Time::ZERO, ros::T
 // True, if the LL board thinks there should be an emergency
 uint8_t emergency_low_level_bits = 0;
 
-// True, if we can send to the low level board
-bool allow_send = false;
+mower_msgs::HighLevelStatus last_high_level_status;
 
 // Current speeds (duty cycle) for the three ESCs
 geometry_msgs::Twist last_cmd_twist;
@@ -166,7 +165,8 @@ void publishStatus() {
 
   status_msg.raspberry_pi_power = true;
   status_msg.charging = false;
-  status_msg.esc_power = true;
+  //simulate low level board reaction to high level status IDLE
+  status_msg.esc_power = last_high_level_status.state != mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_IDLE;
   status_msg.rain_detected = false;
   status_msg.uss_timeout = false;
   status_msg.imu_timeout = false;
@@ -306,6 +306,7 @@ bool setEmergencyMode(mower_msgs::EmergencyModeSrvRequest &req, mower_msgs::Emer
 
 void highLevelStatusReceived(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
   // ROS_INFO_STREAM("[mower_comms_sim] High level status received: "<< msg->state_name << "/" << msg->sub_state_name);
+  last_high_level_status = *msg;
 }
 
 void onCmdVelReceived(const geometry_msgs::Twist::ConstPtr &msg) {
