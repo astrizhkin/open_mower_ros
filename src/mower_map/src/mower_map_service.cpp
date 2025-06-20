@@ -373,11 +373,22 @@ void buildMap() {
   map["navigation_area"].setConstant(1.0);
 
   grid_map::Matrix &data = map["navigation_area"];
-  // mark navigation and mowing as free (0.0)
+  // mark navigation as partially free (0.25)
   for (auto area : areas) {
-    grid_map::Polygon poly;
-    fromMessage(area.area, poly);
-    if (area.area_type == mower_map::MapArea::AREA_MOWING || area.area_type == mower_map::MapArea::AREA_NAVIGATION) {
+    if (area.area_type == mower_map::MapArea::AREA_NAVIGATION) {
+      grid_map::Polygon poly;
+      fromMessage(area.area, poly);
+      for (grid_map::PolygonIterator iterator(map, poly); !iterator.isPastEnd(); ++iterator) {
+        const grid_map::Index index(*iterator);
+        data(index[0], index[1]) = 0.25;
+      }
+    }
+  }
+  // mark mowing as free (0.0)
+  for (auto area : areas) {
+    if (area.area_type == mower_map::MapArea::AREA_MOWING) {
+      grid_map::Polygon poly;
+      fromMessage(area.area, poly);
       for (grid_map::PolygonIterator iterator(map, poly); !iterator.isPastEnd(); ++iterator) {
         const grid_map::Index index(*iterator);
         data(index[0], index[1]) = 0.0;
@@ -386,9 +397,9 @@ void buildMap() {
   }
   // then mark prohibited as occupied (1.0)
   for (auto area : areas) {
-    grid_map::Polygon poly;
-    fromMessage(area.area, poly);
     if (area.area_type == mower_map::MapArea::AREA_PROHIBITED) {
+      grid_map::Polygon poly;
+      fromMessage(area.area, poly);
       for (grid_map::PolygonIterator iterator(map, poly); !iterator.isPastEnd(); ++iterator) {
         const grid_map::Index index(*iterator);
         data(index[0], index[1]) = 1.0;
