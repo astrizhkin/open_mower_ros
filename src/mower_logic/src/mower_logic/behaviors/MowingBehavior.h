@@ -31,11 +31,13 @@ private:
   bool skip_area;
   bool skip_path;
   bool create_mowing_plan(const std::string &area_name);
+  double evaluate_path(std::vector<slic3r_coverage_planner::Path> &paths);
 
   bool execute_mowing_plan();
   void checkpoint();
   bool restore_checkpoint();
   void reset_checkpoint();
+  void reset_paths();
 
 
   // Progress

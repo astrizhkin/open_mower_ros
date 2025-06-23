@@ -30,6 +30,10 @@
 #include "mower_map/GetMowingAreasSrv.h"
 #include "mower_map/SetNavPointSrv.h"
 
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "tf2/LinearMath/Quaternion.h"
+//#include "tf2/convert.h"
+
 extern ros::ServiceClient getAreaClient;
 extern ros::ServiceClient getAreasClient;
 extern ros::ServiceClient pathClient;
@@ -94,9 +98,7 @@ Behavior *MowingBehavior::execute() {
       // skip to next area if current
       ROS_INFO_STREAM("[MowingBehavior] Executing area "<<area_name<<" idx:"<<currentMowingArea<<" mowing plan - finished");
       currentMowingArea++;
-      currentMowingPaths.clear();
-      currentMowingPath = 0;
-      currentMowingPathIndex = 0;
+      reset_paths();
     }
   }
   ROS_INFO_STREAM("[MowingBehavior] No more mowing areas or aborted");
@@ -138,10 +140,8 @@ void MowingBehavior::exit() {
 
 void MowingBehavior::reset() {
   mowingAreas.clear();
-  currentMowingPaths.clear();
   currentMowingArea = 0;
-  currentMowingPath = 0;
-  currentMowingPathIndex = 0;
+  reset_paths();
   // increase cumulative mowing angle offset increment
   currentMowingAngleIncrementSum = std::fmod(currentMowingAngleIncrementSum + getConfig().mow_angle_increment, 360);
   checkpoint();
@@ -207,7 +207,7 @@ bool MowingBehavior::create_mowing_plan(const std::string &area_name) {
 
   // calculate coverage
   slic3r_coverage_planner::PlanPath pathSrv;
-  pathSrv.request.angle = angle;
+  //pathSrv.request.angle = angle;
   pathSrv.request.outline_count = config.outline_count;
   pathSrv.request.outline_overlap_count = config.outline_overlap_count;
   pathSrv.request.outline = getArea.response.area.area;
@@ -215,6 +215,32 @@ bool MowingBehavior::create_mowing_plan(const std::string &area_name) {
   pathSrv.request.fill_type = slic3r_coverage_planner::PlanPathRequest::FILL_LINEAR;
   pathSrv.request.outer_offset = config.outline_offset;
   pathSrv.request.distance = config.tool_width;
+  pathSrv.request.silent = true;
+
+  double min_rotation = DBL_MAX;
+  double min_rotation_angle = angle;
+  //double min_outltines = config.outline_count;
+  //for(int outlines = config.outline_count ; outlines<=config.outline_count+2;outlines++){
+    //pathSrv.request.outline_count = outlines;
+    for(double test_angle = 0; test_angle < M_PI*2; test_angle += 0.1 ) {
+      pathSrv.request.angle = test_angle;
+      if (pathClient.call(pathSrv)) {
+        double summary_rotation = evaluate_path(pathSrv.response.paths);
+        ROS_INFO_STREAM("[MowingBehavior] Rotation " << summary_rotation << " at angle "<<test_angle);
+        if(summary_rotation<min_rotation){
+          min_rotation = summary_rotation;
+          min_rotation_angle = test_angle;
+        }
+      }
+    }
+//  }
+
+  ROS_INFO_STREAM("[MowingBehavior] Using min summary rotation " << min_rotation << " angle "<<min_rotation_angle);
+
+  pathSrv.request.angle = min_rotation_angle;
+  //pathSrv.request.outline_count = min_outltines;
+  pathSrv.request.silent = false;
+
   if (!pathClient.call(pathSrv)) {
     ROS_ERROR_STREAM("[MowingBehavior] Error during coverage planning");
     return false;
@@ -252,6 +278,33 @@ bool MowingBehavior::create_mowing_plan(const std::string &area_name) {
   }
 
   return true;
+}
+
+double MowingBehavior::evaluate_path(std::vector<slic3r_coverage_planner::Path> &paths) {
+  double summaryRotation = 0; 
+  tf2::Quaternion quat;
+  double roll, pitch, yaw;
+
+  for (const auto &path : paths) {
+    double prevYaw = 0;
+    bool hasPrev = false;
+    for (const auto &pose_stamped : path.path.poses) {
+      tf2::fromMsg(pose_stamped.pose.orientation, quat);
+      tf2::Matrix3x3 m(quat);
+      m.getRPY(roll, pitch, yaw);
+      if(hasPrev) {
+        summaryRotation += abs(yaw - prevYaw);
+      }else{
+        hasPrev = true;
+      }
+      prevYaw = yaw;
+    }
+  }
+  return summaryRotation;
+
+  //for(slic3r_coverage_planner::Path &path : paths) {
+  //  path
+ // }
 }
 
 int getCurrentMowPathIndex() {
@@ -377,7 +430,7 @@ bool MowingBehavior::execute_mowing_plan() {
             // remove all paths in current area and return true
             this->setMowerEnabled(false);
             mbfClient->cancelAllGoals();
-            currentMowingPaths.clear();
+            reset_paths();
             skip_area = false;
             return true;
           }
@@ -391,6 +444,7 @@ bool MowingBehavior::execute_mowing_plan() {
             ROS_INFO_STREAM("[MowingBehavior] (FIRST POINT) ABORT was requested - stopping path execution.");
             mbfClient->cancelAllGoals();
             this->setMowerEnabled(false);
+            currentMowingPaths.clear();
             return false;
           }
           if (requested_pause_flag) {
@@ -506,6 +560,7 @@ bool MowingBehavior::execute_mowing_plan() {
             ROS_INFO_STREAM("[MowingBehavior] (MOW) ABORT was requested - stopping path execution.");
             mbfClientExePath->cancelAllGoals();
             this->setMowerEnabled(false);
+            reset_paths();
             break;  // Trim path
           }
           if (requested_pause_flag) {
@@ -535,7 +590,7 @@ bool MowingBehavior::execute_mowing_plan() {
 
       // Only skip/trim if goal execution began
       if (current_status.state_ != actionlib::SimpleClientGoalState::PENDING &&
-          current_status.state_ != actionlib::SimpleClientGoalState::RECALLED) {
+          current_status.state_ != actionlib::SimpleClientGoalState::RECALLED && !aborted) {
         ROS_INFO_STREAM("[MowingBehavior] (MOW) PlannerGetProgress currentMowingPathIndex = "
                         << currentMowingPathIndex << " of " << path.path.poses.size());
         printNavState(current_status.state_);
@@ -699,9 +754,15 @@ void MowingBehavior::checkpoint() {
 void MowingBehavior::reset_checkpoint() {
   ROS_INFO_STREAM("[MowingBehavior] Reset checkpint");
   currentMowingArea = 0;
-  currentMowingPath = 0;
-  currentMowingPathIndex = 0;
   currentMowingAngleIncrementSum = 0;
+  reset_paths();
+}
+
+void MowingBehavior::reset_paths() {
+  ROS_INFO_STREAM("[MowingBehavior] Reset path");
+  currentMowingPath = 0;
+  currentMowingPaths.clear();
+  currentMowingPathIndex = 0;
 }
 
 bool MowingBehavior::restore_checkpoint() {
