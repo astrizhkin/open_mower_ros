@@ -312,7 +312,7 @@ bool setMowerEnabledEx(bool enabled, float power, bool direction) {
 
 bool setMowerEnabled(bool enabled) {
   ros::Time now = ros::Time::now();
-  bool reverseDirection = (now.sec & 0b11111) == 0b11;  // Reverse mower direction for 1 sec after 15 sec
+  bool reverseDirection = (now.sec & 0b111111) == 0b11;  // Reverse mower direction for 1 sec
   return setMowerEnabledEx(enabled, 0.60, !reverseDirection);
 }
 
@@ -374,14 +374,14 @@ void updateUI(const ros::TimerEvent &timer_event) {
       ROS_ERROR_STREAM("[mower_logic] Error getting current path: " << re.what());
     }
     try {
-      high_level_status.current_path_index = MowingBehavior::INSTANCE.get_current_path_index();
+      high_level_status.current_pose_index = MowingBehavior::INSTANCE.get_current_pose_index();
     } catch (const std::runtime_error &re) {
       ROS_ERROR_STREAM("[mower_logic] Error getting current path index: " << re.what());
     }
   } else {
     high_level_status.current_area = -1;
     high_level_status.current_path = -1;
-    high_level_status.current_path_index = -1;
+    high_level_status.current_pose_index = -1;
   }
 
   if (currentBehavior) {

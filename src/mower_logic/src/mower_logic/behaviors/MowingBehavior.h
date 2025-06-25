@@ -49,7 +49,7 @@ private:
   ros::Time last_checkpoint;
   int currentMowingPath;
   int currentMowingArea;
-  int currentMowingPathIndex;
+  int currentMowingPoseIndex;
   std::string currentMowingPlanDigest;
   double currentMowingAngleIncrementSum;
 
@@ -94,7 +94,7 @@ private:
 
   int16_t get_current_path();
 
-  int16_t get_current_path_index();
+  int16_t get_current_pose_index();
 
   void handle_action(const std::string& action, const std::string& parameters = std::string()) override;
 
