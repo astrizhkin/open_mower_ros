@@ -500,7 +500,6 @@ void saveMapToBagFile(const std::string &filename) {
     bag.write("base_point", min_time, base_point);
   }
 
-  json areas_json;
   for (auto &area : areas) {
     bag.write("areas", min_time, area);
   }
@@ -745,7 +744,7 @@ void readMapFromBagFile(const std::string &filename) {
     ROS_WARN("[mower_map_service] Error opening stored mowing areas bag.");
     return;
   }
-  map_name = filename;
+  map_name = filename.substr(0,filename.length()-4);
   {
     rosbag::View view(bag, rosbag::TopicQuery("areas"));
     for (rosbag::MessageInstance const m : view) {
@@ -794,11 +793,16 @@ void readMapFromGeoJsonFile(const std::string &filename) {
   if(!map_json.contains("features")) {
     throw std::runtime_error("root element must contain 'features'");
   }
+  bool has_name = false;
   if(map_json.contains("properties")){
     json map_properties_json = map_json["properties"];
     if(map_properties_json.contains("name")) {
       map_name = map_properties_json["name"];
+      has_name = true;
     }
+  }
+  if(!has_name) {
+    map_name = filename.substr(0,filename.length()-8);
   }
   json features_json = map_json["features"];
   //lookup the base_point
