@@ -8,11 +8,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 #COPY --link ./ros.key /usr/share/keyrings/ros1-latest-archive-keyring.gpg
 #RUN curl -sS https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros1-latest-archive-keyring.gpg
 
+# Configure proxy for apt ros packages
+#RUN echo 'Acquire::http::Proxy "http://127.0.0.1:2080";' > /etc/apt/apt.conf.d/05proxy
+RUN echo 'Acquire::http::Proxy "http://172.17.0.1:2080";' > /etc/apt/apt.conf.d/05proxy
+
 # Install required packages
 #   - git
 #   - mosquitto broker
 #   - nginx (remove default site to free up port 80)
-RUN echo 'Acquire::http::Proxy "http://127.0.0.1:2080";' > /etc/apt/apt.conf.d/05proxy
 RUN apt-get update && apt-get install --yes \
     git \
     mosquitto \
