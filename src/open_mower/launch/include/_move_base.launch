@@ -1,6 +1,6 @@
 <launch>
 
-  <param name="robot_model" textfile="$(find open_mower)/params/hardware_specific/CUSTOM/urdf.xml"/>
+  <param name="robot_model" textfile="$(find open_mower)/params/hardware_specific/$(env OM_MOWER)/urdf.xml"/>
     
   <node pkg="robot_state_publisher" type="robot_state_publisher" name="rob_st_pub" output="screen">
     <remap from="robot_description" to="robot_model" />
