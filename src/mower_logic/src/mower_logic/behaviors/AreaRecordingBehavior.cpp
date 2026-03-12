@@ -445,21 +445,8 @@ void AreaRecordingBehavior::command_home() {
   abort();
 }
 
-void AreaRecordingBehavior::command_start() {
-}
-
-void AreaRecordingBehavior::command_s1() {
-}
-
-void AreaRecordingBehavior::command_s2() {
-}
-
 bool AreaRecordingBehavior::redirect_joystick() {
   return true;
-}
-
-uint8_t AreaRecordingBehavior::get_sub_state() {
-  return sub_state;
 }
 
 uint8_t AreaRecordingBehavior::get_state() {
@@ -480,7 +467,7 @@ std::string AreaRecordingBehavior::sub_state_name() {
   }
 }
 
-void AreaRecordingBehavior::handle_action(std::string action) {
+void AreaRecordingBehavior::handle_action(const std::string& action, const std::string& parameters) {
   ROS_INFO_STREAM("[AreaRecordingBehavior] Got action " << action);
   if (action == "mower_logic:area_recording/start_recording") {
     poly_recording_enabled = true;
@@ -515,85 +502,21 @@ void AreaRecordingBehavior::handle_action(std::string action) {
 }
 
 AreaRecordingBehavior::AreaRecordingBehavior() {
-  xbot_msgs::ActionInfo start_recording_action;
-  start_recording_action.action_id = "start_recording";
-  start_recording_action.enabled = false;
-  start_recording_action.action_name = "Start Recording";
-
-  xbot_msgs::ActionInfo stop_recording_action;
-  stop_recording_action.action_id = "stop_recording";
-  stop_recording_action.enabled = false;
-  stop_recording_action.action_name = "Stop Recording";
-
-  xbot_msgs::ActionInfo finish_navigation_area_action;
-  finish_navigation_area_action.action_id = "finish_navigation_area";
-  finish_navigation_area_action.enabled = false;
-  finish_navigation_area_action.action_name = "Save Navigation Area";
-
-  xbot_msgs::ActionInfo finish_mowing_area_action;
-  finish_mowing_area_action.action_id = "finish_mowing_area";
-  finish_mowing_area_action.enabled = false;
-  finish_mowing_area_action.action_name = "Save Mowing Area";
-
-  xbot_msgs::ActionInfo finish_prohibited_area_action;
-  finish_prohibited_area_action.action_id = "finish_prohibited_area";
-  finish_prohibited_area_action.enabled = false;
-  finish_prohibited_area_action.action_name = "Save Prohibited Area";
-
-  xbot_msgs::ActionInfo exit_recording_mode_action;
-  exit_recording_mode_action.action_id = "exit_recording_mode";
-  exit_recording_mode_action.enabled = false;
-  exit_recording_mode_action.action_name = "Exit";
-
-  xbot_msgs::ActionInfo finish_discard_action;
-  finish_discard_action.action_id = "finish_discard";
-  finish_discard_action.enabled = false;
-  finish_discard_action.action_name = "Discard Area";
-
-  xbot_msgs::ActionInfo record_dock_action;
-  record_dock_action.action_id = "record_dock";
-  record_dock_action.enabled = false;
-  record_dock_action.action_name = "Record Docking point";
-
-  xbot_msgs::ActionInfo auto_point_collecting_enable_action;
-  auto_point_collecting_enable_action.action_id = "auto_point_collecting_enable";
-  auto_point_collecting_enable_action.enabled = false;
-  auto_point_collecting_enable_action.action_name = "Enable automatic point collecting";
-
-  xbot_msgs::ActionInfo auto_point_collecting_disable_action;
-  auto_point_collecting_disable_action.action_id = "auto_point_collecting_disable";
-  auto_point_collecting_disable_action.enabled = false;
-  auto_point_collecting_disable_action.action_name = "Disable automatic point collecting";
-
-  xbot_msgs::ActionInfo collect_point_action;
-  collect_point_action.action_id = "collect_point";
-  collect_point_action.enabled = false;
-  collect_point_action.action_name = "Collect point";
-
-  xbot_msgs::ActionInfo start_manual_mowing_action;
-  start_manual_mowing_action.action_id = "start_manual_mowing";
-  start_manual_mowing_action.enabled = false;
-  start_manual_mowing_action.action_name = "Start manual mowing";
-
-  xbot_msgs::ActionInfo stop_manual_mowing_action;
-  stop_manual_mowing_action.action_id = "stop_manual_mowing";
-  stop_manual_mowing_action.enabled = false;
-  stop_manual_mowing_action.action_name = "Stop manual mowing";
-
   actions.clear();
-  actions.push_back(start_recording_action);         // 0->0
-  actions.push_back(stop_recording_action);          // 1->1
-  actions.push_back(finish_navigation_area_action);  // 2->2
-  actions.push_back(finish_mowing_area_action);      // 3->3
-  actions.push_back(finish_prohibited_area_action);  // 4
-  actions.push_back(exit_recording_mode_action);     // 4->5
-  actions.push_back(finish_discard_action);          // 5->6
-  actions.push_back(record_dock_action);             // 6->7
-  actions.push_back(auto_point_collecting_enable_action);
-  actions.push_back(auto_point_collecting_disable_action);
-  actions.push_back(collect_point_action);
-  actions.push_back(start_manual_mowing_action);
-  actions.push_back(stop_manual_mowing_action);
+
+  actions.push_back(createAction("start_recording","Start Recording"));         // 0->0
+  actions.push_back(createAction("stop_recording","Stop Recording"));          // 1->1
+  actions.push_back(createAction("finish_navigation_area","Save Navigation Area"));  // 2->2
+  actions.push_back(createAction("finish_mowing_area","Save Mowing Area"));      // 3->3
+  actions.push_back(createAction("finish_prohibited_area","Save Prohibited Area"));  // 4
+  actions.push_back(createAction("exit_recording_mode","Exit"));     // 4->5
+  actions.push_back(createAction("finish_discard","Discard Area"));          // 5->6
+  actions.push_back(createAction("record_dock","Record Docking point"));             // 6->7
+  actions.push_back(createAction("auto_point_collecting_enable","Enable automatic point collecting"));
+  actions.push_back(createAction("auto_point_collecting_disable","Disable automatic point collecting"));
+  actions.push_back(createAction("collect_point","Collect point"));
+  actions.push_back(createAction("start_manual_mowing","Start manual mowing"));
+  actions.push_back(createAction("stop_manual_mowing","Stop manual mowing"));
 }
 
 #define start_recording_action 0

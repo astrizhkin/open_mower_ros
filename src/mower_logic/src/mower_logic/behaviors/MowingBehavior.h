@@ -30,17 +30,26 @@ private:
 
   bool skip_area;
   bool skip_path;
-  bool create_mowing_plan(int area_index);
+  bool create_mowing_plan(const std::string &area_name);
+  double evaluate_path(std::vector<slic3r_coverage_planner::Path> &paths);
 
   bool execute_mowing_plan();
+  void checkpoint();
+  bool restore_checkpoint();
+  void reset_checkpoint();
+  void reset_paths();
 
-    // Progress
-    std::vector<slic3r_coverage_planner::Path> currentMowingPaths;
+
+  // Progress
+  std::vector<slic3r_coverage_planner::Path> currentMowingPaths;
+
+  //Mowing areas for work on
+  std::vector<std::string> mowingAreas;
 
   ros::Time last_checkpoint;
   int currentMowingPath;
   int currentMowingArea;
-  int currentMowingPathIndex;
+  int currentMowingPoseIndex;
   std::string currentMowingPlanDigest;
   double currentMowingAngleIncrementSum;
 
@@ -48,10 +57,16 @@ private:
   MowingBehavior();
 
   static MowingBehavior INSTANCE;
+  static const std::string ALL_AREAS;
 
   std::string state_name() override;
 
+  std::string sub_state_name() override;
+
   Behavior *execute() override;
+
+  //set comma separated list of mowing area name for next cycle. Must reset to all areas after last mowing area
+  void setMowingAreas(const std::string &mowAreas);
 
   void enter() override;
 
@@ -79,15 +94,11 @@ private:
 
   int16_t get_current_path();
 
-  int16_t get_current_path_index();
+  int16_t get_current_pose_index();
 
-  void handle_action(std::string action) override;
+  void handle_action(const std::string& action, const std::string& parameters = std::string()) override;
 
   void update_actions(bool enable);
-
-  void checkpoint();
-
-  bool restore_checkpoint();
 };
 
 #endif  // SRC_MOWINGBEHAVIOR_H

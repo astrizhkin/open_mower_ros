@@ -173,7 +173,7 @@ bool isTemporaryEmergency() {
       return false;
     }
   }
-  return true && (emergency_low_level_bits == EMERGENCY_HIGH_LEVEL || emergency_low_level_bits == 0);
+  return true && (emergency_low_level_bits == 1<<EMERGENCY_HIGH_LEVEL || emergency_low_level_bits == 0);
 }
 
 void updateEmergencyBits() {
@@ -225,6 +225,10 @@ void publishActuators() {
 
   struct ll_heartbeat heartbeat = {.type = PACKET_ID_LL_HEARTBEAT,
                                    // send high level emergency bits
+                                   .power_request = (POWER_REQUEST_BITS_ON << (POWER_REQUEST_PI<<1)) | 
+                                                    (POWER_REQUEST_BITS_ON << (POWER_REQUEST_MOTOR<<1)) |
+                                                    (POWER_REQUEST_BITS_ON << (POWER_REQUEST_LED<<1)) |
+                                                    (POWER_REQUEST_BITS_ON << (POWER_REQUEST_RESERVED<<1)),
                                    .emergency_high_level = emergency_high_level_bits};
   sendLLMessage((uint8_t *)&heartbeat, sizeof(struct ll_heartbeat));
 }
@@ -793,49 +797,49 @@ void onFrontOdomReceived(const nav_msgs::Odometry::ConstPtr &msg) {
 #endif
 
 
-void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {
-  ROS_INFO_STREAM("[mower_comms] Got UI button with code:" << +ui_event->button_id
-                                                           << " and duration: " << +ui_event->press_duration);
+// void handleLowLevelUIEvent(struct ll_ui_event *ui_event) {
+//   ROS_INFO_STREAM("[mower_comms] Got UI button with code:" << +ui_event->button_id
+//                                                            << " and duration: " << +ui_event->press_duration);
 
-  mower_msgs::HighLevelControlSrv srv;
+//   mower_msgs::HighLevelControlSrv srv;
 
-  switch (ui_event->button_id) {
-    case 2:
-      // Home
-      srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_HOME;
-      break;
-    case 3:
-      // Play
-      srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_START;
-      break;
-    case 4:
-      // S1
-      srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_S1;
-      break;
-    case 5:
-      // S2
-      if (ui_event->press_duration == 2) {
-        srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_DELETE_MAPS;
-      } else {
-        srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_S2;
-      }
-      break;
-    case 6:
-      // LOCK
-      if (ui_event->press_duration == 2) {
-        // very long press on lock
-        srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_RESET_EMERGENCY;
-      }
-      break;
-    default:
-      // Return, don't call the service.
-      return;
-  }
+//   switch (ui_event->button_id) {
+//     case 2:
+//       // Home
+//       srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_HOME;
+//       break;
+//     case 3:
+//       // Play
+//       srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_START;
+//       break;
+//     case 4:
+//       // S1
+//       srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_S1;
+//       break;
+//     case 5:
+//       // S2
+//       if (ui_event->press_duration == 2) {
+//         srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_DELETE_MAPS;
+//       } else {
+//         srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_S2;
+//       }
+//       break;
+//     case 6:
+//       // LOCK
+//       if (ui_event->press_duration == 2) {
+//         // very long press on lock
+//         srv.request.command = mower_msgs::HighLevelControlSrvRequest::COMMAND_RESET_EMERGENCY;
+//       }
+//       break;
+//     default:
+//       // Return, don't call the service.
+//       return;
+//   }
 
-  if (!highLevelClient.call(srv)) {
-    ROS_ERROR_STREAM("[mower_comms] Error calling high level control service");
-  }
-}
+//   if (!highLevelClient.call(srv)) {
+//     ROS_ERROR_STREAM("[mower_comms] Error calling high level control service");
+//   }
+// }
 
 /**
  * @brief getNewSetChanged return t_new and checks if the value changed in comparison to t_cur.
@@ -1275,14 +1279,14 @@ int main(int argc, char **argv) {
                       "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was IMU");
                 }
                 break;
-              case PACKET_ID_LL_UI_EVENT:
-                if (data_size == sizeof(struct ll_ui_event)) {
-                  handleLowLevelUIEvent((struct ll_ui_event *)buffer_decoded);
-                } else {
-                  ROS_WARN_STREAM(
-                      "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was UI_EVENT");
-                }
-                break;
+              // case PACKET_ID_LL_UI_EVENT:
+              //   if (data_size == sizeof(struct ll_ui_event)) {
+              //     handleLowLevelUIEvent((struct ll_ui_event *)buffer_decoded);
+              //   } else {
+              //     ROS_WARN_STREAM(
+              //         "[mower_comms] Low Level Board sent a valid packet with the wrong size. Type was UI_EVENT");
+              //   }
+              //   break;
               case PACKET_ID_LL_HIGH_LEVEL_CONFIG_GET:
               case PACKET_ID_LL_HIGH_LEVEL_CONFIG_SET:
               case PACKET_ID_LL_HIGH_LEVEL_CONFIG_ERR:

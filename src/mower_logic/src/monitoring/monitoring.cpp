@@ -26,6 +26,10 @@
 #include "xbot_msgs/RobotState.h"
 #include "xbot_msgs/SensorDataDouble.h"
 #include "xbot_msgs/SensorInfo.h"
+#include "nav_msgs/Odometry.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "tf2/LinearMath/Quaternion.h"
+#include "tf2/LinearMath/Vector3.h"
 
 ros::Publisher state_pub;
 xbot_msgs::RobotState state;
@@ -34,6 +38,7 @@ ros::NodeHandle *n;
 
 ros::Time last_status_update(0);
 ros::Time last_pose_update(0);
+ros::Time last_odom_3d_update(0);
 
 ros::NodeHandle *paramNh;
 
@@ -86,6 +91,8 @@ std::map<std::string, SensorConfig> sensor_configs{
   {"om_mow_motor_current", {"Mow Motor Current", "A", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_CURRENT, [](StatusPtr msg) { return msg->mow_esc_status.current; }, &set_limits_mow_motor_current, "mower_xesc"}},
   {"om_mow_motor_rpm", {"Mow Motor RPM", "rpm", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_RPM, [](StatusPtr msg) { return msg->mow_esc_status.rpm; }, &set_limits_mow_motor_rpm, "mower_xesc"}},
   {"om_gps_accuracy", {"GPS Accuracy", "m", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DISTANCE}},
+  {"om_surface_angle", {"Surface Angle", "deg", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DEGREE}},
+  {"om_height", {"Height", "m", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DISTANCE}},
 };
 // clang-format on
 
@@ -114,12 +121,44 @@ void high_level_status(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
   state.current_sub_state = msg->sub_state_name;
   state.current_area = msg->current_area;
   state.current_path = msg->current_path;
-  state.current_path_index = msg->current_path_index;
+  state.current_pose_index = msg->current_pose_index;
   state.battery_percentage = msg->battery_percent;
   state.emergency = msg->emergency;
   state.is_charging = msg->is_charging;
 
   state_pub.publish(state);
+}
+
+double getNormalGravityAngle(const nav_msgs::Odometry::ConstPtr &msg) {
+  tf2::Vector3 normalGravityVector(0.0, 0.0, 9.81);
+  tf2::Quaternion q;
+  tf2::fromMsg(msg->pose.pose.orientation, q);
+  tf2::Vector3 actualGravityVector = tf2::quatRotate(q, normalGravityVector);
+  return normalGravityVector.angle(actualGravityVector);
+}
+
+
+void odom_received(const nav_msgs::Odometry::ConstPtr &msg) {
+  state.robot_odom_3d = *msg;
+
+  // Rate limit to 2Hz
+  if ((msg->header.stamp - last_odom_3d_update).toSec() < 0.5) return;
+  last_odom_3d_update = msg->header.stamp;
+
+  xbot_msgs::SensorDataDouble sensor_data;
+  sensor_data.stamp = msg->header.stamp;
+
+  sensor_data.data = getNormalGravityAngle(msg) * 180 / M_PI;
+  auto sc_it = sensor_configs.find("om_surface_angle");
+  if (sc_it != std::end(sensor_configs)) {
+    sc_it->second.data_pub.publish(sensor_data);
+  }
+
+  sensor_data.data = msg->pose.pose.position.z;
+  sc_it = sensor_configs.find("om_height");
+  if (sc_it != std::end(sensor_configs)) {
+    sc_it->second.data_pub.publish(sensor_data);
+  }
 }
 
 void pose_received(const xbot_msgs::AbsolutePose::ConstPtr &msg) {
@@ -131,8 +170,8 @@ void pose_received(const xbot_msgs::AbsolutePose::ConstPtr &msg) {
 
   xbot_msgs::SensorDataDouble sensor_data;
   sensor_data.stamp = msg->header.stamp;
+  
   sensor_data.data = msg->position_accuracy;
-
   auto sc_it = sensor_configs.find("om_gps_accuracy");
   if (sc_it != std::end(sensor_configs)) {
     sc_it->second.data_pub.publish(sensor_data);
@@ -250,6 +289,7 @@ int main(int argc, char **argv) {
   registerSensors();
 
   ros::Subscriber pose_sub = n->subscribe("xbot_positioning/xb_pose", 10, pose_received);
+  ros::Subscriber odom_3d_sub = n->subscribe("xbot_positioning/odom_3d_out", 10, odom_received);
   ros::Subscriber state_sub = n->subscribe("mower_logic/current_state", 10, high_level_status);
   ros::Subscriber status_sub = n->subscribe("mower/status", 10, status);
 

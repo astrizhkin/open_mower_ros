@@ -339,23 +339,11 @@ bool PerimeterBase::needs_gps() {
   return false;
 }
 
-void PerimeterBase::command_home() {
-}
-
-void PerimeterBase::command_start() {
-}
-
-void PerimeterBase::command_s1() {
-}
-
-void PerimeterBase::command_s2() {
-}
-
 bool PerimeterBase::redirect_joystick() {
   return false;
 }
 
-void PerimeterBase::handle_action(std::string action) {
+void PerimeterBase::handle_action(const std::string& action, const std::string& parameters) {
 }
 
 /**

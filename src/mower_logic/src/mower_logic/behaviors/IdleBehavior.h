@@ -26,13 +26,14 @@
 #include "UndockingBehavior.h"
 #include "AreaRecordingBehavior.h"
 #include "DebugBehavior.h"
-#include "mower_map/GetMowingAreaSrv.h"
-#include <mower_map/GetDockingPointSrv.h>
+#include "mower_map/GetMowingAreasSrv.h"
+#include "mower_map/GetDockingPointSrv.h"
 
 class IdleBehavior : public Behavior {
  private:
   bool stay_docked = false;
   bool manual_start_mowing = false;
+  std::string manual_mowing_areas;
   bool start_area_recorder = false;
   bool start_debug = false;
 
@@ -52,9 +53,7 @@ class IdleBehavior : public Behavior {
 
   void reset() override;
 
-    bool needs_gps() override;
-
-  void command_home() override;
+  bool needs_gps() override;
 
   void command_start() override;
 
@@ -64,11 +63,9 @@ class IdleBehavior : public Behavior {
 
   bool redirect_joystick() override;
 
-  uint8_t get_sub_state() override;
-
   uint8_t get_state() override;
 
-  void handle_action(std::string action) override;
+  void handle_action(const std::string& action, const std::string& parameters = std::string()) override;
 };
 
 #endif  // SRC_IDLEBEHAVIOR_H

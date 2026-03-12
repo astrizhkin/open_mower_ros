@@ -80,6 +80,7 @@ add_service_files(
         DeleteMowingAreaSrv.srv
         GetDockingPointSrv.srv
         GetMowingAreaSrv.srv
+        GetMowingAreasSrv.srv
         SetDockingPointSrv.srv
         ClearNavPointSrv.srv
         SetNavPointSrv.srv

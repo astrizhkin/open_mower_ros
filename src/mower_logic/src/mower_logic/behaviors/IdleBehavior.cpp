@@ -31,7 +31,7 @@ extern mower_msgs::Status getStatus();
 extern mower_logic::MowerLogicConfig getConfig();
 extern dynamic_reconfigure::Server<mower_logic::MowerLogicConfig> *reconfigServer;
 
-extern ros::ServiceClient mapClient;
+extern ros::ServiceClient getAreasClient;
 extern ros::ServiceClient dockingPointClient;
 
 IdleBehavior IdleBehavior::INSTANCE(false);
@@ -43,10 +43,9 @@ std::string IdleBehavior::state_name() {
 
 Behavior *IdleBehavior::execute() {
   // Check, if we have a configured map. If not, print info and go to area recorder
-  mower_map::GetMowingAreaSrv mapSrv;
-  mapSrv.request.index = 0;
-  if (!mapClient.call(mapSrv)) {
-    ROS_WARN("[IdleBehavior] We don't have a map configured. Starting Area Recorder!");
+  mower_map::GetMowingAreasSrv mapSrv;
+  if (!getAreasClient.call(mapSrv)) {
+    ROS_WARN("[IdleBehavior] We don't have a mowing areas configured. Starting Area Recorder!");
     return &AreaRecordingBehavior::INSTANCE;
   }
 
@@ -86,12 +85,17 @@ Behavior *IdleBehavior::execute() {
         !last_config.manual_pause_mowing && !rain_delay;
 
     if (manual_start_mowing || ((automatic_mode || active_semiautomatic_task) && mower_ready)) {
+      if(manual_start_mowing) {
+        MowingBehavior::INSTANCE.setMowingAreas(manual_mowing_areas);
+      }
+
       // set the robot's position to the dock if we're actually docked
       if (last_status.v_charge > last_config.charger_min_voltage) {
-        if (PerimeterUndockingBehavior::configured(config)) return &PerimeterUndockingBehavior::INSTANCE;
-        ROS_INFO_STREAM(
-            "[IdleBehavior] Currently inside the docking station, we set the robot's pose to the docks pose.");
+        ROS_INFO_STREAM("[IdleBehavior] Currently inside the docking station, we set the robot's pose to the docks pose.");
         setRobotPose(docking_pose_stamped.pose, "idle prepare for undocking");
+        if (PerimeterUndockingBehavior::configured(config)) {
+          return &PerimeterUndockingBehavior::INSTANCE;
+        }
         return &UndockingBehavior::INSTANCE;
       }
       // Not docked, so just mow
@@ -154,15 +158,17 @@ bool IdleBehavior::needs_gps() {
   return false;
 }
 
-void IdleBehavior::command_home() {
-  // IdleBehavior == docked, don't do anything.
-}
-
 void IdleBehavior::command_start() {
   ROS_INFO_STREAM("[IdleBehavior] Got start_mowing command");
+  if(shared_state == nullptr) {
+    ROS_ERROR_STREAM("[IdleBehavior] Logic shared state is not initialized. Abort start action.");
+    return;
+  }
+
   // We got start, so we can reset the last manual pause
   shared_state->semiautomatic_task_paused = false;
   manual_start_mowing = true;
+  manual_mowing_areas = MowingBehavior::ALL_AREAS;
 }
 
 void IdleBehavior::command_s1() {
@@ -179,40 +185,27 @@ bool IdleBehavior::redirect_joystick() {
   return false;
 }
 
-uint8_t IdleBehavior::get_sub_state() {
-  return 0;
-}
 uint8_t IdleBehavior::get_state() {
   return mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_IDLE;
 }
 
 IdleBehavior::IdleBehavior(bool stayDocked) {
   this->stay_docked = stayDocked;
-
-  xbot_msgs::ActionInfo start_mowing_action;
-  start_mowing_action.action_id = "start_mowing";
-  start_mowing_action.enabled = false;
-  start_mowing_action.action_name = "Start Mowing";
-
-  xbot_msgs::ActionInfo start_area_recording_action;
-  start_area_recording_action.action_id = "start_area_recording";
-  start_area_recording_action.enabled = false;
-  start_area_recording_action.action_name = "Start Area Recording";
-
-  xbot_msgs::ActionInfo start_debug_action;
-  start_debug_action.action_id = "start_debug";
-  start_debug_action.enabled = false;
-  start_debug_action.action_name = "Start Debug";
+  this->sub_state = 0;
 
   actions.clear();
-  actions.push_back(start_mowing_action);
-  actions.push_back(start_area_recording_action);
-  actions.push_back(start_debug_action);
+
+  actions.push_back(createAction("start_mowing","Start Mowing"));
+  actions.push_back(createAction("start_area_recording","Start Area Recording"));
+  actions.push_back(createAction("start_debug","Start Debug"));
 }
 
-void IdleBehavior::handle_action(std::string action) {
+void IdleBehavior::handle_action(const std::string& action, const std::string& parameters) {
   if (action == "mower_logic:idle/start_mowing") {
     command_start();
+    if(!parameters.empty()){
+        manual_mowing_areas = parameters;
+    }
   } else if (action == "mower_logic:idle/start_area_recording") {
     command_s1();
   } else if (action == "mower_logic:idle/start_debug") {

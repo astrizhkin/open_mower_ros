@@ -62,6 +62,15 @@ class Behavior {
     return (ros::Time::now() - startTime).toSec();
   }
 
+  xbot_msgs::ActionInfo createAction(const std::string &id,const std::string &name) {
+    xbot_msgs::ActionInfo action;
+    action.action_id = id;
+    action.enabled = false;
+    action.action_name = name;
+    return action;
+  }
+
+
   mower_logic::MowerLogicConfig config;
   std::shared_ptr<sSharedState> shared_state;
 
@@ -119,7 +128,6 @@ class Behavior {
 
   void start(mower_logic::MowerLogicConfig &c, std::shared_ptr<sSharedState> s) {
     ROS_INFO_STREAM("");
-    ROS_INFO_STREAM("");
     ROS_INFO_STREAM("--------------------------------------");
     ROS_INFO_STREAM("- Entered state: " << state_name());
     ROS_INFO_STREAM("--------------------------------------");
@@ -167,15 +175,17 @@ class Behavior {
   // return true to redirect joystick speeds to the controller
   virtual bool redirect_joystick() = 0;
 
-  virtual void command_home() = 0;
-  virtual void command_start() = 0;
-  virtual void command_s1() = 0;
-  virtual void command_s2() = 0;
+  virtual void command_home() {};
+  virtual void command_start() {};
+  virtual void command_s1() {};
+  virtual void command_s2() {};
 
-  virtual uint8_t get_sub_state() = 0;
+  virtual uint8_t get_sub_state() {
+    return sub_state;
+  };
   virtual uint8_t get_state() = 0;
 
-  virtual void handle_action(std::string action) = 0;
+  virtual void handle_action(const std::string& action, const std::string& parameters = std::string()) = 0;
 };
 
 #endif  // SRC_BEHAVIOR_H
