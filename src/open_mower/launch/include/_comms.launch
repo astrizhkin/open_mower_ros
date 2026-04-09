@@ -24,7 +24,7 @@
       <!--remap from="~odom3d_in" to="/xbot_positioning/odom_3d_out"/-->
     </node>
     
-    <include file="$(find open_mower)/launch/include/_hoverboard4x4.launch" />
+    <include file="$(find open_mower)/launch/include/_odrive_can4x4.launch" />
 
     <include file="$(find open_mower)/launch/include/_gps.launch" unless="$(optenv OM_NO_GPS False)"/>
 
