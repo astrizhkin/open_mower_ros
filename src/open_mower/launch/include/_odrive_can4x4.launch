@@ -2,30 +2,19 @@
     <rosparam file="$(find open_mower)/params/hardware_specific/$(env OM_MOWER)/odrive.yaml" command="load" subst_value="true"/>
     <!--rosparam file="$(env PARAMS_PATH)/odrive.yaml" command="load" subst_value="true"/-->
 
-    <node name="odrive_control" pkg="controller_manager" type="controller_manager"
-        respawn="true" output="screen"
-        args="spawner odrive_ros_control"/>
+    <!-- CAN communication + hardware interface + control loop -->
+    <node name="odrive_can" pkg="odrive_can" type="odrive_can_node" output="screen"
+        respawn="true" respawn_delay="2.0"/>
 
-    <!-- Single CAN node serving all 4 axes on can0 -->
-    <node name="odrive_can" pkg="odrive_can" type="odrive_can_node" output="screen"/>
+    <node name="odrive_driver" pkg="odrive_ros_control" type="odrive_ros_control_node"
+        respawn="true" output="screen"/>
 
-    <group ns="front">
-        <remap from="/front/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
-        <node name="joint_state_spawner" pkg="controller_manager" type="spawner"
-            respawn="false" output="screen"
-            args="front_joint_publisher"/>
-        <node name="controller_spawner" pkg="controller_manager" type="spawner"
-            respawn="false" output="screen"
-            args="front_velocity_controller --wait-for front_joint_publisher"/>
-    </group>
+    <!-- Controllers -->
+    <node name="controller_spawner" pkg="controller_manager" type="spawner"
+        respawn="false" output="screen"
+        args="front_joint_publisher rear_joint_publisher
+              front_velocity_controller rear_velocity_controller"/>
 
-    <group ns="rear">
-        <remap from="/rear/hoverboard_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
-        <node name="joint_state_spawner" pkg="controller_manager" type="spawner"
-            respawn="false" output="screen"
-            args="rear_joint_publisher"/>
-        <node name="controller_spawner" pkg="controller_manager" type="spawner"
-            respawn="false" output="screen"
-            args="rear_velocity_controller --wait-for rear_joint_publisher"/>
-    </group>
+    <remap from="/front_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
+    <remap from="/rear_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
 </launch>
