@@ -34,3 +34,6 @@
 [submodule "src/lib/navigation_layers"]
 	path = src/lib/navigation_layers
 	url = https://github.com/astrizhkin/navigation_layers
+[submodule "src/lib/ros_odrive"]
+	path = src/lib/ros_odrive
+	url = https://github.com/astrizhkin/ros_odrive.git
