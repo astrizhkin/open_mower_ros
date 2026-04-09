@@ -2,7 +2,7 @@ odrive_can:
   interface: "can0"
   axis_idle_on_shutdown: true
 
-odrive_ros_control:
+odrive_driver:
   can: "can0"
   joints:
     - front_left_wheel
