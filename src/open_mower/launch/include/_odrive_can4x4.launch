@@ -2,6 +2,10 @@
     <rosparam file="$(find open_mower)/params/hardware_specific/$(env OM_MOWER)/odrive.yaml" command="load" subst_value="true"/>
     <!--rosparam file="$(env PARAMS_PATH)/odrive.yaml" command="load" subst_value="true"/-->
 
+    <node name="odrive_control" pkg="controller_manager" type="controller_manager"
+        respawn="true" output="screen"
+        args="spawner odrive_ros_control"/>
+
     <!-- Single CAN node serving all 4 axes on can0 -->
     <node name="odrive_can" pkg="odrive_can" type="odrive_can_node" output="screen"/>
 
