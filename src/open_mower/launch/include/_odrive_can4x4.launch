@@ -2,12 +2,12 @@
     <rosparam file="$(find open_mower)/params/hardware_specific/$(env OM_MOWER)/odrive.yaml" command="load" subst_value="true"/>
     <!--rosparam file="$(env PARAMS_PATH)/odrive.yaml" command="load" subst_value="true"/-->
 
-    <!-- CAN communication + hardware interface + control loop -->
-    <node name="odrive_can" pkg="odrive_can" type="odrive_can_node" output="screen"
-        respawn="true" respawn_delay="2.0"/>
+    <!--node name="odrive_can" pkg="odrive_can" type="odrive_can_node" output="screen"
+        respawn="true" respawn_delay="2.0"/-->
 
+    <!-- CAN communication + hardware interface + control loop -->
     <node name="odrive_driver" pkg="odrive_ros_control" type="odrive_ros_control_node"
-        respawn="true" output="screen"/>
+        respawn="true" on_can_msgoutput="screen"/>
 
     <!-- Controllers -->
     <node name="controller_spawner" pkg="controller_manager" type="spawner"
