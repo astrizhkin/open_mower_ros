@@ -1,6 +1,7 @@
-odrive_can:
-  interface: "can0"
-  axis_idle_on_shutdown: true
+#why do we need odrive_can node?
+#odrive_can:
+#  interface: "can0"
+#  axis_idle_on_shutdown: true
 
 odrive_driver:
   can: "can0"
