@@ -23,7 +23,7 @@
 #include <dynamic_reconfigure/client.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <nav_msgs/Odometry.h>
-#include "HowerboardDrive.hpp"
+#include "HoverboardDrive.hpp"
 #include "ODriveDrive.hpp"
 #include <odrive_can/ODriveStatus.h>
 #include <odrive_can/ControllerStatus.h>

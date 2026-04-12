@@ -3,38 +3,10 @@
 #include "xesc_msgs/XescState.h"
 #include <odrive_can/ControllerStatus.h>
 #include <odrive_can/ODriveStatus.h>
+#include <odrive_enums.h>
 #include <ros/ros.h>
 #include <map>
 #include <string>
-
-// ODrive active_errors bitmask values from odrive_enums.h
-// Listed here for reference when mapping to xesc_status
-// ODRIVE_ERROR_INITIALIZING               = 0x01
-// ODRIVE_ERROR_SYSTEM_LEVEL               = 0x02
-// ODRIVE_ERROR_TIMING_ERROR               = 0x04
-// ODRIVE_ERROR_MISSING_ESTIMATE           = 0x08
-// ODRIVE_ERROR_BAD_CONFIG                 = 0x10
-// ODRIVE_ERROR_DRV_FAULT                  = 0x20
-// ODRIVE_ERROR_MISSING_INPUT              = 0x40
-// ODRIVE_ERROR_DC_BUS_OVER_VOLTAGE        = 0x100
-// ODRIVE_ERROR_DC_BUS_UNDER_VOLTAGE       = 0x200
-// ODRIVE_ERROR_DC_BUS_OVER_CURRENT        = 0x400
-// ODRIVE_ERROR_DC_BUS_OVER_REGEN_CURRENT  = 0x800
-// ODRIVE_ERROR_CURRENT_LIMIT_VIOLATION    = 0x1000
-// ODRIVE_ERROR_MOTOR_OVER_TEMP            = 0x2000
-// ODRIVE_ERROR_INVERTER_OVER_TEMP         = 0x4000
-// ODRIVE_ERROR_VELOCITY_LIMIT_VIOLATION   = 0x8000
-// ODRIVE_ERROR_POSITION_LIMIT_VIOLATION   = 0x10000
-// ODRIVE_ERROR_WATCHDOG_TIMER_EXPIRED     = 0x1000000
-// ODRIVE_ERROR_ESTOP_REQUESTED            = 0x2000000
-// ODRIVE_ERROR_SPINOUT_DETECTED           = 0x4000000
-// ODRIVE_ERROR_BRAKE_RESISTOR_DISARMED    = 0x8000000
-// ODRIVE_ERROR_THERMISTOR_DISCONNECTED    = 0x10000000
-
-static constexpr float FET_TEMP_WARN_C    = 70.0f;
-static constexpr float FET_TEMP_ERROR_C   = 80.0f;
-static constexpr float MOTOR_TEMP_WARN_C  = 80.0f;
-static constexpr float MOTOR_TEMP_ERROR_C = 100.0f;
 
 class ODriveDrive : public DriveInterface {
 public:
@@ -58,6 +30,13 @@ public:
         return true;
     }
 
+
+    static constexpr float FET_TEMP_WARN_C   = 65.0f;
+    static constexpr float FET_TEMP_ERROR_C   = 75.0f;
+
+    static constexpr float MOTOR_TEMP_WARN_C  = 70.0f;
+    static constexpr float MOTOR_TEMP_ERROR_C = 80.0f;
+
     void getESCStatus(WheelId wheel, bool esc_power,
                       const ros::Time& esc_enabled_time,
                       mower_msgs::ESCStatus& status) override {
@@ -67,10 +46,10 @@ public:
         // Always populate sensor fields
         status.tacho             = ctrl.pos_estimate;
         status.current           = ctrl.iq_measured;
+        status.rpm               = ctrl.vel_estimate;
         status.temperature_motor = odrv.motor_temperature;
         status.temperature_pcb   = odrv.fet_temperature;
-        status.rpm               = 0; // not provided by ODrive CAN
-        status.xesc_status       = mapToXescStatus(ctrl, odrv);
+        status.xesc_status       = mapToXescStatus(ctrl.active_errors);
 
         // --- Power / startup guard ---
         if (!esc_power ||
@@ -84,12 +63,16 @@ public:
             ROS_ERROR_STREAM_THROTTLE(1,
                 "[ODriveDrive] " << wheelName(wheel) << " disconnected");
             status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
-            status.xesc_status |= xesc_msgs::XescState::XESC_FAULT_WATCHDOG;
             return;
         }
 
+        // Strip temperature errors
+        uint32_t errors = ctrl.active_errors &
+            ~(ODRIVE_ERROR_INVERTER_OVER_TEMP |
+              ODRIVE_ERROR_MOTOR_OVER_TEMP);
+
         // --- Error check ---
-        if (ctrl.active_errors) {
+        if (errors) {
             ROS_ERROR_STREAM_THROTTLE(1,
                 "[ODriveDrive] " << wheelName(wheel)
                 << " active_errors=0x" << std::hex << ctrl.active_errors
@@ -105,8 +88,12 @@ public:
             ROS_WARN_STREAM_THROTTLE(10,
                 "[ODriveDrive] " << wheelName(wheel)
                 << " FET temperature warning: " << odrv.fet_temperature << "C");
+
+            // Temperature warnings from ODriveStatus (not in active_errors)
+            status.xesc_status |= xesc_msgs::XescState::XESC_FAULT_TEMP_WARNING_PCB;
         }
-        if (odrv.fet_temperature > FET_TEMP_ERROR_C) {
+        if ((status.xesc_status & xesc_msgs::XescState::XESC_FAULT_OVERTEMP_PCB)
+             || odrv.fet_temperature > FET_TEMP_ERROR_C) {
             ROS_ERROR_STREAM_THROTTLE(1,
                 "[ODriveDrive] " << wheelName(wheel)
                 << " FET overtemperature: " << odrv.fet_temperature << "C");
@@ -117,12 +104,15 @@ public:
             ROS_WARN_STREAM_THROTTLE(10,
                 "[ODriveDrive] " << wheelName(wheel)
                 << " motor temperature warning: " << odrv.motor_temperature << "C");
+            // Temperature warnings from ODriveStatus (not in active_errors)
+            status.xesc_status |= xesc_msgs::XescState::XESC_FAULT_TEMP_WARNING_MOTOR;
         }
-        if (odrv.motor_temperature > MOTOR_TEMP_ERROR_C) {
+        if ((status.xesc_status & xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR) 
+            || odrv.motor_temperature > MOTOR_TEMP_ERROR_C) {
             ROS_ERROR_STREAM_THROTTLE(1,
                 "[ODriveDrive] " << wheelName(wheel)
                 << " motor overtemperature: " << odrv.motor_temperature << "C");
-            status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+            //status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
             return;
         }
     }
@@ -164,34 +154,69 @@ private:
         return odrv_status_.at(wheelName(wheel));
     }
 
-    // Map ODrive active_errors bitmask to xesc_status bitmask
-    static uint32_t mapToXescStatus(
-        const odrive_can::ControllerStatus& ctrl,
-        const odrive_can::ODriveStatus& odrv)
-    {
+    static uint32_t mapToXescStatus(uint32_t err) {
         uint32_t xesc = 0;
-        uint32_t err  = ctrl.active_errors;
 
-        if (err & 0x000001) xesc |= xesc_msgs::XescState::XESC_FAULT_UNINITIALIZED;
-        if (err & 0x000004) xesc |= xesc_msgs::XescState::XESC_FAULT_WATCHDOG;       // TIMING_ERROR
-        if (err & 0x000008) xesc |= xesc_msgs::XescState::XESC_FAULT_INVALID_HALL;   // MISSING_ESTIMATE
-        if (err & 0x000002 ||
-            err & 0x000010 ||
-            err & 0x000020 ||
-            err & 0x000040) xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR; // SYSTEM/BAD_CONFIG/DRV/MISSING_INPUT
-        if (err & 0x000100) xesc |= xesc_msgs::XescState::XESC_FAULT_OVERVOLTAGE;    // DC_BUS_OVER_VOLTAGE
-        if (err & 0x000200) xesc |= xesc_msgs::XescState::XESC_FAULT_UNDERVOLTAGE;   // DC_BUS_UNDER_VOLTAGE
-        if (err & 0x000400 ||
-            err & 0x000800 ||
-            err & 0x001000) xesc |= xesc_msgs::XescState::XESC_FAULT_OVERCURRENT;    // OVER_CURRENT variants
-        if (err & 0x002000) xesc |= xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR; // MOTOR_OVER_TEMP
-        if (err & 0x004000) xesc |= xesc_msgs::XescState::XESC_FAULT_OVERTEMP_PCB;   // INVERTER_OVER_TEMP
-        if (err & 0x1000000) xesc |= xesc_msgs::XescState::XESC_FAULT_WATCHDOG;      // WATCHDOG_TIMER_EXPIRED
-        if (err & 0x10000000) xesc |= xesc_msgs::XescState::XESC_FAULT_OPEN_LOAD;    // THERMISTOR_DISCONNECTED
+        if (err == ODRIVE_ERROR_NONE)
+            return xesc;
 
-        // Temperature warnings from ODriveStatus
-        if (odrv.fet_temperature   > FET_TEMP_WARN_C)
-            xesc |= xesc_msgs::XescState::XESC_FAULT_TEMP_WARNING_PCB;
+        // Uninitialized
+        if (err & ODRIVE_ERROR_INITIALIZING)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_UNINITIALIZED;
+
+        // Watchdog / timing
+        if (err & ODRIVE_ERROR_WATCHDOG_TIMER_EXPIRED)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_WATCHDOG;
+
+        // Internal errors
+        if (err & ODRIVE_ERROR_TIMING_ERROR)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
+        if (err & ODRIVE_ERROR_SYSTEM_LEVEL)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
+        if (err & ODRIVE_ERROR_BAD_CONFIG)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
+        if (err & ODRIVE_ERROR_DRV_FAULT)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
+        if (err & ODRIVE_ERROR_MISSING_INPUT)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
+        if (err & ODRIVE_ERROR_ESTOP_REQUESTED)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
+        if (err & ODRIVE_ERROR_CALIBRATION_ERROR)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
+        if (err & ODRIVE_ERROR_BRAKE_RESISTOR_DISARMED)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
+
+        // Hall / encoder
+        if (err & ODRIVE_ERROR_SPINOUT_DETECTED)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_INVALID_HALL;
+        if (err & ODRIVE_ERROR_MISSING_ESTIMATE)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_INVALID_HALL;
+        if (err & ODRIVE_ERROR_VELOCITY_LIMIT_VIOLATION)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_INVALID_HALL;
+        if (err & ODRIVE_ERROR_POSITION_LIMIT_VIOLATION)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_INVALID_HALL;
+
+        // Voltage
+        if (err & ODRIVE_ERROR_DC_BUS_OVER_VOLTAGE)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_OVERVOLTAGE;
+        if (err & ODRIVE_ERROR_DC_BUS_UNDER_VOLTAGE)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_UNDERVOLTAGE;
+
+        // Current
+        if (err & ODRIVE_ERROR_DC_BUS_OVER_CURRENT)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_OVERCURRENT;
+        if (err & ODRIVE_ERROR_DC_BUS_OVER_REGEN_CURRENT)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_OVERCURRENT;
+        if (err & ODRIVE_ERROR_CURRENT_LIMIT_VIOLATION)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_OVERCURRENT;
+
+        // Temperature
+        if (err & ODRIVE_ERROR_MOTOR_OVER_TEMP)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR;
+        if (err & ODRIVE_ERROR_THERMISTOR_DISCONNECTED)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR;
+        if (err & ODRIVE_ERROR_INVERTER_OVER_TEMP)
+            xesc |= xesc_msgs::XescState::XESC_FAULT_OVERTEMP_PCB;
 
         return xesc;
     }

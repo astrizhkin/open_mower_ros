@@ -54,8 +54,6 @@ public:
             status.xesc_status |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
         if (msg.state.status & hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_ERR && !is_left)
             status.xesc_status |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
-        if (msg.state.connection_state != hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_CONNECTED)
-            status.xesc_status |= xesc_msgs::XescState::XESC_FAULT_WATCHDOG;
 
         // --- Power / startup guard ---
         if (!esc_power ||
@@ -116,6 +114,8 @@ public:
             ROS_WARN_STREAM_THROTTLE(10,
                 "[HoverboardDrive] Left motor temperature error: "
                 << msg.state.motorL_temp << "C");
+            //status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
+
         }
         if (!is_left &&
             (msg.state.status &
@@ -123,6 +123,7 @@ public:
             ROS_WARN_STREAM_THROTTLE(10,
                 "[HoverboardDrive] Right motor temperature error: "
                 << msg.state.motorR_temp << "C");
+            //status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
         }
         if (msg.state.status & hoverboard_driver::HoverboardState::STATUS_BATTERY_L1 ||
             msg.state.status & hoverboard_driver::HoverboardState::STATUS_BATTERY_L2) {
@@ -298,7 +299,4 @@ private:
     const hoverboard_driver::HoverboardStateStamped& getMsg(WheelId wheel) const {
         return isFront(wheel) ? front_msg_ : rear_msg_;
     }
-
-
-    
 };
