@@ -147,7 +147,7 @@ private:
         if (it == ctrl_status_.end()) {
             ROS_WARN_STREAM_THROTTLE(5.0,
                 "[ODriveDrive] No ControllerStatus received yet for '"
-                << wheelKey(wheel) << "'");
+                << wheelName(wheel) << "'");
             return empty;
         }
         return it->second;    
@@ -158,7 +158,7 @@ private:
         if (it == odrv_status_.end()) {
             ROS_WARN_STREAM_THROTTLE(5.0,
                 "[ODriveDrive] No ODriveStatus received yet for '"
-                << wheelKey(wheel) << "'");
+                << wheelName(wheel) << "'");
             return empty;
         }
         return it->second;
