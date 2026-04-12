@@ -11,12 +11,6 @@
 class ODriveDrive : public DriveInterface {
 public:
     bool init(ros::NodeHandle& nh) override {
-        for (const auto& name : {"front_left_wheel", "front_right_wheel",
-                              "rear_left_wheel",  "rear_right_wheel"}) {
-            ctrl_status_[name] = odrive_can::ControllerStatus();
-            odrv_status_[name] = odrive_can::ODriveStatus();
-        }
-
         ctrl_sub_ = nh.subscribe(
             "controller_status", 10,
             &ODriveDrive::onCtrlStatus, this,
@@ -148,10 +142,26 @@ private:
     }
 
     const odrive_can::ControllerStatus& getCtrl(WheelId wheel) const {
-        return ctrl_status_.at(wheelName(wheel));
+        static const odrive_can::ControllerStatus empty;
+        auto it = ctrl_status_.find(wheelName(wheel));
+        if (it == ctrl_status_.end()) {
+            ROS_WARN_STREAM_THROTTLE(5.0,
+                "[ODriveDrive] No ControllerStatus received yet for '"
+                << wheelKey(wheel) << "'");
+            return empty;
+        }
+        return it->second;    
     }
     const odrive_can::ODriveStatus& getOdrv(WheelId wheel) const {
-        return odrv_status_.at(wheelName(wheel));
+        static const odrive_can::ODriveStatus empty;
+        auto it = odrv_status_.find(wheelName(wheel));
+        if (it == odrv_status_.end()) {
+            ROS_WARN_STREAM_THROTTLE(5.0,
+                "[ODriveDrive] No ODriveStatus received yet for '"
+                << wheelKey(wheel) << "'");
+            return empty;
+        }
+        return it->second;
     }
 
     static uint32_t mapToXescStatus(uint32_t err) {

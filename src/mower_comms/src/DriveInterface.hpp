@@ -37,10 +37,10 @@ public:
 
     static const std::string& wheelName(WheelId wheel) {
         static const std::map<WheelId, std::string> names = {
-            {WheelId::FRONT_LEFT,  "front_left"},
-            {WheelId::FRONT_RIGHT, "front_right"},
-            {WheelId::REAR_LEFT,   "rear_left"},
-            {WheelId::REAR_RIGHT,  "rear_right"},
+            {WheelId::FRONT_LEFT,  "front_left_wheel"},
+            {WheelId::FRONT_RIGHT, "front_right_wheel"},
+            {WheelId::REAR_LEFT,   "rear_left_wheel"},
+            {WheelId::REAR_RIGHT,  "rear_right_wheel"},
         };
         return names.at(wheel);
     }
