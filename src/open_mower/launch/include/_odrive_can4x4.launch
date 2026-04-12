@@ -7,7 +7,7 @@
 
     <!-- CAN communication + hardware interface + control loop -->
     <node name="odrive_driver" pkg="odrive_ros_control" type="odrive_ros_control_node"
-        respawn="true" on_can_msgoutput="screen"/>
+        respawn="true" output="screen"/>
 
     <!-- Controllers -->
     <node name="controller_spawner" pkg="controller_manager" type="spawner"
