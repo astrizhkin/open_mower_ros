@@ -14,3 +14,4 @@ uint32  tacho
 int16   rpm
 float32 temperature_motor
 float32 temperature_pcb
+uint16  xesc_status

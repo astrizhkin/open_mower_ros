@@ -27,9 +27,6 @@
 #include <sensor_msgs/Joy.h>
 #include <sensor_msgs/Range.h>
 #include <contact_sensor_layer/Contact.h>
-#ifdef WHEEL_TICKS_MSG
-  #include <xbot_msgs/WheelTick.h>
-#endif
 
 #include <algorithm>
 #include <bitset>

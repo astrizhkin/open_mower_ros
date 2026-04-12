@@ -23,15 +23,15 @@
 #include <dynamic_reconfigure/client.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <nav_msgs/Odometry.h>
-#include <hoverboard_driver/HoverboardStateStamped.h>
+#include "HowerboardDrive.hpp"
+#include "ODriveDrive.hpp"
+#include <odrive_can/ODriveStatus.h>
+#include <odrive_can/ControllerStatus.h>
 #include <mower_msgs/Status.h>
 #include <sensor_msgs/Joy.h>
 #include <sensor_msgs/Range.h>
 #include <contact_sensor_layer/Contact.h>
 #include <serial/serial.h>
-#ifdef WHEEL_TICKS_MSG
-  #include <xbot_msgs/WheelTick.h>
-#endif
 #include <xesc_driver/xesc_driver.h>
 #include <xesc_msgs/XescStateStamped.h>
 
@@ -51,6 +51,7 @@
 #include "sensor_msgs/MagneticField.h"
 #include "std_msgs/Bool.h"
 #include "std_msgs/Float64.h"
+#include "mower_logic/MowerLogicConfig.h"
 
 ros::Publisher status_pub;
 #ifdef WHEEL_TICKS_MSG
@@ -109,19 +110,17 @@ boost::crc_ccitt_type crc;
 // ros::Time last_high_level_status_time(0.0);
 
 xesc_driver::XescDriver *mow_xesc_interface;
-hoverboard_driver::HoverboardStateStamped last_rear_status;
-hoverboard_driver::HoverboardStateStamped last_front_status;
+std::unique_ptr<DriveInterface> wheel_drive;
+
 #ifdef HOVERBOARD_ODOM
   nav_msgs::Odometry last_rear_odom;
   nav_msgs::Odometry last_front_odom;
 #endif
 xesc_msgs::XescStateStamped last_mow_status;
-#ifdef WHEEL_TICKS_MSG
-  xbot_msgs::WheelTick prev_wheel_tick_msg;
-#else
-  double prev_wheel_pos_rl, prev_wheel_pos_fl, prev_wheel_pos_rr, prev_wheel_pos_fr;
-  ros::Time prev_wheel_pos_stamp;
-#endif
+
+double prev_wheel_pos_rl, prev_wheel_pos_fl, prev_wheel_pos_rr, prev_wheel_pos_fr;
+ros::Time prev_wheel_pos_stamp;
+
 bool has_prev_wheel_tick_msg = false;
 
 std::mutex ll_status_mutex;
@@ -233,12 +232,12 @@ void publishActuators() {
   sendLLMessage((uint8_t *)&heartbeat, sizeof(struct ll_heartbeat));
 }
 
-void convertXescStatus(mower_msgs::Status &status_msg, xesc_msgs::XescStateStamped &vesc_status,
+void convertXescStatus(bool esc_power, xesc_msgs::XescStateStamped &vesc_status,
                        mower_msgs::ESCStatus &ros_esc_status) {
   uint8_t statusNoTemperatures = vesc_status.state.fault_code & ~(xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR |
                                                                   xesc_msgs::XescState::XESC_FAULT_OVERTEMP_PCB);
 
-  if (!status_msg.esc_power || (ros::Time::now() - last_ll_status_esc_enabled).toSec() < 5.0) {
+  if (!esc_power || (ros::Time::now() - last_ll_status_esc_enabled).toSec() < 5.0) {
     // report esc off status when disabled or started less than 5 seconds ago to prevent report disconnected status
     ros_esc_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
   } else if (vesc_status.state.connection_state != xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED &&
@@ -268,89 +267,6 @@ void convertXescStatus(mower_msgs::Status &status_msg, xesc_msgs::XescStateStamp
   ros_esc_status.current = vesc_status.state.current_input;
   ros_esc_status.temperature_motor = vesc_status.state.temperature_motor;
   ros_esc_status.temperature_pcb = vesc_status.state.temperature_pcb;
-}
-
-void convertHoverboardStatus(mower_msgs::Status &status_msg, hoverboard_driver::HoverboardStateStamped &state_msg,
-                             mower_msgs::ESCStatus &ros_esc_left_status, mower_msgs::ESCStatus &ros_esc_right_status) {
-  uint8_t statusNoTemperaturesNoBattery =
-      state_msg.state.status &
-      ~(hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_WARN |
-        hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_ERR |
-        hoverboard_driver::HoverboardState::STATUS_LEFT_MOTOR_TEMP_ERR |
-        hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR |
-        hoverboard_driver::HoverboardState::STATUS_BATTERY_L1 | hoverboard_driver::HoverboardState::STATUS_BATTERY_L2);
-
-  if (!status_msg.esc_power || (ros::Time::now() - last_ll_status_esc_enabled).toSec() < 3.0) {
-    // report esc off status when disabled or started less than 2 seconds ago to prevent report disconnected status
-    ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
-    ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OFF;
-  } else if (state_msg.state.connection_state !=
-             hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_CONNECTED
-             //&& vesc_status.state.connection_state !=
-             //xesc_msgs::XescState::XESC_CONNECTION_STATE_CONNECTED_INCOMPATIBLE_FW
-  ) {
-    // ESC is disconnected, the bad status that never should happen
-    ROS_ERROR_STREAM_THROTTLE(
-        1, "[mower_comms] Hoverborad connection status: " << (int)state_msg.state.connection_state
-                                                          << " status code: " << state_msg.state.status);
-    ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
-    ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_DISCONNECTED;
-  } else if (statusNoTemperaturesNoBattery) {
-    ROS_ERROR_STREAM_THROTTLE(1, "[mower_comms] Hoverborad controller status code: " << state_msg.state.status);
-    // ESC has a fault
-    ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
-    ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
-    // FIXME!!! temporary disable hoverboard errors
-    // ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-    // ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-  } else {
-    // ESC is OK but we will check temperatures
-    ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-    ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OK;
-
-    // If evrything looks ok at the moment, check temperatures
-    if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_WARN) {
-      ROS_WARN_STREAM_THROTTLE(10, "[mower_comms] Motor controller PCB temerature warning");
-    }
-    if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_PCB_TEMP_ERR) {
-      ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
-      ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
-    }
-    if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_LEFT_MOTOR_TEMP_ERR) {
-      ROS_WARN_STREAM_THROTTLE(10, "[mower_comms] Left Motor temerature error: " << state_msg.state.motorL_temp);
-      // ros_esc_left_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
-    }
-    if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_RIGHT_MOTOR_TEMP_ERR) {
-      ROS_WARN_STREAM_THROTTLE(10, "[mower_comms] Right Motor temerature error: " << state_msg.state.motorR_temp);
-      // ros_esc_right_status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
-    }
-
-    // and log battery warings
-    if (state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_BATTERY_L1 ||
-        state_msg.state.status & hoverboard_driver::HoverboardState::STATUS_BATTERY_L2) {
-      ROS_WARN_STREAM("[mower_comms] Motor controller reports battery warning");
-    }
-  }
-
-  // if (abs(state_msg.state.cmdL - state_msg.state.speedL_meas) > state_msg.state.cmdL * 0.2 ) {
-  //     ROS_WARN_STREAM_THROTTLE(1, "[mower_comms] Motor L stall/overrun detected cmd=" << state_msg.state.cmdL << "
-  //     spd=" << state_msg.state.speedL_meas);
-  // }
-  // if (abs(state_msg.state.cmdR - state_msg.state.speedR_meas) > state_msg.state.cmdR * 0.2 ) {
-  //     ROS_WARN_STREAM_THROTTLE(1, "[mower_comms] Motor R stall/overrun detected cmd=" << state_msg.state.cmdR << "
-  //     spd=" << state_msg.state.speedR_meas);
-  // }
-
-  // TODO check .tacho compatibility with howerboard .wheelX_cnt
-  ros_esc_left_status.tacho = state_msg.state.wheelL_cnt;
-  ros_esc_left_status.current = state_msg.state.currL_meas;
-  ros_esc_left_status.temperature_motor = state_msg.state.motorL_temp;
-  ros_esc_left_status.temperature_pcb = state_msg.state.boardTemp;
-
-  ros_esc_right_status.tacho = state_msg.state.wheelR_cnt;
-  ros_esc_right_status.current = state_msg.state.currR_meas;
-  ros_esc_right_status.temperature_motor = state_msg.state.motorR_temp;
-  ros_esc_right_status.temperature_pcb = state_msg.state.boardTemp;
 }
 
 void publishStatus() {
@@ -438,93 +354,59 @@ void publishStatus() {
     last_mow_status.state.connection_state = xesc_msgs::XescState::XESC_CONNECTION_STATE_DISCONNECTED;
   }
 
-  convertXescStatus(status_msg, last_mow_status, status_msg.mow_esc_status);
-  convertHoverboardStatus(status_msg, last_rear_status, status_msg.rear_left_esc_status,
-                          status_msg.rear_right_esc_status);
-  convertHoverboardStatus(status_msg, last_front_status, status_msg.front_left_esc_status,
-                          status_msg.front_right_esc_status);
+  convertXescStatus(status_msg.esc_power, last_mow_status, status_msg.mow_esc_status);
+  wheel_drive->getESCStatus(WheelId::REAR_LEFT,   status_msg.esc_power, last_ll_status_esc_enabled, status_msg.rear_left_esc_status);
+  wheel_drive->getESCStatus(WheelId::REAR_RIGHT,  status_msg.esc_power, last_ll_status_esc_enabled, status_msg.rear_right_esc_status);
+  wheel_drive->getESCStatus(WheelId::FRONT_LEFT,  status_msg.esc_power, last_ll_status_esc_enabled, status_msg.front_left_esc_status);
+  wheel_drive->getESCStatus(WheelId::FRONT_RIGHT, status_msg.esc_power, last_ll_status_esc_enabled, status_msg.front_right_esc_status);
 
   // publish LL message
-  double rear_status_age_s_double = (ros::Time::now() - last_rear_status.header.stamp).toSec();
-  uint8_t rear_status_age_s_uint8_t = rear_status_age_s_double;
-  if (rear_status_age_s_double > UINT8_MAX ||
-      last_rear_status.state.connection_state ==
-          hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
-    rear_status_age_s_uint8_t = UINT8_MAX;
-  }
-  double front_status_age_s_double = (ros::Time::now() - last_front_status.header.stamp).toSec();
-  uint8_t front_status_age_s_uint8_t = front_status_age_s_double;
-  if (front_status_age_s_double > UINT8_MAX ||
-      last_front_status.state.connection_state ==
-          hoverboard_driver::HoverboardState::HOVERBOARD_CONNECTION_STATE_DISCONNECTED) {
-    front_status_age_s_uint8_t = UINT8_MAX;
-  }
+  uint8_t rear_status_age_s_uint8_t  = wheel_drive->getAxleStatusAge(WheelId::REAR_LEFT,  WheelId::REAR_RIGHT);
+  uint8_t front_status_age_s_uint8_t = wheel_drive->getAxleStatusAge(WheelId::FRONT_LEFT, WheelId::FRONT_RIGHT);
+
   double mow_status_age_s_double = (ros::Time::now() - last_mow_status.header.stamp).toSec();
   uint8_t mow_status_age_s_uint8_t = mow_status_age_s_double;
   if (mow_status_age_s_double > UINT8_MAX ||
       last_mow_status.state.connection_state == xesc_msgs::XescState::XESC_CONNECTION_STATE_DISCONNECTED) {
     mow_status_age_s_uint8_t = UINT8_MAX;
   }
+
   struct ll_motor_state ll_motor_state = {
       .type = PACKET_ID_LL_MOTOR_STATE,
-      .status = {last_rear_status.state.status, last_front_status.state.status, last_mow_status.state.fault_code},
-      .status_age_s = {rear_status_age_s_uint8_t, front_status_age_s_uint8_t, mow_status_age_s_uint8_t}};
+      .status = {
+         static_cast<uint16_t>(status_msg.rear_left_esc_status.xesc_status  | status_msg.rear_right_esc_status.xesc_status),
+         static_cast<uint16_t>(status_msg.front_left_esc_status.xesc_status | status_msg.front_right_esc_status.xesc_status),
+         last_mow_status.state.fault_code
+      },
+      .status_age_s = {rear_status_age_s_uint8_t, front_status_age_s_uint8_t, mow_status_age_s_uint8_t}
+  };
+
   sendLLMessage((uint8_t *)&ll_motor_state, sizeof(struct ll_motor_state));
 
   // publis topic status
   status_pub.publish(status_msg);
 
   sendWheelTickAndMeasuredTwist(status_msg.stamp);
-
 }
 
 void sendWheelTickAndMeasuredTwist(ros::Time& stamp) {
-  #ifdef WHEEL_TICKS_MSG  
-    xbot_msgs::WheelTick wheel_tick_msg;
-    wheel_tick_msg.valid_wheels = xbot_msgs::WheelTick::WHEEL_VALID_FL | xbot_msgs::WheelTick::WHEEL_VALID_FR |
-                                  xbot_msgs::WheelTick::WHEEL_VALID_RL | xbot_msgs::WheelTick::WHEEL_VALID_RR;
-    wheel_tick_msg.wheel_pos_to_tick_factor = 0;  // TODO: pass it for F9R
-    wheel_tick_msg.wheel_radius = wheel_radius_m;
-    wheel_tick_msg.wheel_separation = wheel_separation_m;
-    wheel_tick_msg.stamp = stamp;
-    // check compatibility .wheel_ticks_rl and hoverboard .wheelX_cnt (previosuly was tacho_absolute)
 
-    wheel_tick_msg.wheel_pos_fl = last_front_status.state.wheelL_cnt;
-    // wheel_tick_msg.wheel_speed_fl = last_front_status.state.speedL_meas;
-    wheel_tick_msg.wheel_direction_fl = last_front_status.state.speedL_meas > 0;
-    wheel_tick_msg.wheel_pos_fr = last_front_status.state.wheelR_cnt;
-    // wheel_tick_msg.wheel_speed_fr = last_front_status.state.speedR_meas;
-    wheel_tick_msg.wheel_direction_fr = last_front_status.state.speedR_meas > 0;
+  double dt = (stamp - prev_wheel_pos_stamp).toSec();
+  double rl = wheel_drive->getWheelPosition(WheelId::REAR_LEFT);
+  double fl = wheel_drive->getWheelPosition(WheelId::FRONT_LEFT);
+  double rr = wheel_drive->getWheelPosition(WheelId::REAR_RIGHT);
+  double fr = wheel_drive->getWheelPosition(WheelId::FRONT_RIGHT);
 
-    wheel_tick_msg.wheel_pos_rl = last_rear_status.state.wheelL_cnt;
-    // wheel_tick_msg.wheel_speed_rl = last_rear_status.state.speedL_meas;
-    wheel_tick_msg.wheel_direction_rl = last_rear_status.state.speedL_meas > 0;
-    wheel_tick_msg.wheel_pos_rr = last_rear_status.state.wheelR_cnt;
-    // wheel_tick_msg.wheel_speed_rr = last_rear_status.state.speedR_meas;
-    wheel_tick_msg.wheel_direction_rr = last_rear_status.state.speedR_meas > 0;
+  double rl_delta_rad = rl - prev_wheel_pos_rl;
+  double fl_delta_rad = fl - prev_wheel_pos_fl;
+  double rr_delta_rad = rr - prev_wheel_pos_rr;
+  double fr_delta_rad = fr - prev_wheel_pos_fr;
 
-    wheel_tick_pub.publish(wheel_tick_msg);
-
-    double dt = (wheel_tick_msg.stamp - prev_wheel_tick_msg.stamp).toSec();
-    double rl_delta = wheel_tick_msg.wheel_pos_rl - prev_wheel_tick_msg.wheel_pos_rl;
-    double fl_delta = wheel_tick_msg.wheel_pos_fl - prev_wheel_tick_msg.wheel_pos_fl;
-    double rr_delta = wheel_tick_msg.wheel_pos_rr - prev_wheel_tick_msg.wheel_pos_rr;
-    double fr_delta = wheel_tick_msg.wheel_pos_fr - prev_wheel_tick_msg.wheel_pos_fr;
-
-    prev_wheel_tick_msg = wheel_tick_msg;
-  #else
-    double dt = (stamp - prev_wheel_pos_stamp).toSec();
-    double rl_delta_rad = last_rear_status.state.wheelL_cnt - prev_wheel_pos_rl;
-    double fl_delta_rad = last_front_status.state.wheelL_cnt - prev_wheel_pos_fl;
-    double rr_delta_rad = last_rear_status.state.wheelR_cnt - prev_wheel_pos_rr;
-    double fr_delta_rad = last_front_status.state.wheelR_cnt - prev_wheel_pos_fr;
-
-    prev_wheel_pos_stamp = stamp;
-    prev_wheel_pos_rl = last_rear_status.state.wheelL_cnt;
-    prev_wheel_pos_fl = last_front_status.state.wheelL_cnt;
-    prev_wheel_pos_rr = last_rear_status.state.wheelR_cnt;
-    prev_wheel_pos_fr = last_front_status.state.wheelR_cnt;
-  #endif
+  prev_wheel_pos_stamp = stamp;
+  prev_wheel_pos_rl = rl;
+  prev_wheel_pos_fl = fl;
+  prev_wheel_pos_rr = rr;
+  prev_wheel_pos_fr = fr;
 
   //prev_wheel_tick_msg = wheel_tick_msg;
   if (!has_prev_wheel_tick_msg) {
@@ -772,16 +654,6 @@ void onCmdVelReceived(const geometry_msgs::Twist::ConstPtr &msg) {
   // ROS_INFO_STREAM("[mower_comms] Got Twist: "<< +msg->linear.x << " " << +msg->angular.z);
   last_cmd_twist = *msg;
   last_cmd_twist_time = ros::Time::now();
-}
-
-void onRearStateReceived(const hoverboard_driver::HoverboardStateStamped::ConstPtr &msg) {
-  // ROS_INFO_STREAM("[mower_comms] Got rear driver state: "<< +msg->state.connection_state);
-  last_rear_status = *msg;
-}
-
-void onFrontStateReceived(const hoverboard_driver::HoverboardStateStamped::ConstPtr &msg) {
-  // ROS_INFO_STREAM("[mower_comms] Got front driver state: "<< +msg->state.connection_state);
-  last_front_status = *msg;
 }
 
 #ifdef HOVERBOARD_ODOM
@@ -1147,6 +1019,9 @@ int main(int argc, char **argv) {
     ROS_INFO_STREAM("[mower_comms] Configured publish_mag: " << publish_mag);
   }
 
+  std::string drive_type;
+  paramNh.param<std::string>("drive_type", drive_type, "odrive");
+
   if (!parseAxes(paramNh, imu_accel_multiplier, imu_accel_idx, "imu_accel_axes")) {
     return 1;
   }
@@ -1172,9 +1047,6 @@ int main(int argc, char **argv) {
   uss_pub = n.advertise<sensor_msgs::Range>("mower/uss", USS_COUNT);
   contact_pub = n.advertise<contact_sensor_layer::Contact>("mower/bumper", CONTACT_COUNT);
 
-  #ifdef WHEEL_TICKS_MSG
-    wheel_tick_pub = n.advertise<xbot_msgs::WheelTick>("mower/wheel_ticks", 1);
-  #endif
   sensor_imu_pub = n.advertise<sensor_msgs::Imu>("imu/data_raw", 1);
   if(publish_mag) {
     sensor_mag_pub = n.advertise<sensor_msgs::MagneticField>("imu/mag", 1);
@@ -1188,10 +1060,18 @@ int main(int argc, char **argv) {
   ros::Subscriber high_level_status_sub = n.subscribe("/mower_logic/current_state", 0, highLevelStatusReceived);
   ros::Timer publish_timer = n.createTimer(ros::Duration(0.02), publishActuatorsTimerTask);
 
-  ros::Subscriber rear_state_sub =
-      n.subscribe("/rear/hoverboard_driver/state", 0, onRearStateReceived, ros::TransportHints().tcpNoDelay(true));
-  ros::Subscriber front_state_sub =
-      n.subscribe("/front/hoverboard_driver/state", 0, onFrontStateReceived, ros::TransportHints().tcpNoDelay(true));
+  if (drive_type == "hoverboard") {
+      wheel_drive = std::make_unique<HoverboardDrive>();
+  } if(drive_type == "odrive") {
+      wheel_drive = std::make_unique<ODriveDrive>();
+  } else {
+      ROS_FATAL_STREAM("[mower_comms] Unknown drive_type: " << drive_type);
+      return 1;
+  }
+  if (!wheel_drive->init(n)) {
+      ROS_FATAL("[mower_comms] Failed to initialize wheel drive interface");
+      return 1;
+  }
 
   #ifdef HOVERBOARD_ODOM
     ros::Subscriber rear_odom_sub =
