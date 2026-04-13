@@ -5,6 +5,8 @@
 
 odrive_driver:
   can: "can0"
+
+  #joint names are important. see enum 
   joints:
     - front_left_wheel
     - front_right_wheel
@@ -13,8 +15,8 @@ odrive_driver:
   joint_node_ids:
     front_left_wheel: 3
     front_right_wheel: 4
-    rear_left_wheel: 0
-    rear_right_wheel: 1
+    rear_left_wheel: 1
+    rear_right_wheel: 2
 
 front_joint_publisher:
   type: "joint_state_controller/JointStateController"
