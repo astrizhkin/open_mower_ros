@@ -62,8 +62,7 @@ public:
 
         // Strip temperature errors
         uint32_t errors = ctrl.active_errors &
-            ~(ODRIVE_ERROR_INVERTER_OVER_TEMP |
-              ODRIVE_ERROR_MOTOR_OVER_TEMP);
+            ~(AXIS_ERROR_OVER_TEMP);
 
         // --- Error check ---
         if (errors) {
@@ -139,7 +138,7 @@ private:
         ctrl_status_[msg->header.frame_id] = *msg;
     }
     void onOdrvStatus(const odrive_can::ODriveStatus::ConstPtr& msg) {
-        //ROS_INFO_STREAM("[ODriveDrive] ODriveStatus received for '" << msg->header.frame_id << "'");
+        ROS_INFO_STREAM("[ODriveDrive] ODriveStatus received for '" << msg->header.frame_id << "'");
         odrv_status_[msg->header.frame_id] = *msg;
     }
 
@@ -162,69 +161,47 @@ private:
         return it->second;
     }
 
-    static uint32_t mapToXescStatus(uint32_t err) {
+    static uint32_t mapToXescStatus(uint32_t axis_err) {
         uint32_t xesc = 0;
 
-        if (err == ODRIVE_ERROR_NONE)
+        if (axis_err == AXIS_ERROR_NONE)
             return xesc;
 
-        // Uninitialized
-        if (err & ODRIVE_ERROR_INITIALIZING)
-            xesc |= xesc_msgs::XescState::XESC_FAULT_UNINITIALIZED;
-
         // Watchdog / timing
-        if (err & ODRIVE_ERROR_WATCHDOG_TIMER_EXPIRED)
+        if (axis_err & AXIS_ERROR_WATCHDOG_TIMER_EXPIRED)
             xesc |= xesc_msgs::XescState::XESC_FAULT_WATCHDOG;
 
         // Internal errors
-        if (err & ODRIVE_ERROR_TIMING_ERROR)
+        if (axis_err & AXIS_ERROR_MOTOR_FAILED)
             xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
-        if (err & ODRIVE_ERROR_SYSTEM_LEVEL)
+        if (axis_err & AXIS_ERROR_CONTROLLER_FAILED)
             xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
-        if (err & ODRIVE_ERROR_BAD_CONFIG)
+        if (axis_err & AXIS_ERROR_INVALID_STATE)
             xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
-        if (err & ODRIVE_ERROR_DRV_FAULT)
+        if (axis_err & AXIS_ERROR_SENSORLESS_ESTIMATOR_FAILED)
             xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
-        if (err & ODRIVE_ERROR_MISSING_INPUT)
+        if (axis_err & AXIS_ERROR_ESTOP_REQUESTED)
             xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
-        if (err & ODRIVE_ERROR_ESTOP_REQUESTED)
+        if (axis_err & AXIS_ERROR_MIN_ENDSTOP_PRESSED)
             xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
-        if (err & ODRIVE_ERROR_CALIBRATION_ERROR)
+        if (axis_err & AXIS_ERROR_MAX_ENDSTOP_PRESSED)
             xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
-        if (err & ODRIVE_ERROR_BRAKE_RESISTOR_DISARMED)
+        if (axis_err & AXIS_ERROR_HOMING_WITHOUT_ENDSTOP)
             xesc |= xesc_msgs::XescState::XESC_FAULT_INTERNAL_ERROR;
+
 
         // Hall / encoder
-        if (err & ODRIVE_ERROR_SPINOUT_DETECTED)
+        if (axis_err & AXIS_ERROR_ENCODER_FAILED)
             xesc |= xesc_msgs::XescState::XESC_FAULT_INVALID_HALL;
-        if (err & ODRIVE_ERROR_MISSING_ESTIMATE)
-            xesc |= xesc_msgs::XescState::XESC_FAULT_INVALID_HALL;
-        if (err & ODRIVE_ERROR_VELOCITY_LIMIT_VIOLATION)
-            xesc |= xesc_msgs::XescState::XESC_FAULT_INVALID_HALL;
-        if (err & ODRIVE_ERROR_POSITION_LIMIT_VIOLATION)
+        if (axis_err & AXIS_ERROR_UNKNOWN_POSITION)
             xesc |= xesc_msgs::XescState::XESC_FAULT_INVALID_HALL;
 
-        // Voltage
-        if (err & ODRIVE_ERROR_DC_BUS_OVER_VOLTAGE)
-            xesc |= xesc_msgs::XescState::XESC_FAULT_OVERVOLTAGE;
-        if (err & ODRIVE_ERROR_DC_BUS_UNDER_VOLTAGE)
-            xesc |= xesc_msgs::XescState::XESC_FAULT_UNDERVOLTAGE;
-
-        // Current
-        if (err & ODRIVE_ERROR_DC_BUS_OVER_CURRENT)
-            xesc |= xesc_msgs::XescState::XESC_FAULT_OVERCURRENT;
-        if (err & ODRIVE_ERROR_DC_BUS_OVER_REGEN_CURRENT)
-            xesc |= xesc_msgs::XescState::XESC_FAULT_OVERCURRENT;
-        if (err & ODRIVE_ERROR_CURRENT_LIMIT_VIOLATION)
-            xesc |= xesc_msgs::XescState::XESC_FAULT_OVERCURRENT;
 
         // Temperature
-        if (err & ODRIVE_ERROR_MOTOR_OVER_TEMP)
+        if (axis_err & AXIS_ERROR_OVER_TEMP) {
             xesc |= xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR;
-        if (err & ODRIVE_ERROR_THERMISTOR_DISCONNECTED)
-            xesc |= xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR;
-        if (err & ODRIVE_ERROR_INVERTER_OVER_TEMP)
             xesc |= xesc_msgs::XescState::XESC_FAULT_OVERTEMP_PCB;
+        }
 
         return xesc;
     }
