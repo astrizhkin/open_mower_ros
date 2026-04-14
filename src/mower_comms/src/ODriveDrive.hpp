@@ -136,12 +136,12 @@ private:
 
     void onCtrlStatus(const odrive_can::ControllerStatus::ConstPtr& msg) {
         ROS_INFO_STREAM_THROTTLE(5.0,
-            "[ODriveDrive] ControllerStatus received for '" << wheelName(wheel) << "'");
+            "[ODriveDrive] ControllerStatus received for '" << msg->header.frame_id << "'");
         ctrl_status_[msg->header.frame_id] = *msg;
     }
     void onOdrvStatus(const odrive_can::ODriveStatus::ConstPtr& msg) {
         ROS_INFO_STREAM_THROTTLE(5.0,
-            "[ODriveDrive] ODriveStatus received for '" << wheelName(wheel) << "'");
+            "[ODriveDrive] ODriveStatus received for '" << msg->header.frame_id << "'");
         odrv_status_[msg->header.frame_id] = *msg;
     }
 
