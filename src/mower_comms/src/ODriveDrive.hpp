@@ -12,11 +12,11 @@ class ODriveDrive : public DriveInterface {
 public:
     bool init(ros::NodeHandle& nh) override {
         ctrl_sub_ = nh.subscribe(
-            "controller_status", 10,
+            "/odrive_driver/controller_status", 10,
             &ODriveDrive::onCtrlStatus, this,
             ros::TransportHints().tcpNoDelay(true));
         odrv_sub_ = nh.subscribe(
-            "odrive_status", 10,
+            "/odrive_driver/odrive_status", 10,
             &ODriveDrive::onOdrvStatus, this,
             ros::TransportHints().tcpNoDelay(true));
         
@@ -135,9 +135,13 @@ private:
     ros::Subscriber odrv_sub_;
 
     void onCtrlStatus(const odrive_can::ControllerStatus::ConstPtr& msg) {
+        ROS_INFO_STREAM_THROTTLE(5.0,
+            "[ODriveDrive] ControllerStatus received for '" << wheelName(wheel) << "'");
         ctrl_status_[msg->header.frame_id] = *msg;
     }
     void onOdrvStatus(const odrive_can::ODriveStatus::ConstPtr& msg) {
+        ROS_INFO_STREAM_THROTTLE(5.0,
+            "[ODriveDrive] ODriveStatus received for '" << wheelName(wheel) << "'");
         odrv_status_[msg->header.frame_id] = *msg;
     }
 
