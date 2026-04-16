@@ -138,7 +138,7 @@ private:
         ctrl_status_[msg->header.frame_id] = *msg;
     }
     void onOdrvStatus(const odrive_can::ODriveStatus::ConstPtr& msg) {
-        ROS_INFO_STREAM("[ODriveDrive] ODriveStatus received for '" << msg->header.frame_id << "'");
+        //ROS_INFO_STREAM("[ODriveDrive] ODriveStatus received for '" << msg->header.frame_id << "'");
         odrv_status_[msg->header.frame_id] = *msg;
     }
 
