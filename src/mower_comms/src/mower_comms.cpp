@@ -510,7 +510,7 @@ struct {
         if(response.address==ConfigAddress::COMMAND) {
           ROS_INFO_STREAM("[mower_comms] Command "<<(int)response.value.int8Value<<" executed successfully");
         } else {
-          ROS_INFO_STREAM("[mower_comms] New config value accepted "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
+          ROS_WARN_STREAM("[mower_comms] New config value accepted "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
           executedUpdates.push_back(response);
         }
       } else if(type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_GET) {
