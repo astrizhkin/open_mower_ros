@@ -7,15 +7,13 @@
 
     <!-- CAN communication + hardware interface + control loop -->
     <node name="odrive_driver" pkg="odrive_ros_control" type="odrive_ros_control_node"
-        respawn="true" output="screen"/>
+        respawn="true" output="screen">
+        <remap from="/front/velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
+        <remap from="/rear/velocity_controller/cmd_vel"  to="/cmd_vel_safe"/>
+    </node>
 
     <node name="controller_spawner" pkg="controller_manager" type="spawner"
         respawn="false" output="screen"
         args="/front/joint_publisher /front/velocity_controller
               /rear/joint_publisher  /rear/velocity_controller"/>
-
-    <node name="cmd_vel_relay_front" pkg="topic_tools" type="relay"
-        args="/cmd_vel_safe /front/velocity_controller/cmd_vel"/>
-    <node name="cmd_vel_relay_rear" pkg="topic_tools" type="relay"
-        args="/cmd_vel_safe /rear/velocity_controller/cmd_vel"/>
 </launch>
