@@ -9,19 +9,13 @@
     <node name="odrive_driver" pkg="odrive_ros_control" type="odrive_ros_control_node"
         respawn="true" output="screen"/>
 
-    <!-- Front controllers in /front namespace -->
-    <group ns="front">
-        <remap from="/front/velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
-        <node name="front_controller_spawner" pkg="controller_manager" type="spawner"
-            respawn="false" output="screen"
-            args="--namespace / /front/joint_publisher /front/velocity_controller"/>
-    </group>
+    <node name="controller_spawner" pkg="controller_manager" type="spawner"
+        respawn="false" output="screen"
+        args="/front/joint_publisher /front/velocity_controller
+              /rear/joint_publisher  /rear/velocity_controller"/>
 
-    <!-- Rear controllers in /rear namespace -->
-    <group ns="rear">
-        <remap from="/rear/velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
-        <node name="rear_controller_spawner" pkg="controller_manager" type="spawner"
-            respawn="false" output="screen"
-            args="--namespace / /rear/joint_publisher /rear/velocity_controller"/>
-    </group>
+    <node name="cmd_vel_relay_front" pkg="topic_tools" type="relay"
+        args="/cmd_vel_safe /front/velocity_controller/cmd_vel"/>
+    <node name="cmd_vel_relay_rear" pkg="topic_tools" type="relay"
+        args="/cmd_vel_safe /rear/velocity_controller/cmd_vel"/>
 </launch>
