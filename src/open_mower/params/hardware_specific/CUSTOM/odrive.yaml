@@ -1,12 +1,5 @@
-#why do we need odrive_can node?
-#odrive_can:
-#  interface: "can0"
-#  axis_idle_on_shutdown: true
-
 odrive_driver:
   can: "can0"
-
-  #joint names are important. see enum 
   joints:
     - front_left_wheel
     - front_right_wheel
@@ -18,88 +11,90 @@ odrive_driver:
     rear_left_wheel: 0
     rear_right_wheel: 1
 
-front_joint_publisher:
-  type: "joint_state_controller/JointStateController"
-  publish_rate: 10
-  left_wheel: 'front_left_wheel'
-  right_wheel: 'front_right_wheel'
+front:
+  joint_publisher:
+    type: "joint_state_controller/JointStateController"
+    publish_rate: 10
+    left_wheel: 'front_left_wheel'
+    right_wheel: 'front_right_wheel'
 
-front_velocity_controller:
-  type: "diff_drive_controller/DiffDriveController"
-  left_wheel: 'front_left_wheel'
-  right_wheel: 'front_right_wheel'
-  open_loop: false
-  publish_rate: 10.0
-  pose_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 1000.0]
-  twist_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 1000.0]
-  wheel_separation: 0.5
-  wheel_radius: 0.0825
-  wheel_separation_multiplier: 1.0
-  left_wheel_radius_multiplier: -1.0
-  right_wheel_radius_multiplier: 1.0
-  cmd_vel_timeout: 0.5
-  base_frame_id: base_link
-  allow_multiple_cmd_vel_publishers: false
-  odom_frame_id: '/front_raw_odom'
-  enable_odom_tf: false
-  publish_cmd: false
-  publish_wheel_joint_controller_state: false
-  linear:
-    x:
-      has_velocity_limits: true
-      max_velocity: 1.0
-      has_acceleration_limits: true
-      max_acceleration: 0.8
-      has_jerk_limits: false
-      max_jerk: 0.0
-  angular:
-    z:
-      has_velocity_limits: true
-      max_velocity: 6.28
-      has_acceleration_limits: true
-      max_acceleration: 1.57
-      has_jerk_limits: false
-      max_jerk: 0.0
+  velocity_controller:
+    type: "diff_drive_controller/DiffDriveController"
+    left_wheel: 'front_left_wheel'
+    right_wheel: 'front_right_wheel'
+    open_loop: false
+    publish_rate: 10.0
+    pose_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 1000.0]
+    twist_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 1000.0]
+    wheel_separation: 0.5
+    wheel_radius: 0.0825
+    wheel_separation_multiplier: 1.0
+    left_wheel_radius_multiplier: -1.0
+    right_wheel_radius_multiplier: 1.0
+    cmd_vel_timeout: 0.5
+    base_frame_id: base_link
+    allow_multiple_cmd_vel_publishers: false
+    odom_frame_id: '/front_raw_odom'
+    enable_odom_tf: false
+    publish_cmd: false
+    publish_wheel_joint_controller_state: false
+    linear:
+      x:
+        has_velocity_limits: true
+        max_velocity: 1.0
+        has_acceleration_limits: true
+        max_acceleration: 0.8
+        has_jerk_limits: false
+        max_jerk: 0.0
+    angular:
+      z:
+        has_velocity_limits: true
+        max_velocity: 6.28
+        has_acceleration_limits: true
+        max_acceleration: 1.57
+        has_jerk_limits: false
+        max_jerk: 0.0
 
-rear_joint_publisher:
-  type: "joint_state_controller/JointStateController"
-  publish_rate: 10
-  left_wheel: 'rear_left_wheel'
-  right_wheel: 'rear_right_wheel'
+rear:
+  joint_publisher:
+    type: "joint_state_controller/JointStateController"
+    publish_rate: 10
+    left_wheel: 'rear_left_wheel'
+    right_wheel: 'rear_right_wheel'
 
-rear_velocity_controller:
-  type: "diff_drive_controller/DiffDriveController"
-  left_wheel: 'rear_left_wheel'
-  right_wheel: 'rear_right_wheel'
-  open_loop: false
-  publish_rate: 10.0
-  pose_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 1000.0]
-  twist_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 1000.0]
-  wheel_separation: 0.5
-  wheel_radius: 0.0825
-  wheel_separation_multiplier: 1.0
-  left_wheel_radius_multiplier: -1.0
-  right_wheel_radius_multiplier: 1.0
-  cmd_vel_timeout: 0.5
-  base_frame_id: base_link
-  allow_multiple_cmd_vel_publishers: false
-  odom_frame_id: '/rear_raw_odom'
-  enable_odom_tf: false
-  publish_cmd: false
-  publish_wheel_joint_controller_state: false
-  linear:
-    x:
-      has_velocity_limits: true
-      max_velocity: 1.0
-      has_acceleration_limits: true
-      max_acceleration: 0.8
-      has_jerk_limits: false
-      max_jerk: 0.0
-  angular:
-    z:
-      has_velocity_limits: true
-      max_velocity: 6.28
-      has_acceleration_limits: true
-      max_acceleration: 1.57
-      has_jerk_limits: false
-      max_jerk: 0.0
+  velocity_controller:
+    type: "diff_drive_controller/DiffDriveController"
+    left_wheel: 'rear_left_wheel'
+    right_wheel: 'rear_right_wheel'
+    open_loop: false
+    publish_rate: 10.0
+    pose_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 1000.0]
+    twist_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 1000.0]
+    wheel_separation: 0.5
+    wheel_radius: 0.0825
+    wheel_separation_multiplier: 1.0
+    left_wheel_radius_multiplier: -1.0
+    right_wheel_radius_multiplier: 1.0
+    cmd_vel_timeout: 0.5
+    base_frame_id: base_link
+    allow_multiple_cmd_vel_publishers: false
+    odom_frame_id: '/rear_raw_odom'
+    enable_odom_tf: false
+    publish_cmd: false
+    publish_wheel_joint_controller_state: false
+    linear:
+      x:
+        has_velocity_limits: true
+        max_velocity: 1.0
+        has_acceleration_limits: true
+        max_acceleration: 0.8
+        has_jerk_limits: false
+        max_jerk: 0.0
+    angular:
+      z:
+        has_velocity_limits: true
+        max_velocity: 6.28
+        has_acceleration_limits: true
+        max_acceleration: 1.57
+        has_jerk_limits: false
+        max_jerk: 0.0

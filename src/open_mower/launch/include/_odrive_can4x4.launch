@@ -9,12 +9,19 @@
     <node name="odrive_driver" pkg="odrive_ros_control" type="odrive_ros_control_node"
         respawn="true" output="screen"/>
 
-    <remap from="/front_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
-    <remap from="/rear_velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
+    <!-- Front controllers in /front namespace -->
+    <group ns="front">
+        <remap from="/front/velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
+        <node name="controller_spawner" pkg="controller_manager" type="spawner"
+            respawn="false" output="screen"
+            args="joint_publisher velocity_controller"/>
+    </group>
 
-    <!-- Controllers -->
-    <node name="controller_spawner" pkg="controller_manager" type="spawner"
-        respawn="false" output="screen"
-        args="front_joint_publisher rear_joint_publisher
-              front_velocity_controller rear_velocity_controller"/>
+    <!-- Rear controllers in /rear namespace -->
+    <group ns="rear">
+        <remap from="/rear/velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
+        <node name="controller_spawner" pkg="controller_manager" type="spawner"
+            respawn="false" output="screen"
+            args="joint_publisher velocity_controller"/>
+    </group>
 </launch>
