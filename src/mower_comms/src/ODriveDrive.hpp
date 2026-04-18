@@ -38,9 +38,9 @@ public:
         const auto& odrv = getOdrv(wheel);
 
         // Always populate sensor fields
-        status.tacho             = ctrl.pos_estimate;
+        status.tacho             = isLeft(wheel) ? -ctrl.pos_estimate : ctrl.pos_estimate;
         status.current           = ctrl.iq_measured;
-        status.rpm               = ctrl.vel_estimate;
+        status.rpm               = isLeft(wheel) ? -ctrl.vel_estimate : ctrl.vel_estimate;
         status.temperature_motor = odrv.motor_temperature;
         status.temperature_pcb   = odrv.fet_temperature;
         status.xesc_status       = mapToXescStatus(ctrl.active_errors);
@@ -111,7 +111,11 @@ public:
     }
 
     double getWheelPosition(WheelId wheel) override {
-        return getCtrl(wheel).pos_estimate;
+        float pos_estimate = getCtrl(wheel).pos_estimate;
+        if(isLeft(wheel)) {
+            pos_estimate = -pos_estimate;
+        }
+        return pos_estimate;
     }
 
     uint8_t getAxleStatusAge(WheelId left, WheelId right) override {
