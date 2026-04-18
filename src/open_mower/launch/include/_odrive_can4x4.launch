@@ -14,7 +14,7 @@
         <remap from="/front/velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
         <node name="controller_spawner" pkg="controller_manager" type="spawner"
             respawn="false" output="screen"
-            args="--namespace /controller_manager joint_publisher velocity_controller"/>
+            args="--namespace / joint_publisher velocity_controller"/>
     </group>
 
     <!-- Rear controllers in /rear namespace -->
@@ -22,6 +22,6 @@
         <remap from="/rear/velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
         <node name="controller_spawner" pkg="controller_manager" type="spawner"
             respawn="false" output="screen"
-            args="--namespace /controller_manager joint_publisher velocity_controller"/>
+            args="--namespace / joint_publisher velocity_controller"/>
     </group>
 </launch>
