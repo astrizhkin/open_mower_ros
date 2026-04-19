@@ -48,25 +48,6 @@
 #define EMERGENCY_ROS_TIMEOUT 5
 #define EMERGENCY_HIGH_LEVEL 6
 
-// motor status bits
-#define MOTOR_STATUS_DISABLED               0
-#define MOTOR_STATUS_BAD_CTRL_MODE          1
-#define MOTOR_STATUS_LEFT_MOTOR_ERR         2
-#define MOTOR_STATUS_RIGHT_MOTOR_ERR        3
-
-#define MOTOR_STATUS_PCB_TEMP_WARN          4
-#define MOTOR_STATUS_PCB_TEMP_ERR           5
-#define MOTOR_STATUS_LEFT_MOTOR_TEMP_ERR    6
-#define MOTOR_STATUS_RIGHT_MOTOR_TEMP_ERR   7
-
-#define MOTOR_STATUS_CONN_TIMEOUT           8
-#define MOTOR_STATUS_ADC_TIMEOUT            9
-#define MOTOR_STATUS_GEN_TIMEOUT            10
-
-#define MOTOR_STATUS_BATTERY_DEAD           12
-#define MOTOR_STATUS_BATTERY_L1             13
-#define MOTOR_STATUS_BATTERY_L2             14
-
 #define POWER_REQUEST_PI                            0
 #define POWER_REQUEST_MOTOR                         1
 #define POWER_REQUEST_LED                           2

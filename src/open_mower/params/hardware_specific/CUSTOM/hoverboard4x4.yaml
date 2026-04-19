@@ -1,0 +1,32 @@
+rear:
+  hoverboard_driver:
+    port: "/dev/ttyAMA2"
+    direction: 1
+    joints:
+      - rear_left_wheel
+      - rear_right_wheel
+#  hardware_interface:
+#     loop_hz: 50 # hz
+#     joints:
+#       - left_wheel
+#       - right_wheel
+  velocity_controller:
+    left_wheel_radius_multiplier : 1.0
+    right_wheel_radius_multiplier: 1.0
+front:
+  hoverboard_driver:
+    port: "/dev/ttyAMA3"
+    direction: 1
+    joints:
+      - front_left_wheel
+      - front_right_wheel
+
+#  hardware_interface:
+#     loop_hz: 50 # hz
+#     joints:
+#       - left_wheel
+#       - right_wheel
+  velocity_controller:
+    left_wheel_radius_multiplier : 1.0
+    right_wheel_radius_multiplier: 1.0
+

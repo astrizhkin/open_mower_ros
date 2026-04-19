@@ -38,11 +38,13 @@ public:
         const auto& odrv = getOdrv(wheel);
 
         // Always populate sensor fields
-        float pos_rad = isLeft(wheel) ? -ctrl.pos_estimate : ctrl.pos_estimate;
-        status.tacho             = pos_rad;
-        status.current           = ctrl.iq_measured;
-        float vel_rads = isLeft(wheel) ? -ctrl.vel_estimate : ctrl.vel_estimate;
-        status.rpm               = vel_rads * 60 / (2* M_PI);
+        float pos_estimate_rad = isLeft(wheel) ? -ctrl.pos_estimate : ctrl.pos_estimate;
+        float iq_measured = isLeft(wheel) ? -ctrl.iq_measured : ctrl.iq_measured;
+        float vel_estimate_rads = isLeft(wheel) ? -ctrl.vel_estimate : ctrl.vel_estimate;
+
+        status.tacho             = pos_estimate_rad;
+        status.current           = iq_measured;
+        status.rpm               = vel_estimate_rads * 60 / (2* M_PI);
         status.temperature_motor = odrv.motor_temperature;
         status.temperature_pcb   = odrv.fet_temperature;
         status.xesc_status       = mapToXescStatus(ctrl.active_errors);

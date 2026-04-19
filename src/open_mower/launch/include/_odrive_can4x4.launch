@@ -1,6 +1,7 @@
 <launch>
-    <rosparam file="$(find open_mower)/params/hardware_specific/$(env OM_MOWER)/odrive.yaml" command="load" subst_value="true"/>
-    <!--rosparam file="$(env PARAMS_PATH)/odrive.yaml" command="load" subst_value="true"/-->
+    <rosparam file="$(find open_mower)/params/hardware_specific/$(env OM_MOWER)/drive4x4.yaml" command="load" subst_value="true"/>
+    <rosparam file="$(find open_mower)/params/hardware_specific/$(env OM_MOWER)/odrive4x4.yaml" command="load" subst_value="true"/>
+    <!--rosparam file="$(env PARAMS_PATH)/drive4x4.yaml" command="load" subst_value="true"/-->
 
     <!--node name="odrive_can" pkg="odrive_can" type="odrive_can_node" output="screen"
         respawn="true" respawn_delay="2.0"/-->

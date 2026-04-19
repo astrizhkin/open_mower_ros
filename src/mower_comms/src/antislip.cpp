@@ -165,9 +165,9 @@ int main(int argc, char **argv) {
 
   //#ifdef HOVERBOARD_ODOM
   //  ros::Subscriber rear_odom_sub =
-  //    n.subscribe("/rear/hoverboard_velocity_controller/odom", 0, onRearOdomReceived, ros::TransportHints().tcpNoDelay(true));
+  //    n.subscribe("/rear/velocity_controller/odom", 0, onRearOdomReceived, ros::TransportHints().tcpNoDelay(true));
   //  ros::Subscriber front_odom_sub =
-  //    n.subscribe("/front/hoverboard_velocity_controller/odom", 0, onFrontOdomReceived, ros::TransportHints().tcpNoDelay(true));
+  //    n.subscribe("/front/velocity_controller/odom", 0, onFrontOdomReceived, ros::TransportHints().tcpNoDelay(true));
   //#endif
 
   ros::spin();

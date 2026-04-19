@@ -1,0 +1,23 @@
+odrive_driver:
+  can: "can0"
+  joints:
+    - front_left_wheel
+    - front_right_wheel
+    - rear_left_wheel
+    - rear_right_wheel
+  joint_node_ids:
+    front_left_wheel: 2
+    front_right_wheel: 3
+    rear_left_wheel: 0
+    rear_right_wheel: 1
+
+rear:
+  velocity_controller:
+    left_wheel_radius_multiplier : -1.0
+    right_wheel_radius_multiplier: 1.0
+
+front:
+  velocity_controller:
+    left_wheel_radius_multiplier : -1.0
+    right_wheel_radius_multiplier: 1.0
+
