@@ -1,0 +1,38 @@
+#on rasberry pi os 6.6.47 we have problem with AMA0
+#repating message "Got empty mesage from Low Level board"
+#problem raleted to DMA enabled for UART0, seeach for issue
+#ll_serial_port: "/dev/ttyAMA0"
+
+cmd_vel_timout: 2.0
+#Prototype configuration
+#imu_accel_axes: "+y+x-z"
+#imu_gyro_axes: "+y+x-z"
+#HW_O.1.X configuration
+imu_accel_axes: "-x-z-y"
+imu_gyro_axes: "-x-z-y"
+
+ll_serial_port: "/dev/ttyAMA1"
+
+mower_xesc:
+  xesc_type: "xesc_mini"
+  serial_port: "/dev/ttyAMA4"
+  motor_pole_pairs: 4  # Just needed for eRPM to RPM calculation
+  has_motor_temp: true
+  min_motor_rpm_critical: 1300
+  min_motor_rpm: 1800
+  max_motor_rpm: 3200
+
+#  hall_table_0: 255
+#  hall_table_1: 3
+#  hall_table_2: 1
+#  hall_table_3: 2
+#  hall_table_4: 5
+#  hall_table_5: 4
+#  hall_table_6: 6
+#  hall_table_7: 255
+#  motor_current_limit: 1.0
+#  acceleration: 5.0
+#  min_motor_temp: 0
+#  max_motor_temp: 60
+#  min_pcb_temp: 0
+#  max_pcb_temp: 60

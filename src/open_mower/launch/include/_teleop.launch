@@ -1,5 +1,5 @@
 <launch>
-    <group if="$(eval env('OM_MOWER_GAMEPAD') == 'xbox360')">
+    <group if="$(eval env('OM_GAMEPAD') == 'xbox360')">
         <node name="joy" pkg="joy" type="joy_node" required="true">
             <param name="~autorepeat_rate" value="10.0"/>
             <param name="~coalesce_interval" value="0.06"/>
@@ -16,15 +16,15 @@
     </group>
     
 
-    <group unless="$(eval env('OM_MOWER_GAMEPAD') == 'xbox360')">
+    <group unless="$(eval env('OM_GAMEPAD') == 'xbox360')">
         <node name="joy" pkg="joy" type="joy_node" required="true" >
             <remap from="/joy" to="/teleop_joy"/>
             <param name="~autorepeat_rate" value="10.0"/>
             <param name="~coalesce_interval" value="0.06"/>
         </node>
 
-        <rosparam file="$(find open_mower)/params/gamepads/$(env OM_MOWER_GAMEPAD).yaml" command="load"/>
-        <rosparam file="$(env PARAMS_PATH)/gamepads/$(env OM_MOWER_GAMEPAD).yaml" command="load"/>
+        <rosparam file="$(find open_mower)/params/gamepads/$(env OM_GAMEPAD).yaml" command="load"/>
+        <rosparam if="$(eval env('OM_EXT_GAMEPAD_PARAMS') != '')" file="$(env PARAMS_PATH)/$(env OM_GAMEPAD)_$(env OM_EXT_GAMEPAD_PARAMS)" command="load"/>
         
         <node name="joy_teleop" pkg="joy_teleop" type="joy_teleop.py" required="true">
             <remap from="/joy" to="/teleop_joy"/>

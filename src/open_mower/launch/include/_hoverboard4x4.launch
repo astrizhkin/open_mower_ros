@@ -1,8 +1,8 @@
 <launch>
-    <rosparam file="$(find open_mower)/params/hardware_specific/$(env OM_MOWER)/drive4x4.yaml" command="load" subst_value="true"/>
-    <rosparam file="$(find open_mower)/params/hardware_specific/$(env OM_MOWER)/hoverboard4x4.yaml" command="load" subst_value="true"/>
+    <rosparam file="$(find open_mower)/params/hardware_specific/$(env OM_BODY)/drive4x4.yaml" command="load" subst_value="true"/>
+    <rosparam file="$(find open_mower)/params/hardware_specific/$(env OM_BODY)/hoverboard4x4.yaml" command="load" subst_value="true"/>
     <!-- load yaml here to override default -->
-    <!--rosparam file="$(env PARAMS_PATH)/drive4x4.yaml" command="load" subst_value="true"/-->
+    <rosparam if="$(eval env('OM_EXT_DRIVE_PARAMS')!='')" file="$(env PARAMS_PATH)/$(env OM_EXT_DRIVE_PARAMS)" command="load" subst_value="true"/>
 
     <group ns="front">
         <remap from="/front/velocity_controller/cmd_vel" to="/cmd_vel_safe"/>
