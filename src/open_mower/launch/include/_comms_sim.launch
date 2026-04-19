@@ -6,8 +6,8 @@
     <!-- TODO: Add parameter for simulation -->
 
     <node pkg="mower_simulation" type="mower_comms_sim" name="mower_comms" unless="$(optenv OM_NO_COMMS False)" output="screen">
-        <rosparam unless="$(eval env('OM_EXT_COMMS_PARAMS')!='')" file="$(find open_mower)/params/hardware_specific/$(env OM_BODY)/comms_params.yaml"/>
-        <rosparam if="$(eval env('OM_EXT_COMMS_PARAMS')!='')" file="$(env PARAMS_PATH)/$(env OM_EXT_COMMS_PARAMS)"/>
+        <rosparam unless="$(eval optenv('OM_EXT_COMMS_PARAMS')!='')" file="$(find open_mower)/params/hardware_specific/$(env OM_BODY)/comms_params.yaml"/>
+        <rosparam if="$(eval optenv('OM_EXT_COMMS_PARAMS')!='')" file="$(env PARAMS_PATH)/$(env OM_EXT_COMMS_PARAMS)"/>
         <param name="wheel_radius_m" value="$(env OM_WHEEL_RADIUS_M)"/>
         <param name="wheel_separation_m" value="$(env OM_WHEEL_SEPARATION_M)"/>
         <!-- base_link right hand rule -->

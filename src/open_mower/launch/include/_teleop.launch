@@ -24,7 +24,7 @@
         </node>
 
         <rosparam file="$(find open_mower)/params/gamepads/$(env OM_GAMEPAD).yaml" command="load"/>
-        <rosparam if="$(eval env('OM_EXT_GAMEPAD_PARAMS') != '')" file="$(env PARAMS_PATH)/$(env OM_GAMEPAD)_$(env OM_EXT_GAMEPAD_PARAMS)" command="load"/>
+        <rosparam if="$(eval envopt('OM_EXT_GAMEPAD_PARAMS') != '')" file="$(env PARAMS_PATH)/$(env OM_GAMEPAD)_$(env OM_EXT_GAMEPAD_PARAMS)" command="load"/>
         
         <node name="joy_teleop" pkg="joy_teleop" type="joy_teleop.py" required="true">
             <remap from="/joy" to="/teleop_joy"/>

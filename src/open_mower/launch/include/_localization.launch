@@ -6,7 +6,7 @@
         <remap from="~xb_pose_out" to="xbot_positioning/xb_pose"/>
         <param name="max_gps_accuracy" value="0.2"/>
         <param name="debug" value="false"/>
-        <rosparam if="$(eval env('OM_EXT_LOCALIZATION') != '')" file="$(env PARAMS_PATH)/$(env OM_EXT_LOCALIZATION)" command="load"/>
+        <rosparam if="$(eval optenv('OM_EXT_LOCALIZATION') != '')" file="$(env PARAMS_PATH)/$(env OM_EXT_LOCALIZATION)" command="load"/>
         <!--param name="accel_bias_x" value="$(env OM_ACCEL_BIAS_X)"/>
         <param name="accel_bias_y" value="$(env OM_ACCEL_BIAS_Y)"/>
         <param name="accel_bias_z" value="$(env OM_ACCEL_BIAS_Z)"/-->

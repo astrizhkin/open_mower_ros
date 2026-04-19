@@ -3,7 +3,7 @@
     <rosparam file="$(find open_mower)/params/hardware_specific/$(env OM_BODY)/odrive4x4.yaml" command="load" subst_value="true"/>
 
     <!-- load yaml here to override default -->
-    <rosparam if="$(eval env('OM_EXT_DRIVE_PARAMS')!='')" file="$(env PARAMS_PATH)/$(env OM_EXT_DRIVE_PARAMS)" command="load" subst_value="true"/>
+    <rosparam if="$(eval optenv('OM_EXT_DRIVE_PARAMS')!='')" file="$(env PARAMS_PATH)/$(env OM_EXT_DRIVE_PARAMS)" command="load" subst_value="true"/>
 
     <!--node name="odrive_can" pkg="odrive_can" type="odrive_can_node"_odrive_can4x4 output="screen"
         respawn="true" respawn_delay="2.0"/-->
