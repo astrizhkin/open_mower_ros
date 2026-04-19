@@ -1,6 +1,6 @@
 <launch>
 
-  <param unless="$(eval openv('OM_EXT_URDF') != '')"  name="robot_model" textfile="$(find open_mower)/params/hardware_specific/$(env OM_BODY)/urdf.xml"/>
+  <param unless="$(eval optenv('OM_EXT_URDF') != '')"  name="robot_model" textfile="$(find open_mower)/params/hardware_specific/$(env OM_BODY)/urdf.xml"/>
   <param if="$(eval optenv('OM_EXT_URDF') != '')"  name="robot_model" textfile="$(env PARAMS_PATH)/$(env OM_EXT_URDF)"/>
     
   <node pkg="robot_state_publisher" type="robot_state_publisher" name="rob_st_pub" output="screen">
