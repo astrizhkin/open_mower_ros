@@ -8,7 +8,6 @@
    
   <node pkg="mower_comms" type="antislip" name="antislip" output="screen">
       <remap from="~imu_in" to="/imu/data_raw"/>
-      <!--remap from="~wheel_ticks_in" to="/mower/wheel_ticks"/-->
       <remap from="~twist_in" to="/mower/measured_vel"/>
       <remap from="~odom3d_in" to="/xbot_positioning/odom_3d_out"/>
   </node>

@@ -17,7 +17,6 @@
 //
 //
 
-//#define WHEEL_TICKS_MSG
 //#define HOVERBOARD_ODOM
 
 #include <dynamic_reconfigure/client.h>
@@ -54,9 +53,6 @@
 #include "mower_logic/MowerLogicConfig.h"
 
 ros::Publisher status_pub;
-#ifdef WHEEL_TICKS_MSG
-  ros::Publisher wheel_tick_pub;
-#endif
 
 ros::Publisher sensor_imu_pub;
 ros::Publisher sensor_mag_pub;
@@ -121,7 +117,7 @@ xesc_msgs::XescStateStamped last_mow_status;
 double prev_wheel_pos_rl, prev_wheel_pos_fl, prev_wheel_pos_rr, prev_wheel_pos_fr;
 ros::Time prev_wheel_pos_stamp;
 
-bool has_prev_wheel_tick_msg = false;
+bool has_prev_wheel_tick_msg= false;
 
 std::mutex ll_status_mutex;
 struct ll_status last_ll_status = {0};

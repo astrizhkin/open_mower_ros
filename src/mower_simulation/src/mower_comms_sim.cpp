@@ -17,7 +17,6 @@
 //
 //
 
-//#define WHEEL_TICKS_MSG
 //#define HOVERBOARD_ODOM
 
 #include <dynamic_reconfigure/client.h>
