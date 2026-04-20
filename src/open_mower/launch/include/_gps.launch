@@ -9,7 +9,7 @@
     <node pkg="xbot_driver_gps" type="driver_gps_node" name="xbot_driver_gps"
           output="screen" clear_params="true" respawn="true" respawn_delay="5">
         <rosparam if="$(eval optenv('OM_EXT_GPS_PARAMS')!='')" file="$(env PARAMS_PATH)/$(env OM_EXT_GPS_PARAMS)"/>
-        <rosparam unless="$(eval optenv('OM_EXT_GPS_PARAMS')!='')" file="$(find open_mower)/params/hardware_specific/$(env OM_BODY)/gps_params.yaml"/>
+        <rosparam unless="$(eval optenv('OM_EXT_GPS_PARAMS')!='')" file="$(find open_mower)/params/hardware_specific/$(env OM_BODY)/$(env OM_RADIO_MODE)_gps_params.yaml"/>
         <param if="$(eval optenv('OM_GPS_BAUDRATE')!='')" name="baudrate" value="$(optenv OM_GPS_BAUDRATE)"/>
         <param if="$(eval optenv('OM_GPS_PORT')!='')" name="serial_port" value="$(optenv OM_GPS_PORT)"/>
         <param name="device_type" value="$(optenv OM_GPS_DEVICE_TYPE serial)" />
@@ -32,8 +32,8 @@
     <group if="$(eval env('OM_RADIO_MODE') == 'split')">
         <node pkg="xbot_driver_gps" type="radio_node" name="xbot_radio"
             output="screen" clear_params="true" respawn="true" respawn_delay="5">
-            <!--rosparam if="$(eval optenv('OM_EXT_GPS_PARAMS')!='')" file="$(env PARAMS_PATH)/$(env OM_EXT_GPS_PARAMS)"/>
-            <rosparam unless="$(eval optenv('OM_EXT_GPS_PARAMS')!='')" file="$(find open_mower)/params/hardware_specific/$(env OM_BODY)/gps_params.yaml"/-->
+            <rosparam if="$(eval optenv('OM_EXT_RADIO_PARAMS')!='')" file="$(env PARAMS_PATH)/$(env OM_EXT_RADIO_PARAMS)"/>
+            <rosparam unless="$(eval optenv('OM_EXT_RADIO_PARAMS')!='')" file="$(find open_mower)/params/hardware_specific/$(env OM_BODY)/radio_params.yaml"/>
             <param if="$(eval optenv('OM_RADIO_BAUDRATE')!='')" name="baudrate" value="$(optenv OM_RADIO_BAUDRATE)"/>
             <param if="$(eval optenv('OM_RADIO_PORT')!='')" name="serial_port" value="$(optenv OM_RADIO_PORT)"/>
             <!--remap from="/rtcm" to="/ntrip_client/rtcm"/-->
