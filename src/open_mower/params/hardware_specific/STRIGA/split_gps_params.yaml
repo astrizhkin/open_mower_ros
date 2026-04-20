@@ -1,0 +1,7 @@
+#UART2
+serial_port: "/dev/ttyAMA2"
+#USB
+#serial_port: "/dev/ttyACM0"
+baudrate: 115200
+#entendend logging
+#verbose: true

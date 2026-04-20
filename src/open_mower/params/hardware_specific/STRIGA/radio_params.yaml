@@ -1,0 +1,3 @@
+#UART0
+serial_port: "/dev/ttyAMA0"
+baudrate: 115200
