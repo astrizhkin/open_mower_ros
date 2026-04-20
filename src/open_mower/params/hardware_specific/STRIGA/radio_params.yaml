@@ -1,3 +1,4 @@
 #UART0
 serial_port: "/dev/ttyAMA0"
 baudrate: 115200
+rssi_poll_period: 5.0
