@@ -28,4 +28,18 @@
         <remap from="/radio_log_in" to="/rosout_agg"/>
     </node>
 
+
+    <node pkg="xbot_driver_gps" type="radio_node" name="xbot_radio_node"
+          output="screen" clear_params="true" respawn="true" respawn_delay="5">
+        <!--rosparam if="$(eval optenv('OM_EXT_GPS_PARAMS')!='')" file="$(env PARAMS_PATH)/$(env OM_EXT_GPS_PARAMS)"/>
+        <rosparam unless="$(eval optenv('OM_EXT_GPS_PARAMS')!='')" file="$(find open_mower)/params/hardware_specific/$(env OM_BODY)/gps_params.yaml"/-->
+        <param if="$(eval optenv('OM_RADIO_BAUDRATE')!='')" name="baudrate" value="$(optenv OM_RADIO_BAUDRATE)"/>
+        <param if="$(eval optenv('OM_RADIO_PORT')!='')" name="serial_port" value="$(optenv OM_RADIO_PORT)"/>
+        <!--remap from="/rtcm" to="/ntrip_client/rtcm"/-->
+
+        <param name="radio_log_levels" value="FATAL"/>
+        <!--param name="radio_log_levels" value="ERROR,FATAL"/-->
+        <remap from="/radio_log_in" to="/rosout_agg"/>
+    </node>
+
 </launch>
