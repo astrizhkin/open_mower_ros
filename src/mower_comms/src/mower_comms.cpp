@@ -289,6 +289,9 @@ void publishStatus() {
   status_msg.bms_timeout = (last_ll_status.status_bitmask & (1 << STATUS_BMS_TIMEOUT_BIT)) != 0;
   status_msg.ll_timeout = llAge > 1.0;
   status_msg.mow_enabled = mower_enabled;
+  if(status_msg.imu_timeout || status_msg.ll_timeout) {
+    ROS_ERROR_STREAM_THROTTLE(1,"[mower_comms] IMU ("<< status_msg.imu_timeout <<") or LL ("<<status_msg.ll_timeout<<") timout");
+  }
 
   for (int i = 0; i < USS_COUNT; i++) {
     sensor_msgs::Range range_msg;
