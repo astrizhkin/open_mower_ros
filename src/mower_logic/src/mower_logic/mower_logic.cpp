@@ -419,6 +419,7 @@ double getNormalGravityAngle() {
 /// /odom and /mower/status outages
 /// @param timer_event
 void checkSafety(const ros::TimerEvent &timer_event) {
+  ros::Time now = ros::Time::now();
   const auto last_status = getStatus();
   const auto last_config = getConfig();
   const auto last_pose = getPose();
@@ -455,11 +456,21 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     }
   }
 
+  if (last_status.imu_timeout) {
+    ROS_WARN_STREAM_THROTTLE(
+        5, "[mower_logic] EMERGENCY IMU timout");
+    setEmergencyMode(true, mower_msgs::EmergencyModeSrvRequest::EMERGENCY_STATUS_TIMEOUT,
+                     "[mower_logic] IMU timout", ros::Duration::ZERO);
+    return;
+  } else {
+    // setEmergencyMode(false,mower_msgs::EmergencyModeSrvRequest::EMERGENCY_STATUS_TIMEOUT,"[mower_logic] /mower/status
+    // values ok",ros::Duration::ZERO);
+  }
+
   // TODO: Have a single point where we check for this timeout instead of twice (here and in the behavior)
   // check if odometry is current. If not, the GPS was bad so we stop moving.
   // Note that the mowing behavior will pause as well by itself.
-  if ( ros::Time::now() - pose_time > ros::Duration(1.0) || 
-       ros::Time::now() - odom_time > ros::Duration(1.0)) {
+  if ( now - pose_time > ros::Duration(1.0) || now - odom_time > ros::Duration(1.0)) {
     //uncommet this if emerency is not triggered
     //setMowerEnabled(false);
     //stopMoving("pose values stopped");
@@ -489,7 +500,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
 
   // check if status is current. if not, we have a problem since it contains wheel ticks and so on.
   // Since these should never drop out, we enter emergency instead of "only" stopping
-  if (ros::Time::now() - status_time > ros::Duration(3) || last_status.ll_timeout) {
+  if (now - status_time > ros::Duration(3) || last_status.ll_timeout) {
     ROS_WARN_STREAM_THROTTLE(
         5, "[mower_logic] EMERGENCY /mower/status values stopped. dt was: " << (ros::Time::now() - status_time));
     setEmergencyMode(true, mower_msgs::EmergencyModeSrvRequest::EMERGENCY_STATUS_TIMEOUT,

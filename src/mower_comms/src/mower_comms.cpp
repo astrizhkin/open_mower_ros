@@ -277,13 +277,14 @@ void publishStatus() {
     status_msg.mower_status = mower_msgs::Status::MOWER_STATUS_INITIALIZING;
   }
   double llAge = (status_msg.stamp - last_ll_status_time).toSec();
+  double imuAge = (status_msg.stamp - sensor_imu_msg.header.stamp).toSec();
 
   status_msg.raspberry_pi_power = (last_ll_status.status_bitmask & (1 << STATUS_RASPI_POWER_BIT)) != 0;
   status_msg.charging = (last_ll_status.status_bitmask & (1 << STATUS_CHARGING_BIT)) != 0;
   status_msg.esc_power = (last_ll_status.status_bitmask & (1 << STATUS_ESC_ENABLED_BIT)) != 0;
   status_msg.rain_detected = (last_ll_status.status_bitmask & (1 << STATUS_RAIN_BIT)) != 0;
   status_msg.uss_timeout = (last_ll_status.status_bitmask & (1 << STATUS_USS_TIMEOUT_BIT)) != 0;
-  status_msg.imu_timeout = (last_ll_status.status_bitmask & (1 << STATUS_IMU_TIMEOUT_BIT)) != 0;
+  status_msg.imu_timeout = imuAge > 0.2 || (last_ll_status.status_bitmask & (1 << STATUS_IMU_TIMEOUT_BIT)) != 0;
   status_msg.battery_empty = (last_ll_status.status_bitmask & (1 << STATUS_BATTERY_EMPTY_BIT)) != 0;
   status_msg.bms_timeout = (last_ll_status.status_bitmask & (1 << STATUS_BMS_TIMEOUT_BIT)) != 0;
   status_msg.ll_timeout = llAge > 1.0;
