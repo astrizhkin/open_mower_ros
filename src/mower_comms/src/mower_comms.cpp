@@ -290,7 +290,7 @@ void publishStatus() {
   status_msg.ll_timeout = llAge > 1.0;
   status_msg.mow_enabled = mower_enabled;
   if(status_msg.imu_timeout || status_msg.ll_timeout) {
-    ROS_ERROR_STREAM_THROTTLE(1,"[mower_comms] IMU ("<< status_msg.imu_timeout <<") or LL ("<<status_msg.ll_timeout<<") timout");
+    ROS_ERROR_STREAM_THROTTLE(1,"[mower_comms] IMU ("<< ((int)status_msg.imu_timeout) <<") or LL ("<<((int)status_msg.ll_timeout)<<") timeout");
   }
 
   for (int i = 0; i < USS_COUNT; i++) {
