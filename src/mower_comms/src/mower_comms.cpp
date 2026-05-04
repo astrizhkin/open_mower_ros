@@ -147,14 +147,14 @@ void sendLLMessage(uint8_t *msg, size_t size) {
   msg[size - 2] = crcVal & 0xFF;
 
   // Print full message as hex bytes
-  std::string hex_str;
-  for (size_t i = 0; i < size; i++) {
-    char buf[4];
-    snprintf(buf, sizeof(buf), "%02X ", msg[i]);
-    hex_str += buf;
-  }
-  ROS_INFO_STREAM("[mower_comms] sendLL [" << hex_str << "] type=0x"
-        << std::hex << (int)msg[0] << " crc=0x" << (int)crcVal << std::dec);
+  //std::string hex_str;
+  //for (size_t i = 0; i < size; i++) {
+  //  char buf[4];
+  //  snprintf(buf, sizeof(buf), "%02X ", msg[i]);
+  //  hex_str += buf;
+  //}
+  //ROS_INFO_STREAM("[mower_comms] sendLL [" << hex_str << "] type=0x"
+  //      << std::hex << (int)msg[0] << " crc=0x" << (int)crcVal << std::dec);
 
   size_t encoded_size = cobs.encode(msg, size, out_buf);
   out_buf[encoded_size] = 0;
@@ -1153,14 +1153,14 @@ int main(int argc, char **argv) {
           uint16_t received_checksum = *(uint16_t *)(buffer_decoded + data_size - 2);
           if (checksum == received_checksum) {
             // Packet checksum is OK, log and process
-            std::string hex_str;
-            for (size_t i = 0; i < data_size; i++) {
-              char buf[4];
-              snprintf(buf, sizeof(buf), "%02X ", (uint8_t)buffer_decoded[i]);
-              hex_str += buf;
-            }
-            ROS_INFO_STREAM("[mower_comms] recvLL [" << hex_str << "] type=0x"
-                  << std::hex << (int)buffer_decoded[0] << std::dec);
+            //std::string hex_str;
+            //for (size_t i = 0; i < data_size; i++) {
+            //  char buf[4];
+            //  snprintf(buf, sizeof(buf), "%02X ", (uint8_t)buffer_decoded[i]);
+            //  hex_str += buf;
+            //}
+            //ROS_INFO_STREAM("[mower_comms] recvLL [" << hex_str << "] type=0x"
+            //      << std::hex << (int)buffer_decoded[0] << std::dec);
 
             // Packet checksum is OK, process it
             switch (buffer_decoded[0]) {
