@@ -36,6 +36,7 @@
 
 #include <algorithm>
 #include <bitset>
+#include <cstdio>
 
 #include "COBS.h"
 #include "boost/crc.hpp"
@@ -144,7 +145,17 @@ void sendLLMessage(uint8_t *msg, size_t size) {
   unsigned short crcVal = crc.checksum();
   msg[size - 1] = (crcVal >> 8) & 0xFF;
   msg[size - 2] = crcVal & 0xFF;
-  // ROS_INFO_STREAM("[mower_comms] sendLL CRC " << crcVal);
+
+  // Print full message as hex bytes
+  std::string hex_str;
+  for (size_t i = 0; i < size; i++) {
+    char buf[4];
+    snprintf(buf, sizeof(buf), "%02X ", msg[i]);
+    hex_str += buf;
+  }
+  ROS_INFO_STREAM("[mower_comms] sendLL [" << hex_str << "] type=0x"
+        << std::hex << (int)msg[0] << " crc=0x" << (int)crcVal << std::dec);
+
   size_t encoded_size = cobs.encode(msg, size, out_buf);
   out_buf[encoded_size] = 0;
   encoded_size++;
