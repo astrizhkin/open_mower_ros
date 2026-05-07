@@ -32,7 +32,7 @@
 #define PACKET_ID_LL_MOTOR_STATE 0x44
 
 #define STATUS_INIT_BIT 0
-#define STATUS_RASPI_POWER_BIT 1
+#define STATUS_POWER_RAIL_BIT = 1
 #define STATUS_CHARGING_BIT 2
 #define STATUS_ESC_ENABLED_BIT 3
 #define STATUS_RAIN_BIT 4
@@ -48,15 +48,15 @@
 #define EMERGENCY_ROS_TIMEOUT 5
 #define EMERGENCY_HIGH_LEVEL 6
 
-#define POWER_REQUEST_PI                            0
+#define POWER_REQUEST_POWER_RAIL                    0
 #define POWER_REQUEST_MOTOR                         1
 #define POWER_REQUEST_LED                           2
 #define POWER_REQUEST_RESERVED                      3
 
 #define POWER_REQUEST_BITS_OFF                      0
 #define POWER_REQUEST_BITS_ON                       1
-#define POWER_REQUEST_BITS_LOW_FREQ                 2
-#define POWER_REQUEST_BITS_HIGH_FREQ                3
+#define POWER_REQUEST_BITS_RESERVED                 2
+#define POWER_REQUEST_BITS_ON_FORCE                 3
 
 #define USS_COUNT 5
 #define CONTACT_COUNT 4
@@ -176,11 +176,11 @@ typedef enum ConfigCommand {
 } ConfigCommand;
 
 typedef enum ConfigAddress {
-  //control group (10)
+  //control group (0 - 9)
   EEPROM_STATUS = 0, //bool
   COMMAND = 1, //bool
 
-  //charge group (20)
+  //charge group (10 - 29)
   CHARGE_START_SOC = 10, //int percent, 0 - disable
   CHARGE_START_VOLTAGE = 11,//float voltage, 0 - disable
   CHARGE_STOP_SOC = 12,  //int percent, 0 - disable
@@ -193,7 +193,7 @@ typedef enum ConfigAddress {
   CHARGE_MAX_BATTERY_TEMPERATURE = 19,//float temparature, 0 - disable
   CHARGE_STOP_BALANCER_TEMPERATURE = 20,//float temparature, 0 - disable
 
-  //battery group (10)
+  //battery group (30 ... 39 )
   BATTERY_EMPTY_VOLTAGE = 30,//float voltage, 0 - disable
   BATTERY_FULL_VOLTAGE = 31,//float voltage, 0 - disable
   BATTERY_LOW_WARNING_SOC = 32,//int percent, 0 - disable
@@ -201,16 +201,29 @@ typedef enum ConfigAddress {
   BATTERY_SHUTDOWN_SOC = 34,//int percent, 0 - disable
   BATTERY_SHUTDOWN_VOLTAGE = 35,//float voltage, 0 - disable
 
-  //contact group (4x8)
+  //contact group (40 ... 40 + 4x8 - 1)
   CONTACT_MODE = 40,//ContactMode, address2 is requred
   CONTACT_ACTIVE_LOW = 41,//bool, address2 is requred
   CONTACT_TIMEOUT = 42,//bool, address2 is requred
 
-  //uss group (4x8)
-  USS_ACTIVE = 40+32,//bool, address2 is requred
+  //uss group (72 ... 72 + 4x8 - 1)
+  USS_ACTIVE = 72,//bool, address2 is requred
+
+  //measurement calibration group (104 ... 109)
+  BAT_CALIB_REAL_VOLTAGE = 104, //4160      // input voltage measured by multimeter (multiplied by 100). In this case 41.60 V * 100 = 4160
+  BAT_CALIB_ADC          = 105, //3325      // adc-value measured by mainboard (value nr 5 on UART debug output)
+  CHARGE_CALIB_REAL_VOLTAGE = 106, //4140
+  CHARGE_CALIB_ADC          = 107, //3382
+  CURRENT_CALIB_REAL_CURRENT = 108, //110
+  CURRENT_CALIB_ADC          = 109, //275
+
+  //measurement read only group (128 ... ) outside of EEPROM
+  MEAS_BAT_ADC          = 128, 
+  MEAS_CHARGE_ADC       = 129, 
+  MEAS_CURRENT_ADC      = 130, 
 
   //end
-  END = 30+32+32
+  END = 127
 } ConfigAddress;
 
 typedef enum ContactMode {

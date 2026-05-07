@@ -482,13 +482,13 @@ void  publishLowLevelConfig(const uint8_t address,const uint8_t address2,const C
       .address = address,
       .address2 = address2,
       .value = value};
-  ROS_INFO("[mower_comms] Sending LL config %d,%d=%d",(int)address,(int)address2,(int)value.int32Value);
+  ROS_INFO("[mower_comms] Sending LL config %d,%d=%d",(int)ll_config.address,(int)ll_config.address2,(int)ll_config.value.int32Value);
   sendLLMessage((uint8_t *)&ll_config, sizeof(struct ll_high_level_config));
 }
 
 struct AddressAndValue {
   uint8_t address;
-  uint8_t address2;//4 bits actually
+  uint8_t address2;//34 bits actually
   ConfigValue value;
 };
 
