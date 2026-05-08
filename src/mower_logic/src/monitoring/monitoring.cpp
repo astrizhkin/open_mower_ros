@@ -306,7 +306,7 @@ int main(int argc, char **argv) {
   ros::Subscriber odom_3d_sub = n->subscribe("xbot_positioning/odom_3d_out", 10, odom_received);
   ros::Subscriber state_sub = n->subscribe("mower_logic/current_state", 10, high_level_status);
   ros::Subscriber status_sub = n->subscribe("mower/status", 10, status);
-  ros::Subscriber rssi_sub = n->subscribe("/rssi", 10, rssi_received);
+  ros::Subscriber rssi_sub = n->subscribe("xbot_radio/rssi", 10, rssi_received);
 
   state_pub = n->advertise<xbot_msgs::RobotState>("xbot_monitoring/robot_state", 10);
 
