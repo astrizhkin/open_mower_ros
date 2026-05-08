@@ -26,6 +26,8 @@
 #include "xbot_msgs/RobotState.h"
 #include "xbot_msgs/SensorDataDouble.h"
 #include "xbot_msgs/SensorInfo.h"
+#include <std_msgs/Float32.h>
+
 #include "nav_msgs/Odometry.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "tf2/LinearMath/Quaternion.h"
@@ -91,6 +93,7 @@ std::map<std::string, SensorConfig> sensor_configs{
   {"om_mow_motor_current", {"Mow Motor Current", "A", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_CURRENT, [](StatusPtr msg) { return msg->mow_esc_status.current; }, &set_limits_mow_motor_current, "mower_xesc"}},
   {"om_mow_motor_rpm", {"Mow Motor RPM", "rpm", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_RPM, [](StatusPtr msg) { return msg->mow_esc_status.rpm; }, &set_limits_mow_motor_rpm, "mower_xesc"}},
   {"om_gps_accuracy", {"GPS Accuracy", "m", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DISTANCE}},
+  {"om_rssi", {"Radio RSSI", "dBm", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_SIGNAL}},
   {"om_surface_angle", {"Surface Angle", "deg", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DEGREE}},
   {"om_height", {"Height", "m", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DISTANCE}},
 };
@@ -170,10 +173,21 @@ void pose_received(const xbot_msgs::AbsolutePose::ConstPtr &msg) {
 
   xbot_msgs::SensorDataDouble sensor_data;
   sensor_data.stamp = msg->header.stamp;
-  
+
   sensor_data.data = msg->position_accuracy;
   auto sc_it = sensor_configs.find("om_gps_accuracy");
   if (sc_it != std::end(sensor_configs)) {
+    sc_it->second.data_pub.publish(sensor_data);
+  }
+}
+
+void rssi_received(const std_msgs::Float32::ConstPtr &msg) {
+  // Publish immediately — don't wait for a Status message
+  auto sc_it = sensor_configs.find("om_rssi");
+  if (sc_it != std::end(sensor_configs)) {
+    xbot_msgs::SensorDataDouble sensor_data;
+    sensor_data.stamp = ros::Time::now();
+    sensor_data.data = msg->data;
     sc_it->second.data_pub.publish(sensor_data);
   }
 }
@@ -292,6 +306,7 @@ int main(int argc, char **argv) {
   ros::Subscriber odom_3d_sub = n->subscribe("xbot_positioning/odom_3d_out", 10, odom_received);
   ros::Subscriber state_sub = n->subscribe("mower_logic/current_state", 10, high_level_status);
   ros::Subscriber status_sub = n->subscribe("mower/status", 10, status);
+  ros::Subscriber rssi_sub = n->subscribe("/rssi", 10, rssi_received);
 
   state_pub = n->advertise<xbot_msgs::RobotState>("xbot_monitoring/robot_state", 10);
 

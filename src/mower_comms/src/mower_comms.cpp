@@ -231,7 +231,7 @@ void publishActuators() {
 
   struct ll_heartbeat heartbeat = {.type = PACKET_ID_LL_HEARTBEAT,
                                    // send high level emergency bits
-                                   .power_request = (POWER_REQUEST_BITS_ON << (POWER_REQUEST_PI<<1)) | 
+                                   .power_request = (POWER_REQUEST_BITS_ON << (POWER_REQUEST_POWER_RAIL<<1)) | 
                                                     (POWER_REQUEST_BITS_ON << (POWER_REQUEST_MOTOR<<1)) |
                                                     (POWER_REQUEST_BITS_ON << (POWER_REQUEST_LED<<1)) |
                                                     (POWER_REQUEST_BITS_ON << (POWER_REQUEST_RESERVED<<1)),
@@ -290,7 +290,7 @@ void publishStatus() {
   double llAge = (status_msg.stamp - last_ll_status_time).toSec();
   double imuAge = (status_msg.stamp - sensor_imu_msg.header.stamp).toSec();
 
-  status_msg.raspberry_pi_power = (last_ll_status.status_bitmask & (1 << STATUS_RASPI_POWER_BIT)) != 0;
+  status_msg.raspberry_pi_power = (last_ll_status.status_bitmask & (1 << STATUS_POWER_RAIL_BIT)) != 0;
   status_msg.charging = (last_ll_status.status_bitmask & (1 << STATUS_CHARGING_BIT)) != 0;
   status_msg.esc_power = (last_ll_status.status_bitmask & (1 << STATUS_ESC_ENABLED_BIT)) != 0;
   status_msg.rain_detected = (last_ll_status.status_bitmask & (1 << STATUS_RAIN_BIT)) != 0;
@@ -488,7 +488,7 @@ void  publishLowLevelConfig(const uint8_t address,const uint8_t address2,const C
 
 struct AddressAndValue {
   uint8_t address;
-  uint8_t address2;//34 bits actually
+  uint8_t address2;//3 bits actually
   ConfigValue value;
 };
 
