@@ -127,6 +127,8 @@ ros::Time last_ll_status_esc_enabled(0.0);
 ros::Time last_uss_stamp[USS_COUNT];
 
 int contact_mode[CONTACT_COUNT];
+int emebrgncy_bit_position[] = {EMERGENCY_CONTACT1_BIT, EMERGENCY_CONTACT2_BIT, EMERGENCY_CONTACT3_BIT, EMERGENCY_CONTACT4_BIT};
+int kill_switch_emergeny_bit = -1;
 
 sensor_msgs::MagneticField sensor_mag_msg;
 sensor_msgs::Imu sensor_imu_msg;
@@ -193,7 +195,8 @@ void updateEmergencyBits() {
     }
   }
 
-  if ((last_ll_status.emergency_bitmask & (1 << EMERGENCY_CONTACT1_BIT)) > 0 &&
+  if (kill_switch_emergeny_bit!=-1 &&
+      (last_ll_status.emergency_bitmask & (1 << kill_switch_emergeny_bit)) > 0 &&
       (emergency_high_level_bits & (1 << mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC)) > 0) {
     ROS_WARN_STREAM("[mower_comms] Autoreset ESC emergency due to Emergency Button 1 pressed");
     emergency_high_level_bits &= ~(1 << mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC);
@@ -952,6 +955,7 @@ void reconfigCB(const mower_logic::MowerLogicConfig &config) {
           case 'I': mode = ContactMode::OFF; break;
           case 'M': mode = ContactMode::MONITOR; break;
           case 'E': mode = ContactMode::EMERGENCY_STOP; break;
+          case 'S': mode = ContactMode::EMERGENCY_STOP; kill_switch_emergeny_bit = emebrgncy_bit_position[contact_idx]; break;
           default: break;
         }
       }
@@ -984,6 +988,10 @@ void reconfigCB(const mower_logic::MowerLogicConfig &config) {
   }
 
   configTracker.scheduleUpdate(ConfigAddress::COMMAND,0,ConfigCommand::CONFIGURATION_SAVE);
+
+  if(kill_switch_emergeny_bit == -1) {
+    ROS_WARN("[mower_comms] Kill switch emergency bit is not defined. Use contact mode 'S' prefix in 'emergency_input_config' config");
+  }
 }
 
 int main(int argc, char **argv) {

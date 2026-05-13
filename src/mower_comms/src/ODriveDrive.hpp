@@ -47,7 +47,7 @@ public:
         status.rpm               = vel_estimate_rads * 60 / (2* M_PI);
         status.temperature_motor = odrv.motor_temperature;
         status.temperature_pcb   = odrv.fet_temperature;
-        status.xesc_status       = mapToXescStatus(ctrl.active_errors);
+        status.xesc_status       = mapToXescStatus(ctrl.active_errors, ctrl.axis_state);
 
         // --- Power / startup guard ---
         if (!esc_power ||
@@ -65,14 +65,16 @@ public:
         }
 
         // Strip temperature errors
-        uint32_t errors = ctrl.active_errors &
-            ~(AXIS_ERROR_OVER_TEMP);
+        //uint32_t errors = ctrl.active_errors & ~(AXIS_ERROR_OVER_TEMP);
+        //uint8_t axis_status 
+        uint16_t errorNoTemperatures = status.xesc_status & ~(xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR | xesc_msgs::XescState::XESC_FAULT_OVERTEMP_PCB);
 
         // --- Error check ---
-        if (errors) {
+        if (errorNoTemperatures) {
             ROS_ERROR_STREAM_THROTTLE(1,
                 "[ODriveDrive] " << wheelName(wheel)
                 << " active_errors=0x" << std::hex << ctrl.active_errors
+                << " axis_state=" << ctrl.axis_state
                 << " disarm_reason=0x" << std::hex << odrv.disarm_reason);
             status.status = mower_msgs::ESCStatus::ESC_STATUS_ERROR;
             return;
@@ -169,11 +171,15 @@ private:
         return it->second;
     }
 
-    static uint32_t mapToXescStatus(uint32_t axis_err) {
+    static uint32_t mapToXescStatus(uint32_t axis_err, uint8_t axis_state) {
         uint32_t xesc = 0;
 
-        if (axis_err == AXIS_ERROR_NONE)
+        if (axis_err == AXIS_ERROR_NONE && axis_state == AXIS_STATE_CLOSED_LOOP_CONTROL)
             return xesc;
+
+        if(axis_state != AXIS_STATE_CLOSED_LOOP_CONTROL) {
+            xesc |= xesc_msgs::XescState::XESC_FAULT_UNINITIALIZED;
+        }
 
         // Watchdog / timing
         if (axis_err & AXIS_ERROR_WATCHDOG_TIMER_EXPIRED)
