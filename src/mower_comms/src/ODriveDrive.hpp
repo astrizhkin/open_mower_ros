@@ -66,7 +66,6 @@ public:
 
         // Strip temperature errors
         //uint32_t errors = ctrl.active_errors & ~(AXIS_ERROR_OVER_TEMP);
-        //uint8_t axis_status 
         uint16_t errorNoTemperatures = status.xesc_status & ~(xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR | xesc_msgs::XescState::XESC_FAULT_OVERTEMP_PCB);
 
         // --- Error check ---
