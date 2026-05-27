@@ -276,7 +276,7 @@ bool setMowerEnabledEx(bool enabled, float power, bool direction) {
   const auto last_config = getConfig();
 
   if (!last_config.enable_mower && enabled) {
-    ROS_WARN_STREAM("[mower_logic] setMowerEnabled() - Mower should be enabled but is hard-disabled in the config.");
+    ROS_WARN_STREAM_THROTTLE(10,"[mower_logic] setMowerEnabled() - Mower should be enabled but is hard-disabled in the config.");
     enabled = false;
   }
   if(enabled) {
