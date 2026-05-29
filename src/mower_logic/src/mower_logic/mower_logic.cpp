@@ -312,8 +312,8 @@ bool setMowerEnabledEx(bool enabled, float power, bool direction) {
 
 bool setMowerEnabled(bool enabled) {
   ros::Time now = ros::Time::now();
-  bool reverseDirection = (now.sec & 0b111111) == 0b11;  // Reverse mower direction for 1 sec
-  return setMowerEnabledEx(enabled, 0.60, !reverseDirection);
+  //bool reverseDirection = (now.sec & 0b111111) == 0b11;  // Reverse mower direction for 1 sec
+  return setMowerEnabledEx(enabled, 0.60, true/*!reverseDirection*/);
 }
 
 /// @brief Halt all bot movement
