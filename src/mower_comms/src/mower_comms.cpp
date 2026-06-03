@@ -334,8 +334,8 @@ void publishStatus() {
     contact_msg.header.stamp = last_ll_status_time;
     std::ostringstream contact_frame_id;
     contact_frame_id << "contact_" << i;
-    contact_msg.header.frame_id=contact_frame_id.str();
-    contact_msg.is_active = last_ll_status.contacts&(1 << i);
+    contact_msg.header.frame_id = contact_frame_id.str();
+    contact_msg.is_active = last_ll_status.contacts & (1 << i);
     contact_pub.publish(contact_msg);
   }
 
@@ -846,6 +846,7 @@ void handleLowLevelStatus(struct ll_status *status) {
   }
   last_ll_status = *status;
   last_ll_status_time = ros::Time::now();
+  ROS_INFO("[mower_comms] LLStatus contacts: 0x%x, emergency: 0x%x", last_ll_status.contacts, last_ll_status.emergency_bitmask);
 }
 
 void handleLowLevelIMU(struct ll_imu *imu) {
