@@ -846,7 +846,7 @@ void handleLowLevelStatus(struct ll_status *status) {
   }
   last_ll_status = *status;
   last_ll_status_time = ros::Time::now();
-  ROS_INFO("[mower_comms] LLStatus contacts: 0x%x, emergency: 0x%x", last_ll_status.contacts, last_ll_status.emergency_bitmask);
+  //ROS_INFO("[mower_comms] LLStatus contacts: 0x%x, emergency: 0x%x", last_ll_status.contacts, last_ll_status.emergency_bitmask);
 }
 
 void handleLowLevelIMU(struct ll_imu *imu) {

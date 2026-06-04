@@ -80,14 +80,15 @@ struct ll_status {
     uint16_t uss_age_ms[USS_COUNT];
     //contact active after timeout
     uint8_t contacts;
+
     // Emergency bitmask:
-    // Bit 0: Emergency latch
+    // Bit 0: Unused
     // Bit 1: Emergency 0 active
     // Bit 2: Emergency 1 active
     // Bit 3: Emergency 2 active
     // Bit 4: Emergency 3 active
-    // Bit 5: Emergency USS tiemout
-    // Bit 6: Emergency IMU tiemout
+    // Bit 5: Emergency ROS Tiemout
+    // Bit 6: Emergency High Level
     // Bit 7: Battery empty
     uint8_t emergency_bitmask;
     // Charge voltage
