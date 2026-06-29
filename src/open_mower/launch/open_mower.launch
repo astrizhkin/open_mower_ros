@@ -56,6 +56,7 @@
         <param name="mow_angle_increment" value="$(optenv OM_MOWING_ANGLE_INCREMENT 0)"/>
         <param name="motor_hot_temperature" value="$(env OM_MOWING_MOTOR_TEMP_HIGH)"/>
         <param name="motor_cold_temperature" value="$(env OM_MOWING_MOTOR_TEMP_LOW)"/>
+        <param name="mower_power_max" value="$(optenv OM_MOWER_POWER_MAX 0.5)"/>
             <param if="$(optenv OM_HW_SIMULATION False)" 
                 name="ignore_gps_errors" value="true"/>
             <param unless="$(optenv OM_HW_SIMULATION False)" 
