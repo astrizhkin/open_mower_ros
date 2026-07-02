@@ -313,7 +313,7 @@ bool setMowerEnabledEx(bool enabled, float power, bool direction) {
 bool setMowerEnabled(bool enabled) {
   ros::Time now = ros::Time::now();
   //bool reverseDirection = (now.sec & 0b111111) == 0b11;  // Reverse mower direction for 1 sec
-  float power = getConfig().mower_power_max;
+  float power = getConfig().mower_power_max * getConfig().mower_power;
   return setMowerEnabledEx(enabled, power, true /*!reverseDirection*/);
 }
 
