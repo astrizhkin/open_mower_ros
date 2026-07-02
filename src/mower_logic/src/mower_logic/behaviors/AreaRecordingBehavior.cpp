@@ -450,7 +450,7 @@ bool AreaRecordingBehavior::redirect_joystick() {
 }
 
 uint8_t AreaRecordingBehavior::get_state() {
-  return mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_RECORDING;
+  return mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_MANUAL;
 }
 
 std::string AreaRecordingBehavior::sub_state_name() {

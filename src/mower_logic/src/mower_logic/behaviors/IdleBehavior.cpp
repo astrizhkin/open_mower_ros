@@ -104,12 +104,8 @@ Behavior *IdleBehavior::execute() {
       return &MowingBehavior::INSTANCE;
     }
 
-    if (start_area_recorder) {
-      return &AreaRecordingBehavior::INSTANCE;
-    }
-
-    if (start_debug) {
-      return &DebugBehavior::INSTANCE;
+    if (next_desired_mode!=nullptr) {
+      return next_desired_mode;
     }
 
     // This gets called if we need to refresh, e.g. on clearing maps
@@ -130,8 +126,7 @@ Behavior *IdleBehavior::execute() {
 
 void IdleBehavior::enter() {
   mower_enabled_flag = mower_enabled_flag_before_pause = false;
-  start_debug = false;
-  start_area_recorder = false;
+  next_desired_mode = nullptr;
   // Reset the docking behavior, to allow docking
   DockingBehavior::INSTANCE.reset();
 
@@ -173,12 +168,17 @@ void IdleBehavior::command_start() {
 
 void IdleBehavior::command_s1() {
   ROS_INFO_STREAM("[IdleBehavior] Got start_area_recording command");
-  start_area_recorder = true;
+  next_desired_mode = &AreaRecordingBehavior::INSTANCE;
 }
 
-void IdleBehavior::command_s2() {
+void IdleBehavior::command_s1() {
+  ROS_INFO_STREAM("[IdleBehavior] Got manual_mode command");
+  next_desired_mode = &ManualBehavior::INSTANCE;
+}
+
+void IdleBehavior::go_debug_mode() {
   ROS_INFO_STREAM("[IdleBehavior] Got start_debug command");
-  start_debug = true;
+  next_desired_mode = &DebugBehavior::INSTANCE;
 }
 
 bool IdleBehavior::redirect_joystick() {
@@ -197,6 +197,7 @@ IdleBehavior::IdleBehavior(bool stayDocked) {
 
   actions.push_back(createAction("start_mowing","Start Mowing"));
   actions.push_back(createAction("start_area_recording","Start Area Recording"));
+  actions.push_back(createAction("start_manual_mode","Start Manual Mode"));
   actions.push_back(createAction("start_debug","Start Debug"));
 }
 
@@ -208,7 +209,9 @@ void IdleBehavior::handle_action(const std::string& action, const std::string& p
     }
   } else if (action == "mower_logic:idle/start_area_recording") {
     command_s1();
-  } else if (action == "mower_logic:idle/start_debug") {
+  } else if (action == "mower_logic:idle/start_manual_mode") {
     command_s2();
+  } else if (action == "mower_logic:idle/start_debug") {
+    go_debug_mode();
   }
 }

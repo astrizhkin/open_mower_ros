@@ -21,10 +21,9 @@
 #include <dynamic_reconfigure/server.h>
 #include <mower_map/GetDockingPointSrv.h>
 
-#include "AreaRecordingBehavior.h"
 #include "Behavior.h"
-#include "UndockingBehavior.h"
 #include "AreaRecordingBehavior.h"
+#include "ManualBehavior.h"
 #include "DebugBehavior.h"
 #include "mower_map/GetMowingAreasSrv.h"
 #include "mower_map/GetDockingPointSrv.h"
@@ -34,8 +33,7 @@ class IdleBehavior : public Behavior {
   bool stay_docked = false;
   bool manual_start_mowing = false;
   std::string manual_mowing_areas;
-  bool start_area_recorder = false;
-  bool start_debug = false;
+  Behavior *next_desired_mode = nullptr;
 
  public:
   IdleBehavior(bool stayDocked);
@@ -60,6 +58,8 @@ class IdleBehavior : public Behavior {
   void command_s1() override;
 
   void command_s2() override;
+
+  void go_debug_mode();
 
   bool redirect_joystick() override;
 
