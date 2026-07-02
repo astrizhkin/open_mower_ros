@@ -435,21 +435,20 @@ void checkSafety(const ros::TimerEvent &timer_event) {
   // send to idle if emergency and we're not recording
   if (currentBehavior != nullptr) {
     if (last_status.emergency) {
-      if (currentBehavior == &AreaRecordingBehavior::INSTANCE || currentBehavior == &IdleBehavior::INSTANCE ||
-          currentBehavior == &IdleBehavior::DOCKED_INSTANCE) {
+      if(currentBehavior->get_state() == mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_AUTONOMOUS) {
+        //abort or pause only autonomous motion behaviors
+        if (last_status.temporary_emergency) {
+          currentBehavior->requestPause(ePauseReason::PAUSE_AUTO);
+        } else {
+          abortExecution("emergency received");
+        }
+      } else {
         const auto last_config = getConfig();
         if (last_status.v_charge > last_config.charger_min_voltage) {
           // emergency and docked and idle or area recording, so it's safe to reset the emergency mode, reset it. It's
           // safe since we won't start moving in this mode.
           setEmergencyMode(false, mower_msgs::EmergencyModeSrvRequest::EMERGENCY_LOW_BATTERY,
                            "[mower_logic] Docked and charger battery reset", ros::Duration::ZERO);
-        }
-      } else {
-        //abort or pause only motion behaviors
-        if (last_status.temporary_emergency) {
-          currentBehavior->requestPause(ePauseReason::PAUSE_AUTO);
-        } else {
-          abortExecution("emergency received");
         }
       }
     } else {

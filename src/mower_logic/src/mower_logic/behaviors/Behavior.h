@@ -70,6 +70,20 @@ class Behavior {
     return action;
   }
 
+  void disableAllActions() {
+    for (auto &a : actions) {
+      a.enabled = false;
+    }    
+  }
+
+  xbot_msgs::ActionInfo& getAction(const std::string &id) {
+    for (auto &a : actions) {
+      if(a.action_id == id){
+        return a;
+      }
+    }
+    throw std::runtime_error("Action not found!");
+  }
 
   mower_logic::MowerLogicConfig config;
   std::shared_ptr<sSharedState> shared_state;
