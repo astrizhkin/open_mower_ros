@@ -183,6 +183,8 @@ add_executable(mower_logic
         src/mower_logic/behaviors/PerimeterDocking.cpp
         src/mower_logic/behaviors/AreaRecordingBehavior.h
         src/mower_logic/behaviors/AreaRecordingBehavior.cpp
+        src/mower_logic/behaviors/ManualBehavior.h
+        src/mower_logic/behaviors/ManualBehavior.cpp
         )
 add_dependencies(mower_logic ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(mower_logic ${catkin_LIBRARIES} ${CRYPTOPP_LIBRARIES})
