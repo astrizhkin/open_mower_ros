@@ -171,7 +171,7 @@ void IdleBehavior::command_s1() {
   next_desired_mode = &AreaRecordingBehavior::INSTANCE;
 }
 
-void IdleBehavior::command_s1() {
+void IdleBehavior::command_s2() {
   ROS_INFO_STREAM("[IdleBehavior] Got manual_mode command");
   next_desired_mode = &ManualBehavior::INSTANCE;
 }
