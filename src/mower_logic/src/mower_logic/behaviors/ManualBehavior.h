@@ -4,6 +4,8 @@
 
 #include "Behavior.h"
 #include "IdleBehavior.h"
+#include "AreaRecordingBehavior.h"
+#include "DockingBehavior.h"
 #include "geometry_msgs/Twist.h"
 #include "ros/ros.h"
 #include "sensor_msgs/Joy.h"
@@ -15,6 +17,8 @@ class ManualBehavior : public Behavior {
   ManualBehavior();
 
  private:
+  Behavior *next_desired_mode = nullptr;
+
   sensor_msgs::Joy last_joy;
 
   ros::Subscriber joy_sub;

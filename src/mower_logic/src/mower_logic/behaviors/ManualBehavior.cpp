@@ -19,6 +19,9 @@ Behavior *ManualBehavior::execute() {
 
   ros::Rate inputDelay(ros::Duration().fromSec(0.1));
   while (ros::ok() && !aborted) {
+    if(next_desired_mode != nullptr) {
+      return next_desired_mode;
+    }
     inputDelay.sleep();
   }
 
@@ -31,6 +34,7 @@ void ManualBehavior::enter() {
   mower_enabled_flag = mower_enabled_flag_before_pause = paused = aborted = false;
   //default enable mower for manual mowing
   mower_enabled_flag = true;
+  next_desired_mode = nullptr;
 
   ROS_INFO_STREAM("[ManualBehavior] Starting manual mode");
   ROS_INFO_STREAM("[ManualBehavior] Subscribing to /joy for user input");
@@ -80,6 +84,12 @@ void ManualBehavior::handle_action(const std::string& action, const std::string&
     setMowerEnabled(true);
   } else if (action == "mower_logic:manual_mode/stop_manual_mowing") {
     setMowerEnabled(false);
+  } else if(action == "mower_logic:manual_mode/start_area_recording") {
+    setMowerEnabled(false);
+    next_desired_mode = &AreaRecordingBehavior::INSTANCE;
+  } else if(action == "mower_logic:manual_mode/start_docking") {
+    setMowerEnabled(false);
+    next_desired_mode = &DockingBehavior::INSTANCE;
   } else if(action == "mower_logic:manual_mode/abort_manual") {
     this->abort();
   }
@@ -90,6 +100,8 @@ ManualBehavior::ManualBehavior() {
   actions.clear();
   actions.push_back(createAction("start_manual_mowing","Start manual mowing"));
   actions.push_back(createAction("stop_manual_mowing","Stop manual mowing"));
+  actions.push_back(createAction("start_area_recording","Start area recoding"));
+  actions.push_back(createAction("start_docking","Start docking"));
   actions.push_back(createAction("abort_manual","Stop manual mowing"));
 }
 
@@ -97,6 +109,8 @@ void ManualBehavior::update_actions() {
   disableAllActions();
   getAction("start_manual_mowing").enabled = !mower_enabled_flag;
   getAction("stop_manual_mowing").enabled = mower_enabled_flag;
+  getAction("start_area_recording").enabled = true;
+  getAction("start_docking").enabled = true;
   getAction("abort_manual").enabled = true;
   registerActions("mower_logic:manual_mode", actions);
 }
