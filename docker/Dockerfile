@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install --yes \
     git \
     mosquitto \
     openssl \
-    rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 # Install our configs
 COPY --link ./docker/assets/mosquitto.conf /etc/mosquitto/mosquitto.conf
