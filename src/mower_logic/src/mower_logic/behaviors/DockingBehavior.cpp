@@ -200,7 +200,11 @@ bool DockingBehavior::dock_straight() {
         // we stopped moving because the path has ended. check, if we have docked successfully
         ROS_INFO_STREAM("[DockingBehavior] Docking stopped, because we reached end pose. Voltage was "
                         << last_status.v_charge << " V.");
-        if (last_status.v_charge > 5.0) {
+
+        if (last_status.v_charge > 5.0 || !getConfig().dock_station_at_home) {
+          if(!getConfig().dock_station_at_home) {
+              ROS_INFO("[DockingBehavior] Finish docking as dock station is not configured");
+          }
           mbfClientExePath->cancelGoal();
           dockingSuccess = true;
           stopMoving("docking success");

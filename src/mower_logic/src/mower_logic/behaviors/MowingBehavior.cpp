@@ -217,6 +217,7 @@ bool MowingBehavior::create_mowing_plan(const std::string &area_name) {
   pathSrv.request.outer_offset = config.outline_offset;
   pathSrv.request.distance = config.tool_width;
   pathSrv.request.silent = true;
+  pathSrv.request.perimeter_only = getConfig().perimeter_dry_run;
 
   double min_rotation = DBL_MAX;
   double min_rotation_angle = angle;
