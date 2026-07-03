@@ -84,6 +84,8 @@ nav_msgs::Odometry last_odom3D;
 ros::Time status_time(0.0);
 mower_msgs::Status last_status;
 ros::Time joy_vel_time(0.0);
+float joy_mower_power = 0.0;
+ros::Time joy_mower_power_time(0.0);
 
 ros::Time last_good_gps(0.0);
 
@@ -99,8 +101,6 @@ double max_v_battery_seen = 0.0;
 ros::Time last_rain_check;
 bool rain_detected = true;
 ros::Time rain_resume;
-
-float last_mower_power = 0.0;
 
 /**
  * Some thread safe methods to get a copy of the logic state
@@ -270,20 +270,20 @@ bool setGPS(bool enabled, std::string reason) {
 
 /// @brief If the BLADE Motor is not in the requested status (enabled),we call the
 ///        the mower_service/mow_enabled service to enable/disable. TODO: get feedback about spinup and delay if needed
+/// @param power - power in range 0.0 - 1.0, not scaled to to max mower power
 /// @param enabled
 /// @return
 bool setMowerEnabledEx(bool enabled, float power, bool direction) {
+
   const auto last_config = getConfig();
 
   if (!last_config.enable_mower && enabled) {
     ROS_WARN_STREAM_THROTTLE(10,"[mower_logic] setMowerEnabled() - Mower should be enabled but is hard-disabled in the config.");
     enabled = false;
   }
-  if(enabled) {
-    last_mower_power = power;
-  }else{
-    last_mower_power = 0.0;
-  }
+
+  power = last_config.mower_power_max * power;
+  power = std::min<float>(power,1.0);
 
   mower_msgs::MowerControlSrv mow_srv;
   mow_srv.request.mow_enabled = enabled;
@@ -313,10 +313,7 @@ bool setMowerEnabledEx(bool enabled, float power, bool direction) {
 bool setMowerEnabled(bool enabled) {
   ros::Time now = ros::Time::now();
   //bool reverseDirection = (now.sec & 0b111111) == 0b11;  // Reverse mower direction for 1 sec
-  float power = getConfig().mower_power_max * getConfig().mower_power;
-  power = std::min<float>(power,1.0);
-  power = std::max<float>(power,0.1);
-  return setMowerEnabledEx(enabled, power, true /*!reverseDirection*/);
+  return setMowerEnabledEx(enabled, getConfig().mower_power, true /*!reverseDirection*/);
 }
 
 /// @brief Halt all bot movement
@@ -562,7 +559,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     ROS_WARN_STREAM_THROTTLE(1, "[mower_logic] Low quality GPS");
   }
 
-  bool gpsTimeout = ros::Time::now() - last_good_gps > ros::Duration(last_config.gps_timeout);
+  bool gpsTimeout = (now - last_good_gps).toSec() > last_config.gps_timeout;
 
   if (gpsTimeout) {
     // GPS = bad, set quality to 0
@@ -581,7 +578,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
   }
 
   if (currentBehavior != nullptr && currentBehavior->redirect_joystick()) {
-    if (ros::Time::now() - joy_vel_time > ros::Duration(10)) {
+    if ((now - joy_vel_time).toSec() > 10) {
       stopMoving("joystick timeout");  // To avoid cmd_vel receive timeout in mower_comms
     }
   }
@@ -590,7 +587,15 @@ void checkSafety(const ros::TimerEvent &timer_event) {
   if(currentBehavior!=nullptr && currentBehavior->mower_enabled()) {
       if(currentBehavior->redirect_joystick()){
         //manual/joystick mower mode
-        setMowerEnabledEx(true, last_mower_power!=0 ? last_mower_power : getConfig().mower_power, true);
+        if ((now - joy_mower_power_time).toSec() < 5) {
+          setMowerEnabledEx(true, joy_mower_power, true); // we are getting joystic commands now
+        } if(joy_mower_power_time.toSec() > 0) { // we received once a joystic command
+          joy_mower_power = joy_mower_power * 0.99; //cooldown
+          setMowerEnabledEx(true, joy_mower_power, true);
+        } else {
+          //web app mower mode
+          setMowerEnabled(true);
+        }
       }else{
         //automatic mower mode
         setMowerEnabled(true);
@@ -774,6 +779,8 @@ void joyMowerReceived(const std_msgs::Float32::ConstPtr &joy_mower) {
   if (currentBehavior && currentBehavior->redirect_joystick() && currentBehavior->mower_enabled()) {
     ROS_INFO_STREAM_THROTTLE(2,"[mower_logic] joy mower cmd " << joy_mower->data);
     float power = (joy_mower->data + 1.0) / 2.0;
+    joy_mower_power = power;
+    joy_mower_power_time = ros::Time::now();
     setMowerEnabledEx(true, power, true);
   }
 }
@@ -1027,6 +1034,11 @@ int main(int argc, char **argv) {
   while (ros::ok()) {
     if (currentBehavior != nullptr) {
       currentBehavior->start(last_config, shared_state);
+      if(currentBehavior->redirect_joystick()) {
+        //reset joystic mower power and command time until received
+        joy_mower_power = 0;
+        joy_mower_power_time = ros::Time(0.0);
+      }
       Behavior *newBehavior = currentBehavior->execute();
       currentBehavior->exit();
       currentBehavior = newBehavior;
