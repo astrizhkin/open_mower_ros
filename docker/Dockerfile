@@ -16,19 +16,16 @@ RUN apt-get update && apt-get install --yes \
     git \
     mosquitto \
     openssl \
-    nginx && rm -rf /var/www /etc/nginx/sites-enabled/* \
     rm -rf /var/lib/apt/lists/*
 
 # Install our configs
 COPY --link ./docker/assets/mosquitto.conf /etc/mosquitto/mosquitto.conf
-COPY --link ./docker/assets/nginx.conf /etc/nginx/conf.d/default.conf
 
 #Generate self-signed certificate
 RUN openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-    -keyout /etc/ssl/private/openmower-selfsigned.key \
-    -out /etc/ssl/certs/openmower-selfsigned.crt \
+    -keyout /etc/ssl/private/mosquitto-selfsigned.key \
+    -out /etc/ssl/certs/mosquitto-selfsigned.crt \
     -subj "/C=RU/ST=NW/L=SPb/O=OS/CN=10.42.0.1"
-#RUN openssl dhparam -out /etc/nginx/dhparam.pem 4096
 
 # Update rosdep
 RUN rosdep update --rosdistro $ROS_DISTRO
@@ -113,4 +110,4 @@ COPY ./docker/openmower_entrypoint.sh /openmower_entrypoint.sh
 RUN chmod +x /openmower_entrypoint.sh
 
 ENTRYPOINT ["/openmower_entrypoint.sh"]
-CMD ["bash", "-c", "service nginx start; service mosquitto start; roslaunch open_mower open_mower.launch --screen"]
+CMD ["bash", "-c", "service mosquitto start; roslaunch open_mower open_mower.launch --screen"]
