@@ -121,7 +121,6 @@ Behavior *AreaRecordingBehavior::execute() {
 
 void AreaRecordingBehavior::enter() {
   area_type = mower_map::MapArea::AREA_NONE;
-  update_actions();
 
   has_first_docking_pos = false;
   has_odom = false;
@@ -130,8 +129,8 @@ void AreaRecordingBehavior::enter() {
   set_docking_position = false;
   markers = visualization_msgs::MarkerArray();
   mower_enabled_flag = mower_enabled_flag_before_pause = paused = aborted = false;
-  //default enable mower for manual mowing
-  mower_enabled_flag = true;
+
+  update_actions();
 
   add_mowing_area_client = n->serviceClient<mower_map::AddMowingAreaSrv>("mower_map_service/add_mowing_area");
   set_docking_point_client = n->serviceClient<mower_map::SetDockingPointSrv>("mower_map_service/set_docking_point");
@@ -487,16 +486,14 @@ void AreaRecordingBehavior::handle_action(const std::string& action, const std::
     abort();
   } else if (action == "mower_logic:area_recording/record_dock") {
     set_docking_position = true;
+  } else if (action == "mower_logic:area_recording/cancel_dock") {
+    has_first_docking_pos = false;
   } else if (action == "mower_logic:area_recording/auto_point_collecting_enable") {
     auto_point_collecting = true;
   } else if (action == "mower_logic:area_recording/auto_point_collecting_disable") {
     auto_point_collecting = false;
   } else if (action == "mower_logic:area_recording/collect_point") {
     collect_point = true;
-  } else if (action == "mower_logic:area_recording/start_manual_mowing") {
-    setMowerEnabled(true);
-  } else if (action == "mower_logic:area_recording/stop_manual_mowing") {
-    setMowerEnabled(false);
   }
   update_actions();
 }
@@ -515,8 +512,7 @@ AreaRecordingBehavior::AreaRecordingBehavior() {
   actions.push_back(createAction("auto_point_collecting_enable","Enable automatic point collecting"));
   actions.push_back(createAction("auto_point_collecting_disable","Disable automatic point collecting"));
   actions.push_back(createAction("collect_point","Collect point"));
-  actions.push_back(createAction("start_manual_mowing","Start manual mowing"));
-  actions.push_back(createAction("stop_manual_mowing","Stop manual mowing"));
+  actions.push_back(createAction("cancel_dock","Cancel Record Docking point"));             // 6->7
 }
 
 #define start_recording_action 0
@@ -530,16 +526,16 @@ AreaRecordingBehavior::AreaRecordingBehavior() {
 #define auto_point_collecting_enable_action 8
 #define auto_point_collecting_disable_action 9
 #define collect_point_action 10
-#define start_manual_mowing_action 11
-#define stop_manual_mowing_action 12
+#define cancel_dock_action 11
 
 void AreaRecordingBehavior::update_actions() {
   for (auto &a : actions) {
     a.enabled = false;
   }
   if (has_first_docking_pos) {
-    // we have recorded the first docking pose, only option is to finish by recording second one
+    // we have recorded the first docking pose, only option is to finish by recording second one or cancel
     actions[record_dock_action].enabled = true;
+    actions[cancel_dock_action].enabled = true;
   } else if (poly_recording_enabled) {
     // currently recording a polygon, allow stop and save actions
     actions[stop_recording_action].enabled = true;
@@ -563,10 +559,6 @@ void AreaRecordingBehavior::update_actions() {
     actions[finish_discard_action].enabled = true;
     actions[record_dock_action].enabled = true;
   }
-  // start_manual_mowing
-  actions[start_manual_mowing_action].enabled = !mower_enabled_flag;
-  // stop manual mowing
-  actions[stop_manual_mowing_action].enabled = mower_enabled_flag;
 
   registerActions("mower_logic:area_recording", actions);
 }

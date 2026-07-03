@@ -29,12 +29,10 @@ Behavior *ManualBehavior::execute() {
 }
 
 void ManualBehavior::enter() {
-  update_actions();
-
   mower_enabled_flag = mower_enabled_flag_before_pause = paused = aborted = false;
-  //default enable mower for manual mowing
-  mower_enabled_flag = true;
   next_desired_mode = nullptr;
+
+  update_actions();
 
   ROS_INFO_STREAM("[ManualBehavior] Starting manual mode");
   ROS_INFO_STREAM("[ManualBehavior] Subscribing to /joy for user input");
