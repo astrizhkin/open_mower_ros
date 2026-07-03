@@ -90,7 +90,7 @@ ManualBehavior::ManualBehavior() {
   actions.clear();
   actions.push_back(createAction("start_manual_mowing","Start manual mowing"));
   actions.push_back(createAction("stop_manual_mowing","Stop manual mowing"));
-  actions.push_back(createAction("manual_mode","Stop manual mowing"));
+  actions.push_back(createAction("abort_manual","Stop manual mowing"));
 }
 
 void ManualBehavior::update_actions() {
