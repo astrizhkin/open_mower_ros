@@ -590,7 +590,7 @@ void checkSafety(const ros::TimerEvent &timer_event) {
   if(currentBehavior!=nullptr && currentBehavior->mower_enabled()) {
       if(currentBehavior->redirect_joystick()){
         //manual/joystick mower mode
-        setMowerEnabledEx(true, last_mower_power, true);
+        setMowerEnabledEx(true, last_mower_power!=0 ? last_mower_power : getConfig().mower_power, true);
       }else{
         //automatic mower mode
         setMowerEnabled(true);

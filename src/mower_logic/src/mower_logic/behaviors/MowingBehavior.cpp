@@ -516,7 +516,8 @@ bool MowingBehavior::execute_mowing_plan() {
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     {
       // enable mower (only when we reach the start not on the way to mowing already)
-      this->setMowerEnabled(true);
+      bool run_mower_blade = !getConfig().perimeter_dry_run;
+      this->setMowerEnabled(run_mower_blade);
 
       mbf_msgs::ExePathGoal exePathGoal;
       nav_msgs::Path exePath;
