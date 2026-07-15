@@ -12,10 +12,10 @@
 	url = https://github.com/astrizhkin/xbot_positioning.git
 [submodule "src/lib/xbot_monitoring"]
 	path = src/lib/xbot_monitoring
-	url = https://github.com/ClemensElflein/xbot_monitoring
+	url = https://github.com/astrizhkin/xbot_monitoring
 [submodule "src/lib/xbot_remote"]
 	path = src/lib/xbot_remote
-	url = https://github.com/ClemensElflein/xbot_remote
+	url = https://github.com/astrizhkin/xbot_remote
 [submodule "src/lib/hoverboard-driver"]
 	path = src/lib/hoverboard-driver
 	url = https://github.com/astrizhkin/hoverboard-driver.git
