@@ -42,6 +42,14 @@
             <!--param name="radio_log_levels" value="ERROR,FATAL"/-->
             <remap from="/radio_log_in" to="/rosout_agg"/>
         </node>
+
+        <node pkg="e3_lib" type="radio_bridge_node" name="radio_bridge"
+            output="screen" respawn="true" respawn_delay="5">
+            <!-- bridge's radio_write → radio_node's e3_write (outgoing E3 frames to serial) -->
+            <remap from="~radio_write" to="/xbot_radio/e3_write"/>
+            <!-- bridge's e3_radio ← radio_node's radio_cmd (incoming 0xE3 frames from serial) -->
+            <remap from="~e3_radio" to="/xbot_radio/radio_cmd"/>
+        </node>
     </group>
 
 </launch>
