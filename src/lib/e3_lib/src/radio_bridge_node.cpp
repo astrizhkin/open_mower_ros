@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstdio>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <sstream>
@@ -40,8 +41,8 @@ static std::map<uint16_t, std::string>    action_key_to_id;
 
 static double g_batch_interval  = 20.0;
 static double g_retry_interval  = 5.0;
-static uint8_t g_max_retries    = 6;
-static uint16_t g_batch_max     = 100;
+static int g_max_retries        = 6;
+static int g_batch_max          = 100;
 
 // ── Flush helpers ───────────────────────────────────────────────────────────
 
@@ -51,7 +52,7 @@ static void send_frame(const std::vector<uint8_t>& frame_bytes) {
     g_radio_write_pub.publish(msg);
 }
 
-static void flush_immediate(const e3::E3KVInput& msg) {
+static void flush_immediate(const e3_lib::E3KVInput& msg) {
     e3::E3KVEntry entry;
     entry.key          = msg.key;
     entry.cmd_type     = static_cast<e3::CmdType>(msg.cmd_type);
@@ -81,11 +82,13 @@ static void flush_immediate(const e3::E3KVInput& msg) {
 static void flush_batch() {
     if (batch_buffer.empty()) return;
 
-    if (static_cast<uint16_t>(batch_buffer.size()) > g_batch_max) {
-        ROS_WARN("[e3_bridge] batch buffer has %zu entries (threshold: %u), dropping oldest",
+    if (static_cast<int>(batch_buffer.size()) > g_batch_max) {
+        ROS_WARN("[e3_bridge] batch buffer has %zu entries (threshold: %d), dropping oldest",
                  batch_buffer.size(), g_batch_max);
-        batch_buffer.erase(batch_buffer.begin(),
-                           batch_buffer.begin() + batch_buffer.size() - g_batch_max);
+        int to_drop = static_cast<int>(batch_buffer.size()) - g_batch_max;
+        auto drop_it = batch_buffer.begin();
+        std::advance(drop_it, to_drop);
+        batch_buffer.erase(batch_buffer.begin(), drop_it);
     }
 
     std::vector<e3::E3KVEntry> entries;
@@ -113,7 +116,7 @@ static void retry_immediate() {
     while (it != immediate_pending.end()) {
         double elapsed = (now - it->second.last_sent).toSec();
         if (elapsed >= g_retry_interval && it->second.retransmit_count < g_max_retries) {
-            e3::E3KVInput remsg;
+            e3_lib::E3KVInput remsg;
             remsg.key            = it->second.key;
             remsg.cmd_type       = static_cast<uint8_t>(it->second.cmd_type);
             remsg.data_unit      = static_cast<uint8_t>(it->second.data_unit);
@@ -134,7 +137,7 @@ static void retry_immediate() {
 
 // ── Callbacks ───────────────────────────────────────────────────────────────
 
-static void on_e3_in(const e3::E3KVInput::ConstPtr& msg) {
+static void on_e3_in(const e3_lib::E3KVInput::ConstPtr& msg) {
     uint16_t key = msg->key;
 
     if (is_immediate_key(key)) {
@@ -217,7 +220,7 @@ static void on_available_actions(const std_msgs::String::ConstPtr& msg) {
     std::string token;
     while (iss >> token) {
         uint16_t key;
-        if (sscanf(token.c_str(), "0x%04x", &key) != 1) continue;
+        if (sscanf(token.c_str(), "0x%04hx", &key) != 1) continue;
         std::string action_id;
         if (!(iss >> action_id)) break;
         action_key_to_id[key] = action_id;
@@ -268,7 +271,7 @@ int main(int argc, char** argv) {
     ros::Timer batch_timer = pnh.createTimer(ros::Duration(g_batch_interval), on_batch_timer);
     ros::Timer retry_timer = pnh.createTimer(ros::Duration(g_retry_interval), on_retry_timer);
 
-    ROS_INFO("[e3_bridge] Started: batch=%.0fs retry=%.0fs max_retries=%u",
+    ROS_INFO("[e3_bridge] Started: batch=%.0fs retry=%.0fs max_retries=%d",
              g_batch_interval, g_retry_interval, g_max_retries);
 
     ros::spin();
