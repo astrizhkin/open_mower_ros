@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstdlib>
 #include <cstdio>
 #include <iterator>
 #include <map>
@@ -43,6 +44,7 @@ static double g_batch_interval  = 20.0;
 static double g_retry_interval  = 5.0;
 static int g_max_retries        = 6;
 static int g_batch_max          = 100;
+static uint16_t g_sender_id     = 0;
 
 // ── Flush helpers ───────────────────────────────────────────────────────────
 
@@ -60,7 +62,7 @@ static void flush_immediate(const e3_lib::E3KVInput& msg) {
     entry.payload_length = static_cast<uint16_t>(msg.payload.size());
     entry.payload      = msg.payload.data();
 
-    auto frame = e3::build_e3_frame({entry});
+    auto frame = e3::build_e3_frame({entry}, g_sender_id);
     send_frame(frame);
 
     auto now = ros::Time::now();
@@ -75,8 +77,8 @@ static void flush_immediate(const e3_lib::E3KVInput& msg) {
             msg.payload, now, now, 1
         };
     }
-    ROS_INFO("[e3_bridge] Send immediate: key=0x%04X cmd=%s frame=%zu bytes",
-             msg.key, e3::cmd_type_name(entry.cmd_type).c_str(), frame.size());
+    ROS_INFO("[e3_bridge] Send immediate: key=0x%04X cmd=%s sender=0x%04X frame=%zu bytes",
+             msg.key, e3::cmd_type_name(entry.cmd_type).c_str(), g_sender_id, frame.size());
 }
 
 static void flush_batch() {
@@ -103,10 +105,10 @@ static void flush_batch() {
         entries.push_back(e);
     }
 
-    auto frame = e3::build_e3_frame(entries);
+    auto frame = e3::build_e3_frame(entries, g_sender_id);
     send_frame(frame);
 
-    ROS_INFO("[e3_bridge] Batch flush: %zu keys, %zu bytes", entries.size(), frame.size());
+    ROS_INFO("[e3_bridge] Batch flush: %zu keys, sender=0x%04X frame=%zu bytes", entries.size(), g_sender_id, frame.size());
     batch_buffer.clear();
 }
 
@@ -159,23 +161,23 @@ static void on_e3_in(const e3_lib::E3KVInput::ConstPtr& msg) {
 }
 
 static void on_e3_radio(const std_msgs::UInt8MultiArray::ConstPtr& msg) {
-    if (msg->data.size() < 5) return;
+    if (msg->data.size() < 8) return;
 
-    auto entries = e3::parse_e3_frame(msg->data.data(), msg->data.size());
-    if (entries.empty()) return;
+    auto frame = e3::parse_e3_frame_v2(msg->data.data(), msg->data.size());
+    if (frame.entries.empty()) return;
 
-    for (const auto& entry : entries) {
+    for (const auto& entry : frame.entries) {
         // Handle ACK/NACK
         if (entry.cmd_type == e3::ACK || entry.cmd_type == e3::NACK) {
             auto it = immediate_pending.find(entry.key);
             if (it != immediate_pending.end()) {
                 double pending = (ros::Time::now() - it->second.last_sent).toSec();
-                ROS_INFO("[e3_bridge] %s received: key=0x%04X (pending %.1fs)",
-                         e3::cmd_type_name(entry.cmd_type).c_str(), entry.key, pending);
+                ROS_INFO("[e3_bridge] %s received: key=0x%04X sender=0x%04X (pending %.1fs)",
+                         e3::cmd_type_name(entry.cmd_type).c_str(), entry.key, frame.sender_id, pending);
                 immediate_pending.erase(it);
             } else {
-                ROS_WARN("[e3_bridge] %s for unknown key=0x%04X",
-                         e3::cmd_type_name(entry.cmd_type).c_str(), entry.key);
+                ROS_WARN("[e3_bridge] %s for unknown key=0x%04X sender=0x%04X",
+                         e3::cmd_type_name(entry.cmd_type).c_str(), entry.key, frame.sender_id);
             }
         }
         // Handle incoming commands (ESPHome → ROS, cmd_type SET, key 0x02xx)
@@ -185,16 +187,16 @@ static void on_e3_radio(const std_msgs::UInt8MultiArray::ConstPtr& msg) {
                 std_msgs::String action_msg;
                 action_msg.data = it->second;
                 g_action_pub.publish(action_msg);
-                ROS_INFO("[e3_bridge] Incoming command: key=0x%04X → action_id=%s",
-                         entry.key, it->second.c_str());
+                ROS_INFO("[e3_bridge] Incoming command: key=0x%04X sender=0x%04X -> action_id=%s",
+                         entry.key, frame.sender_id, it->second.c_str());
             } else {
-                ROS_WARN("[e3_bridge] Incoming command: key=0x%04X (no action mapping)", entry.key);
+                ROS_WARN("[e3_bridge] Incoming command: key=0x%04X sender=0x%04X (no action mapping)", entry.key, frame.sender_id);
             }
         }
         // Log other incoming
         else {
-            ROS_INFO("[e3_bridge] Incoming: key=0x%04X cmd=%s range=%s plen=%u",
-                     entry.key, e3::cmd_type_name(entry.cmd_type).c_str(),
+            ROS_INFO("[e3_bridge] Incoming: key=0x%04X sender=0x%04X cmd=%s range=%s plen=%u",
+                     entry.key, frame.sender_id, e3::cmd_type_name(entry.cmd_type).c_str(),
                      e3::key_range_name(entry.key).c_str(), entry.payload_length);
         }
     }
@@ -244,9 +246,9 @@ static void on_available_actions(const std_msgs::String::ConstPtr& msg) {
         entry.data_unit = e3::BYTE;
         entry.payload_length = static_cast<uint16_t>(payload.size());
         entry.payload = payload.data();
-        auto frame = e3::build_e3_frame({entry});
+        auto frame = e3::build_e3_frame({entry}, g_sender_id);
         send_frame(frame);
-        ROS_INFO("[e3_bridge] Actions list sent: %zu keys to ESPHome", keys.size());
+        ROS_INFO("[e3_bridge] Actions list sent: %zu keys to ESPHome (sender=0x%04X)", keys.size(), g_sender_id);
     }
 }
 
@@ -271,8 +273,25 @@ int main(int argc, char** argv) {
     ros::Timer batch_timer = pnh.createTimer(ros::Duration(g_batch_interval), on_batch_timer);
     ros::Timer retry_timer = pnh.createTimer(ros::Duration(g_retry_interval), on_retry_timer);
 
-    ROS_INFO("[e3_bridge] Started: batch=%.0fs retry=%.0fs max_retries=%d",
-             g_batch_interval, g_retry_interval, g_max_retries);
+    // Derive SENDER_ID from ROBOT_ID env var (first 4 hex chars = first 2 bytes of /etc/machine-id)
+    {
+        const char* robot_id = std::getenv("ROBOT_ID");
+        if (robot_id && robot_id[0] && robot_id[1]) {
+            uint16_t sid;
+            if (sscanf(robot_id, "%04hx", &sid) == 1) {
+                g_sender_id = sid;
+            } else {
+                g_sender_id = 0x0001;
+                ROS_WARN("[e3_bridge] Invalid ROBOT_ID '%s', defaulting SENDER_ID=0x0001", robot_id);
+            }
+        } else {
+            g_sender_id = 0x0001;
+            ROS_WARN("[e3_bridge] ROBOT_ID not set, defaulting SENDER_ID=0x0001");
+        }
+    }
+
+    ROS_INFO("[e3_bridge] Started: sender=0x%04X batch=%.0fs retry=%.0fs max_retries=%d",
+             g_sender_id, g_batch_interval, g_retry_interval, g_max_retries);
 
     ros::spin();
     return 0;
