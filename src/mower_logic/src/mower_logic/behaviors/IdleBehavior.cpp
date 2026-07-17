@@ -195,10 +195,10 @@ IdleBehavior::IdleBehavior(bool stayDocked) {
 
   actions.clear();
 
-  actions.push_back(createAction("start_mowing","Start Mowing"));
-  actions.push_back(createAction("start_area_recording","Start Area Recording"));
-  actions.push_back(createAction("start_manual_mode","Start Manual Mode"));
-  actions.push_back(createAction("start_debug","Start Debug"));
+  actions.push_back(createAction("start_mowing", "Start Mowing", 0x0300));
+  actions.push_back(createAction("start_area_recording", "Start Area Recording", 0x0301));
+  actions.push_back(createAction("start_manual_mode", "Start Manual Mode", 0x0302));
+  actions.push_back(createAction("start_debug", "Start Debug", 0x0303));
 }
 
 void IdleBehavior::handle_action(const std::string& action, const std::string& parameters) {

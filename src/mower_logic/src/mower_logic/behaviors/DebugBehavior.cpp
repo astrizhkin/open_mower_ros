@@ -264,7 +264,7 @@ DebugBehavior::DebugBehavior() {
     this->sub_state = 2;
 
     actions.clear();
-    actions.push_back(createAction("abort","Stop Debug"));
+    actions.push_back(createAction("abort", "Stop Debug", 0x03A0));
 }
 
 bool DebugBehavior::redirect_joystick() {

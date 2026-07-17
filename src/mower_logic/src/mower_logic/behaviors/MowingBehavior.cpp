@@ -695,11 +695,11 @@ MowingBehavior::MowingBehavior() {
   last_checkpoint = ros::Time(0.0);
   
   actions.clear();
-  actions.push_back(createAction("pause","Pause Mowing"));
-  actions.push_back(createAction("continue","Continue Mowing"));
-  actions.push_back(createAction("abort_mowing","Stop Mowing"));
-  actions.push_back(createAction("skip_area","Skip Area"));
-  actions.push_back(createAction("skip_path","Skip Path"));
+  actions.push_back(createAction("pause", "Pause Mowing", 0x03C0));
+  actions.push_back(createAction("continue", "Continue Mowing", 0x03C1));
+  actions.push_back(createAction("abort_mowing", "Stop Mowing", 0x03C2));
+  actions.push_back(createAction("skip_area", "Skip Area", 0x03C3));
+  actions.push_back(createAction("skip_path", "Skip Path", 0x03C4));
 }
 
 void MowingBehavior::handle_action(const std::string& action, const std::string& parameters) {

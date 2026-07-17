@@ -36,7 +36,7 @@ DockingBehavior::DockingBehavior() {
   this->sub_state = 1;
 
   actions.clear();
-  actions.push_back(createAction("abort_docking","Stop Docking"));
+  actions.push_back(createAction("abort_docking", "Stop Docking", 0x0360));
 }
 
 actionlib::SimpleClientGoalState DockingBehavior::sendGoalAndWait(mbf_msgs::ExePathGoal &goal) {

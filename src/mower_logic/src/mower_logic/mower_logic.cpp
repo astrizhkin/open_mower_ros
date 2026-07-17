@@ -790,6 +790,7 @@ void buildRootActions() {
   reset_emergency_action.action_id = "reset_emergency";
   reset_emergency_action.enabled = true;
   reset_emergency_action.action_name = "Reset Emergency";
+  reset_emergency_action.e3_key = 0x03E0;
   rootActions.push_back(reset_emergency_action);
 }
 

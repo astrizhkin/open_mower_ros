@@ -16,6 +16,7 @@
 //
 //
 
+#include <cmath>
 #include <dynamic_reconfigure/client.h>
 
 #include "mower_logic/MowerLogicConfig.h"
@@ -54,6 +55,7 @@ struct SensorConfig {
   std::string name;  // Speaking name, used in sensor widget
   std::string unit;  // Unit like A, V, ...
   uint8_t value_desc;
+  uint16_t e3_key;   // E3 sensor key (0x04xx), 0 if not assigned
   std::function<double(StatusPtr)> getStatusSensorValueCB = nullptr;
   std::function<void(SensorConfig &sensor_config)> setSensorLimitsCB = nullptr;
   std::string param_path = "";              // Path to parameters
@@ -77,25 +79,25 @@ void set_limits_mow_motor_temp(SensorConfig &sensor_config);
 // Place all sensors in a key=sensor.id -> SensorConfig map
 // clang-format off
 std::map<std::string, SensorConfig> sensor_configs{
-  {"om_v_charge", {"V Charge", "V", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_VOLTAGE, [](StatusPtr msg) { return msg->v_charge; }, &set_limits_charge_v}},
-  {"om_v_battery", {"V Battery", "V", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_VOLTAGE, [](StatusPtr msg) { return msg->v_battery; }, &set_limits_battery_v}},
-  {"om_battery_soc", {"Battery SOC", "%", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_PERCENT, [](StatusPtr msg) { return msg->battery_soc; }, &set_limits_battery_soc}},
-  {"om_battery_current", {"Battery Current", "A", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_CURRENT, [](StatusPtr msg) { return msg->battery_current; }, &set_limits_battery_current, "", [](){ return !paramNh->param("/mower_logic/ignore_charging_current", false); }}},
-  {"om_battery_temperature", {"Battery Temp", "deg.C", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE, [](StatusPtr msg) { return msg->battery_temperature; }, &set_limits_battery_temperature}},
-  {"om_rear_esc_temp", {"Rear ESC Temp", "deg.C", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE, [](StatusPtr msg) { return msg->rear_left_esc_status.temperature_pcb; }, &set_limits_esc_temp, "rear_left_xesc"}},
-  //{"om_rear_left_esc_temp", {"Rear Left ESC Temp", "deg.C", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE, [](StatusPtr msg) { return msg->rear_left_esc_status.temperature_pcb; }, &set_limits_esc_temp, "rear_left_xesc"}},
-  //{"om_rear_right_esc_temp", {"Rear Right ESC Temp", "deg.C", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE, [](StatusPtr msg) { return msg->rear_right_esc_status.temperature_pcb; }, &set_limits_esc_temp, "rear_right_xesc"}},
-  {"om_front_esc_temp", {"Front ESC Temp", "deg.C", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE, [](StatusPtr msg) { return msg->front_left_esc_status.temperature_pcb; }, &set_limits_esc_temp, "front_left_xesc"}},
-  //{"om_front_left_esc_temp", {"Front Left ESC Temp", "deg.C", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE, [](StatusPtr msg) { return msg->front_left_esc_status.temperature_pcb; }, &set_limits_esc_temp, "front_left_xesc"}},
-  //{"om_front_right_esc_temp", {"Front Right ESC Temp", "deg.C", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE, [](StatusPtr msg) { return msg->front_right_esc_status.temperature_pcb; }, &set_limits_esc_temp, "front_right_xesc"}},
-  {"om_mow_esc_temp", {"Mow ESC Temp", "deg.C", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE, [](StatusPtr msg) { return msg->mow_esc_status.temperature_pcb; }, &set_limits_esc_temp, "mower_xesc"}},
-  {"om_mow_motor_temp", {"Mow Motor Temp", "deg.C", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE, [](StatusPtr msg) { return msg->mow_esc_status.temperature_motor; }, &set_limits_mow_motor_temp, "mower_xesc", [](){ return paramNh->param("mower_xesc/has_motor_temp", true); }}},
-  {"om_mow_motor_current", {"Mow Motor Current", "A", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_CURRENT, [](StatusPtr msg) { return msg->mow_esc_status.current; }, &set_limits_mow_motor_current, "mower_xesc"}},
-  {"om_mow_motor_rpm", {"Mow Motor RPM", "rpm", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_RPM, [](StatusPtr msg) { return msg->mow_esc_status.rpm; }, &set_limits_mow_motor_rpm, "mower_xesc"}},
-  {"om_gps_accuracy", {"GPS Accuracy", "m", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DISTANCE}},
-  {"om_rssi", {"Radio RSSI", "dBm", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_SIGNAL}},
-  {"om_surface_angle", {"Surface Angle", "deg", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DEGREE}},
-  {"om_height", {"Height", "m", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DISTANCE}},
+  {"om_v_charge",          {"V Charge",         "V",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_VOLTAGE,   0x0400, [](StatusPtr msg) { return msg->v_charge; }, &set_limits_charge_v}},
+  {"om_v_battery",         {"V Battery",        "V",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_VOLTAGE,   0x0401, [](StatusPtr msg) { return msg->v_battery; }, &set_limits_battery_v}},
+  {"om_battery_soc",       {"Battery SOC",      "%",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_PERCENT,   0x0402, [](StatusPtr msg) { return msg->battery_soc; }, &set_limits_battery_soc}},
+  {"om_battery_current",   {"Battery Current",  "A",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_CURRENT,   0x0403, [](StatusPtr msg) { return msg->battery_current; }, &set_limits_battery_current, "", [](){ return !paramNh->param("/mower_logic/ignore_charging_current", false); }}},
+  {"om_battery_temperature",{"Battery Temp",    "deg.C",xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE,0x0404, [](StatusPtr msg) { return msg->battery_temperature; }, &set_limits_battery_temperature}},
+  {"om_rear_esc_temp",     {"Rear ESC Temp",    "deg.C",xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE,0x0405, [](StatusPtr msg) { return msg->rear_left_esc_status.temperature_pcb; }, &set_limits_esc_temp, "rear_left_xesc"}},
+  //{"om_rear_left_esc_temp", {"Rear Left ESC Temp", "deg.C", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE, 0x0406, [](StatusPtr msg) { return msg->rear_left_esc_status.temperature_pcb; }, &set_limits_esc_temp, "rear_left_xesc"}},
+  //{"om_rear_right_esc_temp",{"Rear Right ESC Temp","deg.C", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE, 0x0407, [](StatusPtr msg) { return msg->rear_right_esc_status.temperature_pcb; }, &set_limits_esc_temp, "rear_right_xesc"}},
+  {"om_front_esc_temp",    {"Front ESC Temp",   "deg.C",xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE,0x0408, [](StatusPtr msg) { return msg->front_left_esc_status.temperature_pcb; }, &set_limits_esc_temp, "front_left_xesc"}},
+  //{"om_front_left_esc_temp", {"Front Left ESC Temp", "deg.C", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE, 0x0409, [](StatusPtr msg) { return msg->front_left_esc_status.temperature_pcb; }, &set_limits_esc_temp, "front_left_xesc"}},
+  //{"om_front_right_esc_temp",{"Front Right ESC Temp","deg.C", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE, 0x040A, [](StatusPtr msg) { return msg->front_right_esc_status.temperature_pcb; }, &set_limits_esc_temp, "front_right_xesc"}},
+  {"om_mow_esc_temp",      {"Mow ESC Temp",     "deg.C",xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE,0x040B, [](StatusPtr msg) { return msg->mow_esc_status.temperature_pcb; }, &set_limits_esc_temp, "mower_xesc"}},
+  {"om_mow_motor_temp",    {"Mow Motor Temp",   "deg.C",xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE,0x040C, [](StatusPtr msg) { return msg->mow_esc_status.temperature_motor; }, &set_limits_mow_motor_temp, "mower_xesc", [](){ return paramNh->param("mower_xesc/has_motor_temp", true); }}},
+  {"om_mow_motor_current", {"Mow Motor Current","A",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_CURRENT,   0x040D, [](StatusPtr msg) { return msg->mow_esc_status.current; }, &set_limits_mow_motor_current, "mower_xesc"}},
+  {"om_mow_motor_rpm",     {"Mow Motor RPM",    "rpm", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_RPM,       0x040E, [](StatusPtr msg) { return msg->mow_esc_status.rpm; }, &set_limits_mow_motor_rpm, "mower_xesc"}},
+  {"om_gps_accuracy",      {"GPS Accuracy",     "m",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DISTANCE, 0x040F}},
+  {"om_rssi",              {"Radio RSSI",       "dBm", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_SIGNAL,   0x0410}},
+  {"om_surface_angle",     {"Surface Angle",    "deg", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DEGREE,   0x0411}},
+  {"om_height",            {"Height",           "m",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DISTANCE, 0x0412}},
 };
 // clang-format on
 
@@ -257,6 +259,7 @@ void registerSensors() {
     sc_pair.second.si.sensor_name = sc_pair.second.name;
 
     sc_pair.second.si.unit = sc_pair.second.unit;
+    sc_pair.second.si.e3_key = sc_pair.second.e3_key;
     sc_pair.second.si.value_type = xbot_msgs::SensorInfo::TYPE_DOUBLE;
     sc_pair.second.si.value_description = sc_pair.second.value_desc;
 

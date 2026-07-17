@@ -12,6 +12,11 @@ add_message_files(
         E3KVInput.msg
         )
 
+add_service_files(
+        FILES
+        ScheduleE3KV.srv
+        )
+
 generate_messages(
         DEPENDENCIES
         std_msgs

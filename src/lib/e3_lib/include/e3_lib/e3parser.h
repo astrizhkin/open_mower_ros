@@ -53,66 +53,7 @@ inline bool validate_e3_crc(const uint8_t* frame, size_t frame_len) {
     return computed == stored;
 }
 
-inline std::vector<E3KVEntry> parse_e3_frame(const uint8_t* frame, size_t frame_len) {
-    // Frame: 0xE3 lenH lenL senderH senderL kv_data(length bytes) crc crc crc
-    // length = number of kv_data bytes (does not include sender_id)
-    std::vector<E3KVEntry> entries;
-    if (frame_len < 8) return entries;
-
-    if (!validate_e3_crc(frame, frame_len)) return entries;
-
-    uint16_t total_len = (uint16_t(frame[1]) << 8) | frame[2];
-    size_t data_len = frame_len - 3;
-    size_t kv_end = 5 + total_len;
-    if (kv_end > data_len) kv_end = data_len;
-
-    size_t pos = 5;
-    while (pos + 4 <= kv_end) {
-        E3KVEntry entry{};
-        entry.key = (uint16_t(frame[pos]) << 8) | frame[pos + 1];
-        uint8_t meta = frame[pos + 2];
-        entry.cmd_type = static_cast<CmdType>((meta >> 6) & 0x03);
-        entry.data_unit = static_cast<DataUnit>((meta >> 3) & 0x07);
-        uint16_t plen = (uint16_t(meta & 0x07) << 8) | frame[pos + 3];
-        entry.payload_length = plen;
-        entry.payload = (pos + 4 < frame_len) ? &frame[pos + 4] : nullptr;
-        entries.push_back(entry);
-        pos += 4 + plen;
-    }
-    return entries;
-}
-
-inline E3Frame parse_e3_frame_v2(const uint8_t* frame, size_t frame_len) {
-    // Frame: 0xE3 lenH lenL senderH senderL kv_data(length bytes) crc crc crc
-    // length = number of kv_data bytes (does not include sender_id)
-    E3Frame result{};
-    if (frame_len < 8) return result;
-
-    if (!validate_e3_crc(frame, frame_len)) return result;
-
-    result.sender_id = (uint16_t(frame[3]) << 8) | frame[4];
-    uint16_t total_len = (uint16_t(frame[1]) << 8) | frame[2];
-    size_t data_len = frame_len - 3;
-    size_t kv_end = 5 + total_len;
-    if (kv_end > data_len) kv_end = data_len;
-
-    size_t pos = 5;
-    while (pos + 4 <= kv_end) {
-        E3KVEntry entry{};
-        entry.key = (uint16_t(frame[pos]) << 8) | frame[pos + 1];
-        uint8_t meta = frame[pos + 2];
-        entry.cmd_type = static_cast<CmdType>((meta >> 6) & 0x03);
-        entry.data_unit = static_cast<DataUnit>((meta >> 3) & 0x07);
-        uint16_t plen = (uint16_t(meta & 0x07) << 8) | frame[pos + 3];
-        entry.payload_length = plen;
-        entry.payload = (pos + 4 < frame_len) ? &frame[pos + 4] : nullptr;
-        result.entries.push_back(entry);
-        pos += 4 + plen;
-    }
-    return result;
-}
-
-inline std::vector<uint8_t> build_e3_frame(const std::vector<E3KVEntry>& entries, uint16_t sender_id = 0) {
+inline std::vector<uint8_t> build_e3_payload(const std::vector<E3KVEntry>& entries) {
     std::vector<uint8_t> kv_bytes;
     for (const auto& e : entries) {
         uint16_t plen = e.payload_length;
@@ -127,6 +68,50 @@ inline std::vector<uint8_t> build_e3_frame(const std::vector<E3KVEntry>& entries
             kv_bytes.insert(kv_bytes.end(), e.payload, e.payload + plen);
         }
     }
+    return kv_bytes;
+}
+
+inline std::vector<E3KVEntry> parse_e3_payload(const uint8_t* payload, size_t payload_len) {
+    // Parse only the KV data portion (no preamble, length, sender_id, CRC).
+    // payload points to the first KV group byte.
+    std::vector<E3KVEntry> entries;
+    size_t pos = 0;
+    while (pos + 4 <= payload_len) {
+        E3KVEntry entry{};
+        entry.key = (uint16_t(payload[pos]) << 8) | payload[pos + 1];
+        uint8_t meta = payload[pos + 2];
+        entry.cmd_type = static_cast<CmdType>((meta >> 6) & 0x03);
+        entry.data_unit = static_cast<DataUnit>((meta >> 3) & 0x07);
+        uint16_t plen = (uint16_t(meta & 0x07) << 8) | payload[pos + 3];
+        entry.payload_length = plen;
+        entry.payload = (pos + 4 < payload_len) ? &payload[pos + 4] : nullptr;
+        entries.push_back(entry);
+        pos += 4 + plen;
+    }
+    return entries;
+}
+
+inline std::vector<E3KVEntry> parse_e3_frame(const uint8_t* frame, size_t frame_len) {
+    // Frame: 0xE3 lenH lenL senderH senderL kv_data(length bytes) crc crc crc
+    if (frame_len < 8) return {};
+    if (!validate_e3_crc(frame, frame_len)) return {};
+    uint16_t total_len = (uint16_t(frame[1]) << 8) | frame[2];
+    return parse_e3_payload(frame + 5, total_len);
+}
+
+inline E3Frame parse_e3_frame_v2(const uint8_t* frame, size_t frame_len) {
+    // Frame: 0xE3 lenH lenL senderH senderL kv_data(length bytes) crc crc crc
+    E3Frame result{};
+    if (frame_len < 8) return result;
+    if (!validate_e3_crc(frame, frame_len)) return result;
+    result.sender_id = (uint16_t(frame[3]) << 8) | frame[4];
+    uint16_t total_len = (uint16_t(frame[1]) << 8) | frame[2];
+    result.entries = parse_e3_payload(frame + 5, total_len);
+    return result;
+}
+
+inline std::vector<uint8_t> build_e3_frame(const std::vector<E3KVEntry>& entries, uint16_t sender_id = 0) {
+    std::vector<uint8_t> kv_bytes = build_e3_payload(entries);
 
     std::vector<uint8_t> frame;
     frame.push_back(0xE3);

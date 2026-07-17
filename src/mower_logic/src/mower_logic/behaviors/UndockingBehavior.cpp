@@ -189,7 +189,7 @@ UndockingBehavior::UndockingBehavior(Behavior *next) {
   this->sub_state = 2;
 
   actions.clear();
-  actions.push_back(createAction("abort_undocking","Stop Undocking"));
+  actions.push_back(createAction("abort_undocking", "Stop Undocking", 0x0380));
 }
 
 bool UndockingBehavior::redirect_joystick() {
