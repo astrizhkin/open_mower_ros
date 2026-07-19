@@ -130,6 +130,8 @@ inline E3Frame parse_e3_frame_v2(const uint8_t* frame, size_t frame_len) {
 }
 
 inline std::vector<uint8_t> build_e3_frame(const std::vector<uint8_t>& kv_payload, uint16_t sender_id = 0) {
+    if (kv_payload.size() > 0x3FF)
+        throw std::invalid_argument("E3 payload length >0x3FF");
     std::vector<uint8_t> frame;
     frame.push_back(0xE3);
     uint16_t total_len = static_cast<uint16_t>(kv_payload.size());
