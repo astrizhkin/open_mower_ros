@@ -45,28 +45,49 @@ inline bool validate_e3_crc(const uint8_t* frame, size_t frame_len) {
     return computed == stored;
 }
 
-inline std::vector<uint8_t> build_e3_payload(const std::vector<E3KVEntry>& entries) {
-    std::vector<uint8_t> kv_bytes;
+inline size_t kv_wire_size(const E3KVEntry& e) {
+    return 4 + e.payload_length;  // 4-byte header + payload
+}
+
+inline void append_kv_to_bytes(std::vector<uint8_t>& out, const E3KVEntry& e) {
+    uint16_t plen = e.payload_length;
+    if (plen > 0x3FF)
+        throw std::invalid_argument("KV payload length >0x3FF");
+    out.push_back((e.key >> 8) & 0xFF);
+    out.push_back(e.key & 0xFF);
+    uint8_t meta = (uint8_t(e.cmd_type) & 0x03) << 6;
+    meta |= (uint8_t(e.data_unit) & 0x07) << 3;
+    meta |= (uint8_t(plen >> 8) & 0x07);
+    out.push_back(meta);
+    out.push_back(plen & 0xFF);
+    if (e.payload && plen > 0) {
+        out.insert(out.end(), e.payload, e.payload + plen);
+    }
+}
+
+inline std::vector<std::vector<uint8_t>> split_into_payloads(const std::vector<E3KVEntry>& entries) {
+    std::vector<std::vector<uint8_t>> payloads;
+    std::vector<uint8_t> current;
     for (const auto& e : entries) {
-        uint16_t plen = e.payload_length;
-        if(plen > 0x3FF) {
-            throw std::invalid_argument("KV payload length >0x3FF");
+        size_t wsz = kv_wire_size(e);
+        if (wsz > 0x3FF)
+            throw std::invalid_argument("Single KV wire size exceeds 0x3FF");
+        if (current.size() + wsz > 0x3FF) {
+            payloads.push_back(std::move(current));
+            current.clear();
         }
-        kv_bytes.push_back((e.key >> 8) & 0xFF);
-        kv_bytes.push_back(e.key & 0xFF);
-        uint8_t meta = (uint8_t(e.cmd_type) & 0x03) << 6;
-        meta |= (uint8_t(e.data_unit) & 0x07) << 3;
-        meta |= (uint8_t(plen >> 8) & 0x07);
-        kv_bytes.push_back(meta);
-        kv_bytes.push_back(plen & 0xFF);
-        if (e.payload && plen > 0) {
-            kv_bytes.insert(kv_bytes.end(), e.payload, e.payload + plen);
-        }
+        append_kv_to_bytes(current, e);
     }
-    if(kv_bytes.size() > 0x3FF) {
+    if (!current.empty())
+        payloads.push_back(std::move(current));
+    return payloads;
+}
+
+inline std::vector<uint8_t> build_e3_payload(const std::vector<E3KVEntry>& entries) {
+    auto payloads = split_into_payloads(entries);
+    if (payloads.size() > 1)
         throw std::invalid_argument("E3 payload length >0x3FF");
-    }
-    return kv_bytes;
+    return payloads[0];
 }
 
 inline std::vector<E3KVEntry> parse_e3_payload(const uint8_t* payload, size_t payload_len) {
@@ -108,23 +129,25 @@ inline E3Frame parse_e3_frame_v2(const uint8_t* frame, size_t frame_len) {
     return result;
 }
 
-inline std::vector<uint8_t> build_e3_frame(const std::vector<E3KVEntry>& entries, uint16_t sender_id = 0) {
-    std::vector<uint8_t> kv_bytes = build_e3_payload(entries);
-
+inline std::vector<uint8_t> build_e3_frame(const std::vector<uint8_t>& kv_payload, uint16_t sender_id = 0) {
     std::vector<uint8_t> frame;
     frame.push_back(0xE3);
-    uint16_t total_len = static_cast<uint16_t>(kv_bytes.size());
+    uint16_t total_len = static_cast<uint16_t>(kv_payload.size());
     frame.push_back((total_len >> 8) & 0xFF);
     frame.push_back(total_len & 0xFF);
     frame.push_back((sender_id >> 8) & 0xFF);
     frame.push_back(sender_id & 0xFF);
-    frame.insert(frame.end(), kv_bytes.begin(), kv_bytes.end());
+    frame.insert(frame.end(), kv_payload.begin(), kv_payload.end());
 
     uint32_t crc = crc24q(frame.data(), frame.size());
     frame.push_back((crc >> 16) & 0xFF);
     frame.push_back((crc >> 8) & 0xFF);
     frame.push_back(crc & 0xFF);
     return frame;
+}
+
+inline std::vector<uint8_t> build_e3_frame(const std::vector<E3KVEntry>& entries, uint16_t sender_id = 0) {
+    return build_e3_frame(build_e3_payload(entries), sender_id);
 }
 
 inline std::string cmd_type_name(CmdType ct) {

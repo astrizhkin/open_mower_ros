@@ -17,6 +17,16 @@ static bool is_immediate_key(uint16_t key) {
     return (key >= 0x0000 && key <= 0x03FF);
 }
 
+static e3::E3KVEntry to_entry(const e3_lib::E3KVInput& kv) {
+    e3::E3KVEntry e;
+    e.key            = kv.key;
+    e.cmd_type       = static_cast<e3::CmdType>(kv.cmd_type);
+    e.data_unit      = static_cast<e3::DataUnit>(kv.data_unit);
+    e.payload_length = static_cast<uint16_t>(kv.payload.size());
+    e.payload        = kv.payload.data();
+    return e;
+}
+
 // ── Globals ─────────────────────────────────────────────────────────────────
 
 static ros::Publisher          g_tx_e3_payload_pub;
@@ -48,31 +58,43 @@ static void send_payload(const std::vector<uint8_t>& payload_bytes) {
     g_tx_e3_payload_pub.publish(msg);
 }
 
-static void flush_immediate(const e3_lib::E3KVInput& kv) {
-    e3::E3KVEntry entry;
-    entry.key            = kv.key;
-    entry.cmd_type       = static_cast<e3::CmdType>(kv.cmd_type);
-    entry.data_unit      = static_cast<e3::DataUnit>(kv.data_unit);
-    entry.payload_length = static_cast<uint16_t>(kv.payload.size());
-    entry.payload        = kv.payload.data();
+static void flush_immediate(const std::vector<e3_lib::E3KVInput>& kvs) {
+    if (kvs.empty()) return;
 
-    auto payload = e3::build_e3_payload({entry});
-    send_payload(payload);
+    // Build entries and split into packets that fit 0x3FF payload limit
+    std::vector<e3::E3KVEntry> entries;
+    entries.reserve(kvs.size());
+    for (const auto& kv : kvs)
+        entries.push_back(to_entry(kv));
 
+    auto payloads = e3::split_into_payloads(entries);
+
+    // Track each key in immediate_pending (first occurrence per unique key)
     auto now = ros::Time::now();
-    auto it = immediate_pending.find(kv.key);
-    if (it != immediate_pending.end()) {
-        it->second.payload           = kv.payload;
-        it->second.last_sent         = now;
-        it->second.retransmit_count++;
-    } else {
-        immediate_pending[kv.key] = {
-            kv.key, entry.cmd_type, entry.data_unit,
-            kv.payload, now, now, 1
-        };
+    for (const auto& kv : kvs) {
+        auto it = immediate_pending.find(kv.key);
+        if (it != immediate_pending.end()) {
+            it->second.payload        = kv.payload;
+            it->second.last_sent      = now;
+            it->second.retransmit_count++;
+        } else {
+            immediate_pending[kv.key] = {
+                kv.key,
+                static_cast<e3::CmdType>(kv.cmd_type),
+                static_cast<e3::DataUnit>(kv.data_unit),
+                kv.payload, now, now, 1
+            };
+        }
     }
-    ROS_INFO("[e3_bridge] Send immediate: key=0x%04X cmd=%s payload=%zu bytes",
-             kv.key, e3::cmd_type_name(entry.cmd_type).c_str(), payload.size());
+
+    // Send each packet
+    for (size_t i = 0; i < payloads.size(); i++) {
+        auto frame = e3::build_e3_frame(payloads[i]);
+        send_payload(frame);
+    }
+
+    ROS_INFO("[e3_bridge] Send immediate: %zu keys in %zu packet(s)",
+             kvs.size(), payloads.size());
 }
 
 static void queue_batch(const e3_lib::E3KVInput& kv) {
@@ -102,6 +124,7 @@ static void flush_batch() {
         batch_buffer.erase(batch_buffer.begin(), drop_it);
     }
 
+    // Build entries from buffer
     std::vector<e3::E3KVEntry> entries;
     entries.reserve(batch_buffer.size());
     for (const auto& [key, entry] : batch_buffer) {
@@ -114,10 +137,16 @@ static void flush_batch() {
         entries.push_back(e);
     }
 
-    auto payload = e3::build_e3_payload(entries);
-    send_payload(payload);
+    // Split into packets that fit 0x3FF payload limit
+    auto payloads = e3::split_into_payloads(entries);
 
-    ROS_INFO("[e3_bridge] Batch flush: %zu keys, payload=%zu bytes", entries.size(), payload.size());
+    for (size_t i = 0; i < payloads.size(); i++) {
+        auto frame = e3::build_e3_frame(payloads[i]);
+        send_payload(frame);
+    }
+
+    ROS_INFO("[e3_bridge] Batch flush: %zu keys in %zu packet(s)",
+             entries.size(), payloads.size());
     batch_buffer.clear();
 }
 
@@ -132,7 +161,7 @@ static void retry_immediate() {
             remsg.cmd_type       = static_cast<uint8_t>(it->second.cmd_type);
             remsg.data_unit      = static_cast<uint8_t>(it->second.data_unit);
             remsg.payload        = it->second.payload;
-            flush_immediate(remsg);
+            flush_immediate({remsg});
             ROS_WARN("[e3_bridge] Retry #%u for key=0x%04X (no ACK after %.1fs)",
                      it->second.retransmit_count, it->second.key, elapsed);
             it++;
@@ -156,18 +185,24 @@ static bool schedule_e3kv(e3_lib::ScheduleE3KV::Request& req,
         return true;
     }
 
-    size_t immediate = 0, batched = 0;
+    // Separate immediate and batch keys
+    std::vector<e3_lib::E3KVInput> immediate_kvs;
+    size_t batched = 0;
     for (const auto& kv : req.kvs) {
         if (is_immediate_key(kv.key)) {
-            flush_immediate(kv);
-            immediate++;
+            immediate_kvs.push_back(kv);
         } else {
             queue_batch(kv);
             batched++;
         }
     }
+
+    // Flush all immediate KVs together in one (or more if overflow) packet(s)
+    if (!immediate_kvs.empty())
+        flush_immediate(immediate_kvs);
+
     res.success = true;
-    res.message = std::to_string(immediate) + " immediate, " + std::to_string(batched) + " batched";
+    res.message = std::to_string(immediate_kvs.size()) + " immediate, " + std::to_string(batched) + " batched";
     return true;
 }
 
