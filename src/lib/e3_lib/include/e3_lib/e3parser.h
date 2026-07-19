@@ -14,8 +14,7 @@ struct E3KVEntry {
     uint16_t key;
     CmdType cmd_type;
     DataUnit data_unit;
-    uint16_t payload_length;
-    const uint8_t* payload;
+    std::vector<uint8_t> payload;
 };
 
 struct E3Frame {
@@ -46,11 +45,11 @@ inline bool validate_e3_crc(const uint8_t* frame, size_t frame_len) {
 }
 
 inline size_t kv_wire_size(const E3KVEntry& e) {
-    return 4 + e.payload_length;  // 4-byte header + payload
+    return 4 + e.payload.size();
 }
 
 inline void append_kv_to_bytes(std::vector<uint8_t>& out, const E3KVEntry& e) {
-    uint16_t plen = e.payload_length;
+    size_t plen = e.payload.size();
     if (plen > 0x3FF)
         throw std::invalid_argument("KV payload length >0x3FF");
     out.push_back((e.key >> 8) & 0xFF);
@@ -60,8 +59,8 @@ inline void append_kv_to_bytes(std::vector<uint8_t>& out, const E3KVEntry& e) {
     meta |= (uint8_t(plen >> 8) & 0x07);
     out.push_back(meta);
     out.push_back(plen & 0xFF);
-    if (e.payload && plen > 0) {
-        out.insert(out.end(), e.payload, e.payload + plen);
+    if (!e.payload.empty()) {
+        out.insert(out.end(), e.payload.begin(), e.payload.end());
     }
 }
 
@@ -90,20 +89,19 @@ inline std::vector<uint8_t> build_e3_payload(const std::vector<E3KVEntry>& entri
     return payloads[0];
 }
 
-inline std::vector<E3KVEntry> parse_e3_payload(const uint8_t* payload, size_t payload_len) {
+inline std::vector<E3KVEntry> parse_e3_payload(const uint8_t* data, size_t data_len) {
     // Parse only the KV data portion (no preamble, length, sender_id, CRC).
-    // payload points to the first KV group byte.
     std::vector<E3KVEntry> entries;
     size_t pos = 0;
-    while (pos + 4 <= payload_len) {
+    while (pos + 4 <= data_len) {
         E3KVEntry entry{};
-        entry.key = (uint16_t(payload[pos]) << 8) | payload[pos + 1];
-        uint8_t meta = payload[pos + 2];
+        entry.key = (uint16_t(data[pos]) << 8) | data[pos + 1];
+        uint8_t meta = data[pos + 2];
         entry.cmd_type = static_cast<CmdType>((meta >> 6) & 0x03);
         entry.data_unit = static_cast<DataUnit>((meta >> 3) & 0x07);
-        uint16_t plen = (uint16_t(meta & 0x07) << 8) | payload[pos + 3];
-        entry.payload_length = plen;
-        entry.payload = (pos + 4 < payload_len) ? &payload[pos + 4] : nullptr;
+        uint16_t plen = (uint16_t(meta & 0x07) << 8) | data[pos + 3];
+        if (pos + 4 + plen <= data_len)
+            entry.payload.assign(&data[pos + 4], &data[pos + 4 + plen]);
         entries.push_back(entry);
         pos += 4 + plen;
     }

@@ -22,8 +22,7 @@ static e3::E3KVEntry to_entry(const e3_lib::E3KVInput& kv) {
     e.key            = kv.key;
     e.cmd_type       = static_cast<e3::CmdType>(kv.cmd_type);
     e.data_unit      = static_cast<e3::DataUnit>(kv.data_unit);
-    e.payload_length = static_cast<uint16_t>(kv.payload.size());
-    e.payload        = kv.payload.data();
+    e.payload        = kv.payload;
     return e;
 }
 
@@ -34,7 +33,6 @@ static ros::Publisher          g_rx_e3kv_pub;
 
 struct BufferedEntry {
     e3::E3KVEntry entry;
-    std::vector<uint8_t> payload;  // owns data; entry.payload points here
     ros::Time last_updated;
     ros::Time last_sent;
     uint8_t retransmit_count;
@@ -71,15 +69,13 @@ static void flush_immediate(const std::vector<e3_lib::E3KVInput>& kvs) {
     for (const auto& kv : kvs) {
         auto it = immediate_pending.find(kv.key);
         if (it != immediate_pending.end()) {
-            it->second.payload        = kv.payload;
-            it->second.entry.payload  = it->second.payload.data();
-            it->second.entry.payload_length = static_cast<uint16_t>(kv.payload.size());
-            it->second.last_sent      = now;
+            it->second.entry.payload = kv.payload;
+            it->second.last_sent     = now;
             it->second.retransmit_count++;
         } else {
             e3::E3KVEntry e = to_entry(kv);
             immediate_pending[kv.key] = {
-                e, kv.payload, now, now, 1
+                e, now, now, 1
             };
         }
     }
@@ -98,7 +94,7 @@ static void queue_batch(const e3_lib::E3KVInput& kv) {
     auto now = ros::Time::now();
     e3::E3KVEntry e = to_entry(kv);
     batch_buffer[kv.key] = {
-        e, kv.payload, now, ros::Time(), 0
+        e, now, ros::Time(), 0
     };
     ROS_DEBUG("[e3_bridge] Batch queued: key=0x%04X range=%s",
               kv.key, e3::key_range_name(kv.key).c_str());
@@ -149,7 +145,7 @@ static void retry_immediate() {
             kv.key            = it->second.entry.key;
             kv.cmd_type       = static_cast<uint8_t>(it->second.entry.cmd_type);
             kv.data_unit      = static_cast<uint8_t>(it->second.entry.data_unit);
-            kv.payload        = it->second.payload;
+            kv.payload        = it->second.entry.payload;
             retry_kvs.push_back(kv);
             it++;
         } else if (it->second.retransmit_count >= g_max_retries) {
@@ -235,9 +231,7 @@ static void rx_e3_payload(const std_msgs::UInt8MultiArray::ConstPtr& msg) {
             kv_msg.key = entry.key;
             kv_msg.cmd_type = static_cast<uint8_t>(entry.cmd_type);
             kv_msg.data_unit = static_cast<uint8_t>(entry.data_unit);
-            if (entry.payload && entry.payload_length > 0) {
-                kv_msg.payload.assign(entry.payload, entry.payload + entry.payload_length);
-            }
+            kv_msg.payload = entry.payload;
             g_rx_e3kv_pub.publish(kv_msg);
         }
     }
