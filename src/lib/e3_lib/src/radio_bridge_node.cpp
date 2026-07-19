@@ -33,10 +33,8 @@ static ros::Publisher          g_tx_e3_payload_pub;
 static ros::Publisher          g_rx_e3kv_pub;
 
 struct BufferedEntry {
-    uint16_t key;
-    e3::CmdType cmd_type;
-    e3::DataUnit data_unit;
-    std::vector<uint8_t> payload;
+    e3::E3KVEntry entry;
+    std::vector<uint8_t> payload;  // owns data; entry.payload points here
     ros::Time last_updated;
     ros::Time last_sent;
     uint8_t retransmit_count;
@@ -69,20 +67,19 @@ static void flush_immediate(const std::vector<e3_lib::E3KVInput>& kvs) {
 
     auto payloads = e3::split_into_payloads(entries);
 
-    // Track each key in immediate_pending (first occurrence per unique key)
     auto now = ros::Time::now();
     for (const auto& kv : kvs) {
         auto it = immediate_pending.find(kv.key);
         if (it != immediate_pending.end()) {
             it->second.payload        = kv.payload;
+            it->second.entry.payload  = it->second.payload.data();
+            it->second.entry.payload_length = static_cast<uint16_t>(kv.payload.size());
             it->second.last_sent      = now;
             it->second.retransmit_count++;
         } else {
+            e3::E3KVEntry e = to_entry(kv);
             immediate_pending[kv.key] = {
-                kv.key,
-                static_cast<e3::CmdType>(kv.cmd_type),
-                static_cast<e3::DataUnit>(kv.data_unit),
-                kv.payload, now, now, 1
+                e, kv.payload, now, now, 1
             };
         }
     }
@@ -99,14 +96,9 @@ static void flush_immediate(const std::vector<e3_lib::E3KVInput>& kvs) {
 
 static void queue_batch(const e3_lib::E3KVInput& kv) {
     auto now = ros::Time::now();
+    e3::E3KVEntry e = to_entry(kv);
     batch_buffer[kv.key] = {
-        kv.key,
-        static_cast<e3::CmdType>(kv.cmd_type),
-        static_cast<e3::DataUnit>(kv.data_unit),
-        kv.payload,
-        now,
-        ros::Time(),
-        0
+        e, kv.payload, now, ros::Time(), 0
     };
     ROS_DEBUG("[e3_bridge] Batch queued: key=0x%04X range=%s",
               kv.key, e3::key_range_name(kv.key).c_str());
@@ -127,14 +119,8 @@ static void flush_batch() {
     // Build entries from buffer
     std::vector<e3::E3KVEntry> entries;
     entries.reserve(batch_buffer.size());
-    for (const auto& [key, entry] : batch_buffer) {
-        e3::E3KVEntry e;
-        e.key            = entry.key;
-        e.cmd_type       = entry.cmd_type;
-        e.data_unit      = entry.data_unit;
-        e.payload_length = static_cast<uint16_t>(entry.payload.size());
-        e.payload        = entry.payload.data();
-        entries.push_back(e);
+    for (const auto& [key, be] : batch_buffer) {
+        entries.push_back(be.entry);
     }
 
     // Split into packets that fit 0x3FF payload limit
@@ -160,15 +146,15 @@ static void retry_immediate() {
         double elapsed = (now - it->second.last_sent).toSec();
         if (elapsed >= g_retry_interval && it->second.retransmit_count < g_max_retries) {
             e3_lib::E3KVInput kv;
-            kv.key            = it->second.key;
-            kv.cmd_type       = static_cast<uint8_t>(it->second.cmd_type);
-            kv.data_unit      = static_cast<uint8_t>(it->second.data_unit);
+            kv.key            = it->second.entry.key;
+            kv.cmd_type       = static_cast<uint8_t>(it->second.entry.cmd_type);
+            kv.data_unit      = static_cast<uint8_t>(it->second.entry.data_unit);
             kv.payload        = it->second.payload;
             retry_kvs.push_back(kv);
             it++;
         } else if (it->second.retransmit_count >= g_max_retries) {
             ROS_ERROR("[e3_bridge] ERROR: max retries (%u) exceeded for key=0x%04X",
-                      g_max_retries, it->second.key);
+                      g_max_retries, it->second.entry.key);
             it = immediate_pending.erase(it);
         } else {
             it++;
@@ -183,7 +169,7 @@ static void retry_immediate() {
         if (rit != immediate_pending.end()) {
             double elapsed = (now - rit->second.last_sent).toSec();
             ROS_WARN("[e3_bridge] Retry #%u for key=0x%04X (no ACK after %.1fs)",
-                     rit->second.retransmit_count, rit->second.key, elapsed);
+                     rit->second.retransmit_count, rit->second.entry.key, elapsed);
         }
     }
 
