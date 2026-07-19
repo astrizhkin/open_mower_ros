@@ -212,8 +212,11 @@ static void rx_e3_payload(const std_msgs::UInt8MultiArray::ConstPtr& msg) {
     auto entries = e3::parse_e3_payload(msg->data.data(), msg->data.size());
     if (entries.empty()) return;
 
+    // Collect ACK responses for immediate keys
+    std::vector<e3::E3KVEntry> ack_entries;
+
     for (const auto& entry : entries) {
-        // Handle ACK/NACK internally
+        // Handle ACK/NACK from our own outgoing messages
         if (entry.cmd_type == e3::ACK || entry.cmd_type == e3::NACK) {
             auto it = immediate_pending.find(entry.key);
             if (it != immediate_pending.end()) {
@@ -225,15 +228,35 @@ static void rx_e3_payload(const std_msgs::UInt8MultiArray::ConstPtr& msg) {
                 ROS_WARN("[e3_bridge] %s for unknown key=0x%04X",
                          e3::cmd_type_name(entry.cmd_type).c_str(), entry.key);
             }
-        } else {
-            // Forward all non-ACK/NACK entries to rx_e3kv
-            e3_lib::E3KVInput kv_msg;
-            kv_msg.key = entry.key;
-            kv_msg.cmd_type = static_cast<uint8_t>(entry.cmd_type);
-            kv_msg.data_unit = static_cast<uint8_t>(entry.data_unit);
-            kv_msg.payload = entry.payload;
-            g_rx_e3kv_pub.publish(kv_msg);
+            continue;
         }
+
+        // ACK immediate keys back to sender
+        if (is_immediate_key(entry.key)) {
+            e3::E3KVEntry ack;
+            ack.key = entry.key;
+            ack.cmd_type = e3::ACK;
+            ack.data_unit = entry.data_unit;
+            ack_entries.push_back(ack);
+        }
+
+        // Forward to rx_e3kv
+        e3_lib::E3KVInput kv_msg;
+        kv_msg.key = entry.key;
+        kv_msg.cmd_type = static_cast<uint8_t>(entry.cmd_type);
+        kv_msg.data_unit = static_cast<uint8_t>(entry.data_unit);
+        kv_msg.payload = entry.payload;
+        g_rx_e3kv_pub.publish(kv_msg);
+    }
+
+    // Send ACK responses
+    if (!ack_entries.empty()) {
+        auto payloads = e3::split_into_payloads(ack_entries);
+        for (const auto& payload : payloads) {
+            auto frame = e3::build_e3_frame(payload);
+            send_payload(frame);
+        }
+        ROS_INFO("[e3_bridge] ACK sent: %zu keys", ack_entries.size());
     }
 }
 
