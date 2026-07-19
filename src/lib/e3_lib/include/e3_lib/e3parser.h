@@ -10,14 +10,6 @@ namespace e3 {
 enum CmdType : uint8_t { SET = 0, GET = 1, ACK = 2, NACK = 3 };
 enum DataUnit : uint8_t { BYTE = 0, BOOL = 1, INT16 = 2, INT32 = 3, FLOAT32 = 4, INT64 = 5, DOUBLE = 6, CHAR = 7 };
 
-enum CommandKey : uint16_t {
-    CMD_ACTIONS_LIST = 0x0200,
-    CMD_RESUME       = 0x0210,
-    CMD_STOP         = 0x0220,
-    CMD_PAUSE        = 0x0230,
-    CMD_NEXT         = 0x0240
-};
-
 struct E3KVEntry {
     uint16_t key;
     CmdType cmd_type;
@@ -57,6 +49,9 @@ inline std::vector<uint8_t> build_e3_payload(const std::vector<E3KVEntry>& entri
     std::vector<uint8_t> kv_bytes;
     for (const auto& e : entries) {
         uint16_t plen = e.payload_length;
+        if(plen > 0x3FF) {
+            throw std::invalid_argument("KV payload length >0x3FF");
+        }
         kv_bytes.push_back((e.key >> 8) & 0xFF);
         kv_bytes.push_back(e.key & 0xFF);
         uint8_t meta = (uint8_t(e.cmd_type) & 0x03) << 6;
@@ -67,6 +62,9 @@ inline std::vector<uint8_t> build_e3_payload(const std::vector<E3KVEntry>& entri
         if (e.payload && plen > 0) {
             kv_bytes.insert(kv_bytes.end(), e.payload, e.payload + plen);
         }
+    }
+    if(kv_bytes.size() > 0x3FF) {
+        throw std::invalid_argument("E3 payload length >0x3FF");
     }
     return kv_bytes;
 }

@@ -49,9 +49,9 @@
         <node pkg="e3_lib" type="radio_bridge_node" name="radio_bridge"
             output="screen" respawn="true" respawn_delay="5">
             <!-- bridge's radio_write → radio_node's tx_e3_payload (KV payload bytes) -->
-            <remap from="~radio_write" to="/xbot_radio/tx_e3_payload"/>
+            <remap from="~tx_e3_payload" to="/xbot_radio/tx_e3_payload"/>
             <!-- bridge's e3_radio ← radio_node's rx_e3_payload (KV payload bytes) -->
-            <remap from="~e3_radio" to="/xbot_radio/rx_e3_payload"/>
+            <remap from="~rx_e3_payload" to="/xbot_radio/rx_e3_payload"/>
             <!-- bridge's rx_e3kv → xbot_monitoring parsed KV entries -->
             <remap from="~rx_e3kv" to="/xbot_radio/rx_e3kv"/>
         </node>

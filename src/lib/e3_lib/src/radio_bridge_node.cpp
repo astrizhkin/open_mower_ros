@@ -14,13 +14,13 @@
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 static bool is_immediate_key(uint16_t key) {
-    return (key >= 0x0000 && key <= 0x00FF) || (key >= 0x0200 && key <= 0x02FF);
+    return (key >= 0x0000 && key <= 0x03FF);
 }
 
 // ── Globals ─────────────────────────────────────────────────────────────────
 
-static ros::Publisher          g_radio_write_pub;
-static ros::Publisher          g_rx_pub;
+static ros::Publisher          g_tx_e3_payload_pub;
+static ros::Publisher          g_rx_e3kv_pub;
 
 struct BufferedEntry {
     uint16_t key;
@@ -45,7 +45,7 @@ static int g_batch_max          = 100;
 static void send_payload(const std::vector<uint8_t>& payload_bytes) {
     std_msgs::UInt8MultiArray msg;
     msg.data = payload_bytes;
-    g_radio_write_pub.publish(msg);
+    g_tx_e3_payload_pub.publish(msg);
 }
 
 static void flush_immediate(const e3_lib::E3KVInput& kv) {
@@ -173,7 +173,7 @@ static bool schedule_e3kv(e3_lib::ScheduleE3KV::Request& req,
 
 // ── Callbacks ───────────────────────────────────────────────────────────────
 
-static void on_e3_radio(const std_msgs::UInt8MultiArray::ConstPtr& msg) {
+static void rx_e3_payload(const std_msgs::UInt8MultiArray::ConstPtr& msg) {
     if (msg->data.empty()) return;
 
     auto entries = e3::parse_e3_payload(msg->data.data(), msg->data.size());
@@ -201,7 +201,7 @@ static void on_e3_radio(const std_msgs::UInt8MultiArray::ConstPtr& msg) {
             if (entry.payload && entry.payload_length > 0) {
                 kv_msg.payload.assign(entry.payload, entry.payload + entry.payload_length);
             }
-            g_rx_pub.publish(kv_msg);
+            g_rx_e3kv_pub.publish(kv_msg);
         }
     }
 }
@@ -225,11 +225,11 @@ int main(int argc, char** argv) {
     pnh.param("max_retries", g_max_retries, 6);
     pnh.param("batch_max_entries", g_batch_max, 100);
 
-    g_radio_write_pub = pnh.advertise<std_msgs::UInt8MultiArray>("radio_write", 10);
-    g_rx_pub          = pnh.advertise<e3_lib::E3KVInput>("rx_e3kv", 10);
+    g_tx_e3_payload_pub = pnh.advertise<std_msgs::UInt8MultiArray>("tx_e3_payload", 10);
+    g_rx_e3kv_pub          = pnh.advertise<e3_lib::E3KVInput>("rx_e3kv", 10);
 
     ros::ServiceServer schedule_srv = pnh.advertiseService("schedule_e3kv", schedule_e3kv);
-    ros::Subscriber radio_sub       = pnh.subscribe("e3_radio", 10, on_e3_radio);
+    ros::Subscriber rx_e3_payload_sub       = pnh.subscribe("rx_e3_payload", 10, rx_e3_payload);
 
     ros::Timer batch_timer = pnh.createTimer(ros::Duration(g_batch_interval), on_batch_timer);
     ros::Timer retry_timer = pnh.createTimer(ros::Duration(g_retry_interval), on_retry_timer);
