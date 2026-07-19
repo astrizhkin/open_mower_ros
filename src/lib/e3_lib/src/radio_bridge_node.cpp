@@ -152,18 +152,19 @@ static void flush_batch() {
 
 static void retry_immediate() {
     auto now = ros::Time::now();
+
+    // Collect all entries due for retry or expiration
+    std::vector<e3_lib::E3KVInput> retry_kvs;
     auto it = immediate_pending.begin();
     while (it != immediate_pending.end()) {
         double elapsed = (now - it->second.last_sent).toSec();
         if (elapsed >= g_retry_interval && it->second.retransmit_count < g_max_retries) {
-            e3_lib::E3KVInput remsg;
-            remsg.key            = it->second.key;
-            remsg.cmd_type       = static_cast<uint8_t>(it->second.cmd_type);
-            remsg.data_unit      = static_cast<uint8_t>(it->second.data_unit);
-            remsg.payload        = it->second.payload;
-            flush_immediate({remsg});
-            ROS_WARN("[e3_bridge] Retry #%u for key=0x%04X (no ACK after %.1fs)",
-                     it->second.retransmit_count, it->second.key, elapsed);
+            e3_lib::E3KVInput kv;
+            kv.key            = it->second.key;
+            kv.cmd_type       = static_cast<uint8_t>(it->second.cmd_type);
+            kv.data_unit      = static_cast<uint8_t>(it->second.data_unit);
+            kv.payload        = it->second.payload;
+            retry_kvs.push_back(kv);
             it++;
         } else if (it->second.retransmit_count >= g_max_retries) {
             ROS_ERROR("[e3_bridge] ERROR: max retries (%u) exceeded for key=0x%04X",
@@ -173,6 +174,21 @@ static void retry_immediate() {
             it++;
         }
     }
+
+    if (retry_kvs.empty()) return;
+
+    // Log before flush (flush updates last_sent)
+    for (const auto& kv : retry_kvs) {
+        auto rit = immediate_pending.find(kv.key);
+        if (rit != immediate_pending.end()) {
+            double elapsed = (now - rit->second.last_sent).toSec();
+            ROS_WARN("[e3_bridge] Retry #%u for key=0x%04X (no ACK after %.1fs)",
+                     rit->second.retransmit_count, rit->second.key, elapsed);
+        }
+    }
+
+    // Flush all retries together as batched packets
+    flush_immediate(retry_kvs);
 }
 
 // ── Service handler ─────────────────────────────────────────────────────────
