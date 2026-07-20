@@ -352,6 +352,8 @@ void publishStatus() {
   // True, if high or low level emergency condition is present
   status_msg.emergency = isEmergency();
   status_msg.temporary_emergency = isTemporaryEmergency();
+  status_msg.emergency_low_level = emergency_low_level_bits;
+  status_msg.emergency_high_level = emergency_high_level_bits;
 
   status_msg.v_battery = last_ll_status.v_battery;
   status_msg.v_charge = last_ll_status.v_charge;

@@ -97,7 +97,7 @@ std::map<std::string, SensorConfig> sensor_configs{
   {"om_gps_accuracy",      {"GPS Accuracy",     "m",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DISTANCE, 0x040F}},
   {"om_rssi",              {"Radio RSSI",       "dBm", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_SIGNAL,   0x0410}},
   {"om_surface_angle",     {"Surface Angle",    "deg", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DEGREE,   0x0411}},
-  {"om_height",            {"Height",           "m",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DISTANCE, 0x0412}},
+  {"om_height",            {"Height",           "m",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DISTANCE, 0x0000}},
 };
 // clang-format on
 
@@ -118,6 +118,10 @@ void status(StatusPtr &msg) {
       sc_pair.second.data_pub.publish(sensor_data);
     }
   }
+
+  state.emergency_high_level = msg->emergency_high_level;
+  state.emergency_low_level = msg->emergency_low_level;
+  state_pub.publish(state);
 }
 
 void high_level_status(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
@@ -130,6 +134,7 @@ void high_level_status(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
   state.battery_percentage = msg->battery_percent;
   state.emergency = msg->emergency;
   state.is_charging = msg->is_charging;
+  state.state = msg->state;
 
   state_pub.publish(state);
 }
