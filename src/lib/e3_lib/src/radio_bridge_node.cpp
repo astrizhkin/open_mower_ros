@@ -252,8 +252,7 @@ static void rx_e3_payload(const std_msgs::UInt8MultiArray::ConstPtr& msg) {
     if (!ack_entries.empty()) {
         auto payloads = e3::split_into_payloads(ack_entries);
         for (const auto& payload : payloads) {
-            auto frame = e3::build_e3_frame(payload);
-            send_payload(frame);
+            send_payload(payload);
         }
         ROS_INFO("[e3_bridge] ACK sent: %zu keys", ack_entries.size());
     }
