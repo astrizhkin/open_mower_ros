@@ -49,6 +49,7 @@ static int g_batch_max          = 100;
 // ── Flush helpers ───────────────────────────────────────────────────────────
 
 static void send_payload(const std::vector<uint8_t>& payload_bytes) {
+    // Send raw KV bytes to radio_write — radio_node builds the E3 frame
     std_msgs::UInt8MultiArray msg;
     msg.data = payload_bytes;
     g_tx_e3_payload_pub.publish(msg);
@@ -80,10 +81,9 @@ static void flush_immediate(const std::vector<e3_lib::E3KVInput>& kvs) {
         }
     }
 
-    // Send each packet
+    // Send each packet as raw KV bytes (radio_node builds E3 frame)
     for (size_t i = 0; i < payloads.size(); i++) {
-        auto frame = e3::build_e3_frame(payloads[i]);
-        send_payload(frame);
+        send_payload(payloads[i]);
     }
 
     ROS_INFO("[e3_bridge] Send immediate: %zu keys in %zu packet(s)",
@@ -123,8 +123,7 @@ static void flush_batch() {
     auto payloads = e3::split_into_payloads(entries);
 
     for (size_t i = 0; i < payloads.size(); i++) {
-        auto frame = e3::build_e3_frame(payloads[i]);
-        send_payload(frame);
+        send_payload(payloads[i]);
     }
 
     ROS_INFO("[e3_bridge] Batch flush: %zu keys in %zu packet(s)",
