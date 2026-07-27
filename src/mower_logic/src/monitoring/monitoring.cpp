@@ -81,7 +81,7 @@ void set_limits_mow_motor_temp(SensorConfig &sensor_config);
 std::map<std::string, SensorConfig> sensor_configs{
   {"om_v_charge",          {"V Charge",         "V",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_VOLTAGE,   0x0400, [](StatusPtr msg) { return msg->v_charge; }, &set_limits_charge_v}},
   {"om_v_battery",         {"V Battery",        "V",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_VOLTAGE,   0x0401, [](StatusPtr msg) { return msg->v_battery; }, &set_limits_battery_v}},
-  {"om_battery_soc",       {"Battery SOC",      "%",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_PERCENT,   0x0402, [](StatusPtr msg) { return msg->battery_soc; }, &set_limits_battery_soc}},
+  {"om_battery_soc",       {"Battery SOC",      "%",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_PERCENT,   0x0000, [](StatusPtr msg) { return msg->battery_soc; }, &set_limits_battery_soc}},
   {"om_battery_current",   {"Battery Current",  "A",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_CURRENT,   0x0403, [](StatusPtr msg) { return msg->battery_current; }, &set_limits_battery_current, "", [](){ return !paramNh->param("/mower_logic/ignore_charging_current", false); }}},
   {"om_battery_temperature",{"Battery Temp",    "deg.C",xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE,0x0404, [](StatusPtr msg) { return msg->battery_temperature; }, &set_limits_battery_temperature}},
   {"om_rear_esc_temp",     {"Rear ESC Temp",    "deg.C",xbot_msgs::SensorInfo::VALUE_DESCRIPTION_TEMPERATURE,0x0405, [](StatusPtr msg) { return msg->rear_left_esc_status.temperature_pcb; }, &set_limits_esc_temp, "rear_left_xesc"}},
@@ -96,7 +96,7 @@ std::map<std::string, SensorConfig> sensor_configs{
   {"om_mow_motor_rpm",     {"Mow Motor RPM",    "rpm", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_RPM,       0x040E, [](StatusPtr msg) { return msg->mow_esc_status.rpm; }, &set_limits_mow_motor_rpm, "mower_xesc"}},
   {"om_gps_accuracy",      {"GPS Accuracy",     "m",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DISTANCE, 0x040F}},
   {"om_rssi",              {"Radio RSSI",       "dBm", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_SIGNAL,   0x0410}},
-  {"om_surface_angle",     {"Surface Angle",    "deg", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DEGREE,   0x0411}},
+  {"om_surface_angle",     {"Surface Angle",    "deg", xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DEGREE,   0x0000}},
   {"om_height",            {"Height",           "m",   xbot_msgs::SensorInfo::VALUE_DESCRIPTION_DISTANCE, 0x0000}},
 };
 // clang-format on
