@@ -196,10 +196,21 @@ void updateEmergencyBits() {
     }
   }
 
+  uint8_t curr_kill_switch_em_bits = last_ll_status.emergency_bitmask & kill_switch_emergeny_mask;
+
+// old, esc emergency reset only bahavior
+//  if (curr_kill_switch_em_bits > 0 &&
+//      (emergency_high_level_bits & (1 << mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC)) > 0) {
+//    ROS_WARN_STREAM("[mower_comms]  Autoreset ESC emergency due to Emergency Button 1 pressed");
+//    emergency_high_level_bits &= ~(1 << mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC);
+//    emergency_high_level_end[mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC] = ros::Time::ZERO;
+//  }
+
+
   // Kill switch press (1->0 in emergency_bitmask) clears all HL emergency bits
   static uint8_t prev_kill_switch_em_bits = 0;
-  uint8_t curr_kill_switch_em_bits = last_ll_status.emergency_bitmask & kill_switch_emergeny_mask;
-  if ((~curr_kill_switch_em_bits & prev_kill_switch_em_bits) && emergency_high_level_bits) {
+  if ((~curr_kill_switch_em_bits & prev_kill_switch_em_bits) 
+  && emergency_high_level_bits) {
     ROS_WARN_STREAM("[mower_comms] Kill switch pressed, resetting all HL emergency bits");
     for (uint8_t bit = 0; bit < 8; bit++) {
       emergency_high_level_reasons[bit] = "";
@@ -348,7 +359,7 @@ void publishStatus() {
 
   // Latched bumper emergency: set HL bit 7 when any L-mode contact active
   if (last_ll_status.contacts & latch_contact_mask) {
-    emergency_high_level_bits |= (1 << 7);
+    emergency_high_level_bits |= (1 << mower_msgs::EmergencyModeSrvRequest::EMERGENCY_7);
   }
 
   // overwrite emergency with the LL value.
@@ -968,12 +979,23 @@ void reconfigCB(const mower_logic::MowerLogicConfig &config) {
       }else{
         switch (std::toupper(c)) {
           case '!': low_active = true; break;
-          case 'I': mode = ContactMode::OFF; break;
-          case 'M': mode = ContactMode::MONITOR; break;
-          case 'E': mode = ContactMode::EMERGENCY_STOP; break;
-          case 'L': mode = ContactMode::MONITOR;
-                   latch_contact_mask |= (1 << contact_idx); break;
-          case 'S': mode = ContactMode::EMERGENCY_STOP; kill_switch_emergeny_mask |= (1 << emebrgncy_bit_position[contact_idx]); break;
+          case 'I': //Off 
+            mode = ContactMode::OFF; 
+            break;
+          case 'M': //Monitor mode
+            mode = ContactMode::MONITOR; 
+            break;
+          case 'H': //High Level Emergeny Latch mode
+            mode = ContactMode::MONITOR;
+            latch_contact_mask |= (1 << contact_idx); 
+            break;
+          case 'E': //Low Level Emergeny (non-latch) mode
+            mode = ContactMode::EMERGENCY_STOP; 
+            break;
+          case 'S': //Low Level Emergency (non-latch) + Kill Switch marker
+            mode = ContactMode::EMERGENCY_STOP; 
+            kill_switch_emergeny_mask |= (1 << emebrgncy_bit_position[contact_idx]); 
+            break;
           default: break;
         }
       }
