@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <bitset>
 #include <cstdio>
+#include <limits>
 
 #include "COBS.h"
 #include "boost/crc.hpp"
@@ -248,6 +249,33 @@ void publishActuators() {
     mow_xesc_interface->setDutyCycle(speed_mow);
   }
   cmd_vel_safe_pub.publish(execute_vel);
+
+  // Reset velocity integrator when robot is idle (zero commanded velocity)
+  {
+    static ros::Time zero_vel_start;
+    static ros::Time last_integrator_reset;
+    static constexpr double ZERO_VEL_IDLE_TIMEOUT_SEC = 10.0;
+    static constexpr double INTEGRATOR_RESET_INTERVAL_SEC = 10.0;
+
+    bool is_zero_vel = (execute_vel.linear.x == 0.0 && execute_vel.angular.z == 0.0);
+
+    if (is_zero_vel) {
+        if (zero_vel_start.isZero())
+            zero_vel_start = ros::Time::now();
+        double idle_elapsed = (ros::Time::now() - zero_vel_start).toSec();
+        double since_reset = last_integrator_reset.isZero()
+            ? std::numeric_limits<double>::max()
+            : (ros::Time::now() - last_integrator_reset).toSec();
+        if (idle_elapsed >= ZERO_VEL_IDLE_TIMEOUT_SEC && since_reset >= INTEGRATOR_RESET_INTERVAL_SEC) {
+            wheel_drive->resetVelocityIntegrators();
+            last_integrator_reset = ros::Time::now();
+            ROS_INFO_THROTTLE(30, "[mower_comms] Velocity integrator reset on all wheels");
+        }
+    } else {
+        zero_vel_start = ros::Time();
+        last_integrator_reset = ros::Time();
+    }
+  }
 
   struct ll_heartbeat heartbeat = {.type = PACKET_ID_LL_HEARTBEAT,
                                    // send high level emergency bits

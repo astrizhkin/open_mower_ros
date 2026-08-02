@@ -4,6 +4,7 @@
 #include <odrive_can/ControllerStatus.h>
 #include <odrive_can/ODriveStatus.h>
 #include <odrive_enums.h>
+#include <odrive_ros_control/SDORequest.h>
 #include <ros/ros.h>
 #include <map>
 #include <string>
@@ -19,7 +20,8 @@ public:
             "/odrive_driver/odrive_status", 10,
             &ODriveDrive::onOdrvStatus, this,
             ros::TransportHints().tcpNoDelay(true));
-        
+        _sdo_client = nh.serviceClient<odrive_ros_control::SDORequest>("odrive_driver/sdo");
+
         ROS_INFO("[ODriveDrive] Initialized, subscribed to controller_status and odrive_status");
         return true;
     }
@@ -30,6 +32,8 @@ public:
 
     static constexpr float MOTOR_TEMP_WARN_C  = 70.0f;
     static constexpr float MOTOR_TEMP_ERROR_C = 80.0f;
+
+    static constexpr uint16_t SDO_ENDPOINT_VEL_INTEGRATOR_TORQUE = 275;
 
     void getESCStatus(WheelId wheel, bool esc_power,
                       const ros::Time& esc_enabled_time,
@@ -105,13 +109,31 @@ public:
             // Temperature warnings from ODriveStatus (not in active_errors)
             status.xesc_status |= xesc_msgs::XescState::XESC_FAULT_TEMP_WARNING_MOTOR;
         }
-        if ((status.xesc_status & xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR) 
+        if ((status.xesc_status & xesc_msgs::XescState::XESC_FAULT_OVERTEMP_MOTOR)
             || odrv.motor_temperature > MOTOR_TEMP_ERROR_C) {
             ROS_ERROR_STREAM_THROTTLE(1,
                 "[ODriveDrive] " << wheelName(wheel)
                 << " motor overtemperature: " << odrv.motor_temperature << "C");
             //status.status = mower_msgs::ESCStatus::ESC_STATUS_OVERHEATED;
             return;
+        }
+    }
+
+    void resetVelocityIntegrators() override {
+        static const WheelId all_wheels[] = {
+            WheelId::FRONT_LEFT, WheelId::FRONT_RIGHT,
+            WheelId::REAR_LEFT,  WheelId::REAR_RIGHT
+        };
+        for (const auto w : all_wheels) {
+            odrive_ros_control::SDORequest req;
+            odrive_ros_control::SDOResponse res;
+            req.axis_name = wheelName(w);
+            req.opcode = 1; // WRITE
+            req.endpoint_id = SDO_ENDPOINT_VEL_INTEGRATOR_TORQUE;
+            req.value = 0; // 0.0f as uint32
+            req.timeout_sec = 0.5f;
+            req.async = true;
+            _sdo_client.call(req, res);
         }
     }
 
@@ -141,6 +163,7 @@ private:
     std::map<std::string, odrive_can::ODriveStatus>     odrv_status_;
     ros::Subscriber ctrl_sub_;
     ros::Subscriber odrv_sub_;
+    ros::ServiceClient _sdo_client;
 
     void onCtrlStatus(const odrive_can::ControllerStatus::ConstPtr& msg) {
         //ROS_INFO_STREAM("[ODriveDrive] ControllerStatus received for '" << msg->header.frame_id << "'");

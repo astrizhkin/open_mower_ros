@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
         xesc_interface
         hoverboard_driver
         odrive_can
+        odrive_ros_control
         xbot_msgs
         contact_sensor_layer
 )
