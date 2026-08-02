@@ -223,6 +223,7 @@ void updateEmergencyBits() {
 }
 
 void publishActuators() {
+  ros::Time now = ros::Time::now();
   geometry_msgs::Twist execute_vel;
   execute_vel.linear.x = last_cmd_twist.linear.x;
   execute_vel.angular.z = last_cmd_twist.angular.z;
@@ -233,12 +234,12 @@ void publishActuators() {
     execute_vel.angular.z = 0;
     speed_mow = 0;
   }
-  if (ros::Time::now() - last_cmd_twist_time > ros::Duration(cmd_vel_timout)) {
+  if (now - last_cmd_twist_time > ros::Duration(cmd_vel_timout)) {
     // TODO: publish speed topic?
     execute_vel.linear.x = 0;
     execute_vel.angular.z = 0;
   }
-  if (ros::Time::now() - last_cmd_twist_time > ros::Duration(25.0)) {
+  if (now - last_cmd_twist_time > ros::Duration(25.0)) {
     // TODO: publish speed topic?
     execute_vel.linear.x = 0;
     execute_vel.angular.z = 0;
@@ -254,26 +255,26 @@ void publishActuators() {
   {
     static ros::Time zero_vel_start;
     static ros::Time last_integrator_reset;
-    static constexpr double ZERO_VEL_IDLE_TIMEOUT_SEC = 10.0;
     static constexpr double INTEGRATOR_RESET_INTERVAL_SEC = 10.0;
 
     bool is_zero_vel = (execute_vel.linear.x == 0.0 && execute_vel.angular.z == 0.0);
 
     if (is_zero_vel) {
-        if (zero_vel_start.isZero())
-            zero_vel_start = ros::Time::now();
-        double idle_elapsed = (ros::Time::now() - zero_vel_start).toSec();
+        if (zero_vel_start.isZero()) zero_vel_start = now;
+        
+        double idle_elapsed = (now - zero_vel_start).toSec();
         double since_reset = last_integrator_reset.isZero()
             ? std::numeric_limits<double>::max()
-            : (ros::Time::now() - last_integrator_reset).toSec();
-        if (idle_elapsed >= ZERO_VEL_IDLE_TIMEOUT_SEC && since_reset >= INTEGRATOR_RESET_INTERVAL_SEC) {
+            : (now - last_integrator_reset).toSec();
+        
+        if (idle_elapsed >= INTEGRATOR_RESET_INTERVAL_SEC && since_reset >= INTEGRATOR_RESET_INTERVAL_SEC) {
+            ROS_INFO("[mower_comms] Velocity integrator reset on all wheels");
             wheel_drive->resetVelocityIntegrators();
-            last_integrator_reset = ros::Time::now();
-            ROS_INFO_THROTTLE(30, "[mower_comms] Velocity integrator reset on all wheels");
+            last_integrator_reset = now;
         }
     } else {
-        zero_vel_start = ros::Time();
-        last_integrator_reset = ros::Time();
+        zero_vel_start = now;
+        last_integrator_reset = now;
     }
   }
 
