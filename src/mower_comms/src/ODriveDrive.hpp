@@ -20,7 +20,7 @@ public:
             "/odrive_driver/odrive_status", 10,
             &ODriveDrive::onOdrvStatus, this,
             ros::TransportHints().tcpNoDelay(true));
-        _sdo_client = nh.serviceClient<odrive_ros_control::SDORequest>("odrive_driver/sdo");
+        _sdo_client = nh.serviceClient<odrive_ros_control::SDO>("odrive_driver/sdo");
 
         ROS_INFO("[ODriveDrive] Initialized, subscribed to controller_status and odrive_status");
         return true;
