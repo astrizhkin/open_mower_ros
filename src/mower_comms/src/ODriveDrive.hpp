@@ -4,7 +4,7 @@
 #include <odrive_can/ControllerStatus.h>
 #include <odrive_can/ODriveStatus.h>
 #include <odrive_enums.h>
-#include <odrive_ros_control/SDORequest.h>
+#include <odrive_ros_control/SDO.h>
 #include <ros/ros.h>
 #include <map>
 #include <string>
