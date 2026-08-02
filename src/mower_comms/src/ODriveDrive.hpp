@@ -25,11 +25,11 @@ public:
     }
 
 
-    static constexpr float FET_TEMP_WARN_C   = 40.0f;//60 lower in fw cfg
-    static constexpr float FET_TEMP_ERROR_C   = 45.0f;//75 upper in fw cfg, 80 - hard error
+    static constexpr float FET_TEMP_WARN_C   = 55.0f;//60 lower in fw cfg
+    static constexpr float FET_TEMP_ERROR_C   = 70.0f;//75 upper in fw cfg, 80 - hard error
 
-    static constexpr float MOTOR_TEMP_WARN_C  = 70.0f;//60 lower in fw cfg
-    static constexpr float MOTOR_TEMP_ERROR_C = 80.0f;//75 upper in fw cfg, 80 - hard fault
+    static constexpr float MOTOR_TEMP_WARN_C  = 55.0f;//60 lower in fw cfg
+    static constexpr float MOTOR_TEMP_ERROR_C = 75.0f;//75 upper in fw cfg, 80 - hard fault
 
     void getESCStatus(WheelId wheel, bool esc_power,
                       const ros::Time& esc_enabled_time,
