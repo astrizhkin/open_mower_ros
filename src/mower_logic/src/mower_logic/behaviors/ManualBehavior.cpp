@@ -96,11 +96,11 @@ void ManualBehavior::handle_action(const std::string& action, const std::string&
 
 ManualBehavior::ManualBehavior() {
   actions.clear();
-  actions.push_back(createAction("start_manual_mowing","Start manual mowing"));
-  actions.push_back(createAction("stop_manual_mowing","Stop manual mowing"));
-  actions.push_back(createAction("start_area_recording","Start area recoding"));
-  actions.push_back(createAction("start_docking","Start docking"));
-  actions.push_back(createAction("abort_manual","Stop manual mowing"));
+  actions.push_back(createAction("start_manual_mowing", "Start manual mowing", 0x0320));
+  actions.push_back(createAction("stop_manual_mowing", "Stop manual mowing", 0x0321));
+  actions.push_back(createAction("start_area_recording", "Start area recoding", 0x0322));
+  actions.push_back(createAction("start_docking", "Start docking", 0x0323));
+  actions.push_back(createAction("abort_manual", "Stop manual mowing", 0x0324));
 }
 
 void ManualBehavior::update_actions() {

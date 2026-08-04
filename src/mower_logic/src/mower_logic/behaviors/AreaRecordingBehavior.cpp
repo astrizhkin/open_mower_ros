@@ -501,18 +501,18 @@ void AreaRecordingBehavior::handle_action(const std::string& action, const std::
 AreaRecordingBehavior::AreaRecordingBehavior() {
   actions.clear();
 
-  actions.push_back(createAction("start_recording","Start Recording"));         // 0->0
-  actions.push_back(createAction("stop_recording","Stop Recording"));          // 1->1
-  actions.push_back(createAction("finish_navigation_area","Save Navigation Area"));  // 2->2
-  actions.push_back(createAction("finish_mowing_area","Save Mowing Area"));      // 3->3
-  actions.push_back(createAction("finish_prohibited_area","Save Prohibited Area"));  // 4
-  actions.push_back(createAction("exit_recording_mode","Exit"));     // 4->5
-  actions.push_back(createAction("finish_discard","Discard Area"));          // 5->6
-  actions.push_back(createAction("record_dock","Record Docking point"));             // 6->7
-  actions.push_back(createAction("auto_point_collecting_enable","Enable automatic point collecting"));
-  actions.push_back(createAction("auto_point_collecting_disable","Disable automatic point collecting"));
-  actions.push_back(createAction("collect_point","Collect point"));
-  actions.push_back(createAction("cancel_dock","Cancel Record Docking point"));             // 6->7
+  actions.push_back(createAction("start_recording", "Start Recording", 0x0340));
+  actions.push_back(createAction("stop_recording", "Stop Recording", 0x0341));
+  actions.push_back(createAction("finish_navigation_area", "Save Navigation Area", 0x0342));
+  actions.push_back(createAction("finish_mowing_area", "Save Mowing Area", 0x0343));
+  actions.push_back(createAction("finish_prohibited_area", "Save Prohibited Area", 0x0344));
+  actions.push_back(createAction("exit_recording_mode", "Exit", 0x0345));
+  actions.push_back(createAction("finish_discard", "Discard Area", 0x0346));
+  actions.push_back(createAction("record_dock", "Record Docking point", 0x0347));
+  actions.push_back(createAction("auto_point_collecting_enable", "Enable automatic point collecting", 0x0348));
+  actions.push_back(createAction("auto_point_collecting_disable", "Disable automatic point collecting", 0x0349));
+  actions.push_back(createAction("collect_point", "Collect point", 0x034A));
+  actions.push_back(createAction("cancel_dock", "Cancel Record Docking point", 0x034B));
 }
 
 #define start_recording_action 0

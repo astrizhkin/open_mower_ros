@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <bitset>
 #include <cstdio>
+#include <limits>
 
 #include "COBS.h"
 #include "boost/crc.hpp"
@@ -129,6 +130,7 @@ ros::Time last_uss_stamp[USS_COUNT];
 int contact_mode[CONTACT_COUNT];
 int emebrgncy_bit_position[] = {EMERGENCY_CONTACT1_BIT, EMERGENCY_CONTACT2_BIT, EMERGENCY_CONTACT3_BIT, EMERGENCY_CONTACT4_BIT};
 int kill_switch_emergeny_mask = 0;
+int latch_contact_mask = 0;
 
 sensor_msgs::MagneticField sensor_mag_msg;
 sensor_msgs::Imu sensor_imu_msg;
@@ -195,15 +197,33 @@ void updateEmergencyBits() {
     }
   }
 
-  if ((last_ll_status.emergency_bitmask & kill_switch_emergeny_mask) > 0 &&
-      (emergency_high_level_bits & (1 << mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC)) > 0) {
-    ROS_WARN_STREAM("[mower_comms] Autoreset ESC emergency due to Emergency Button 1 pressed");
-    emergency_high_level_bits &= ~(1 << mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC);
-    emergency_high_level_end[mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC] = ros::Time::ZERO;
+  uint8_t curr_kill_switch_em_bits = last_ll_status.emergency_bitmask & kill_switch_emergeny_mask;
+
+// old, esc emergency reset only bahavior
+//  if (curr_kill_switch_em_bits > 0 &&
+//      (emergency_high_level_bits & (1 << mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC)) > 0) {
+//    ROS_WARN_STREAM("[mower_comms]  Autoreset ESC emergency due to Emergency Button 1 pressed");
+//    emergency_high_level_bits &= ~(1 << mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC);
+//    emergency_high_level_end[mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ESC] = ros::Time::ZERO;
+//  }
+
+
+  // Kill switch press (1->0 in emergency_bitmask) clears all HL emergency bits
+  static uint8_t prev_kill_switch_em_bits = 0;
+  if ((~curr_kill_switch_em_bits & prev_kill_switch_em_bits) 
+  && emergency_high_level_bits) {
+    ROS_WARN_STREAM("[mower_comms] Kill switch pressed, resetting all HL emergency bits");
+    for (uint8_t bit = 0; bit < 8; bit++) {
+      emergency_high_level_reasons[bit] = "";
+      emergency_high_level_end[bit] = ros::Time::ZERO;
+    }
+    emergency_high_level_bits = 0;
   }
+  prev_kill_switch_em_bits = curr_kill_switch_em_bits;
 }
 
 void publishActuators() {
+  ros::Time now = ros::Time::now();
   geometry_msgs::Twist execute_vel;
   execute_vel.linear.x = last_cmd_twist.linear.x;
   execute_vel.angular.z = last_cmd_twist.angular.z;
@@ -214,12 +234,12 @@ void publishActuators() {
     execute_vel.angular.z = 0;
     speed_mow = 0;
   }
-  if (ros::Time::now() - last_cmd_twist_time > ros::Duration(cmd_vel_timout)) {
+  if (now - last_cmd_twist_time > ros::Duration(cmd_vel_timout)) {
     // TODO: publish speed topic?
     execute_vel.linear.x = 0;
     execute_vel.angular.z = 0;
   }
-  if (ros::Time::now() - last_cmd_twist_time > ros::Duration(25.0)) {
+  if (now - last_cmd_twist_time > ros::Duration(25.0)) {
     // TODO: publish speed topic?
     execute_vel.linear.x = 0;
     execute_vel.angular.z = 0;
@@ -230,6 +250,33 @@ void publishActuators() {
     mow_xesc_interface->setDutyCycle(speed_mow);
   }
   cmd_vel_safe_pub.publish(execute_vel);
+
+  // Reset velocity integrator when robot is idle (zero commanded velocity)
+  {
+    static ros::Time zero_vel_start;
+    static ros::Time last_integrator_reset;
+    static constexpr double INTEGRATOR_RESET_INTERVAL_SEC = 10.0;
+
+    bool is_zero_vel = (execute_vel.linear.x == 0.0 && execute_vel.angular.z == 0.0);
+
+    if (is_zero_vel) {
+        if (zero_vel_start.isZero()) zero_vel_start = now;
+        
+        double idle_elapsed = (now - zero_vel_start).toSec();
+        double since_reset = last_integrator_reset.isZero()
+            ? std::numeric_limits<double>::max()
+            : (now - last_integrator_reset).toSec();
+        
+        if (idle_elapsed >= INTEGRATOR_RESET_INTERVAL_SEC && since_reset >= INTEGRATOR_RESET_INTERVAL_SEC) {
+            ROS_INFO("[mower_comms] Velocity integrator reset on all wheels");
+            wheel_drive->resetVelocityIntegrators();
+            last_integrator_reset = now;
+        }
+    } else {
+        zero_vel_start = now;
+        last_integrator_reset = now;
+    }
+  }
 
   struct ll_heartbeat heartbeat = {.type = PACKET_ID_LL_HEARTBEAT,
                                    // send high level emergency bits
@@ -339,6 +386,11 @@ void publishStatus() {
     contact_pub.publish(contact_msg);
   }
 
+  // Latched bumper emergency: set HL bit 7 when any L-mode contact active
+  if (last_ll_status.contacts & latch_contact_mask) {
+    emergency_high_level_bits |= (1 << mower_msgs::EmergencyModeSrvRequest::EMERGENCY_7);
+  }
+
   // overwrite emergency with the LL value.
   emergency_low_level_bits = last_ll_status.emergency_bitmask;
   if (emergency_low_level_bits > 0) {
@@ -352,6 +404,8 @@ void publishStatus() {
   // True, if high or low level emergency condition is present
   status_msg.emergency = isEmergency();
   status_msg.temporary_emergency = isTemporaryEmergency();
+  status_msg.emergency_low_level = emergency_low_level_bits;
+  status_msg.emergency_high_level = emergency_high_level_bits;
 
   status_msg.v_battery = last_ll_status.v_battery;
   status_msg.v_charge = last_ll_status.v_charge;
@@ -938,6 +992,8 @@ void reconfigCB(const mower_logic::MowerLogicConfig &config) {
 
 
   // Parse emergency_input_config and set hall_configs
+  kill_switch_emergeny_mask = 0;
+  latch_contact_mask = 0;
   char *contact_token = strtok(strdup(mower_logic_config.emergency_input_config.c_str()), ",");
   uint8_t contact_idx = 0;
   while (contact_token != NULL) {
@@ -952,10 +1008,23 @@ void reconfigCB(const mower_logic::MowerLogicConfig &config) {
       }else{
         switch (std::toupper(c)) {
           case '!': low_active = true; break;
-          case 'I': mode = ContactMode::OFF; break;
-          case 'M': mode = ContactMode::MONITOR; break;
-          case 'E': mode = ContactMode::EMERGENCY_STOP; break;
-          case 'S': mode = ContactMode::EMERGENCY_STOP; kill_switch_emergeny_mask |= (1 << emebrgncy_bit_position[contact_idx]); break;
+          case 'I': //Off 
+            mode = ContactMode::OFF; 
+            break;
+          case 'M': //Monitor mode
+            mode = ContactMode::MONITOR; 
+            break;
+          case 'H': //High Level Emergeny Latch mode
+            mode = ContactMode::MONITOR;
+            latch_contact_mask |= (1 << contact_idx); 
+            break;
+          case 'E': //Low Level Emergeny (non-latch) mode
+            mode = ContactMode::EMERGENCY_STOP; 
+            break;
+          case 'S': //Low Level Emergency (non-latch) + Kill Switch marker
+            mode = ContactMode::EMERGENCY_STOP; 
+            kill_switch_emergeny_mask |= (1 << emebrgncy_bit_position[contact_idx]); 
+            break;
           default: break;
         }
       }

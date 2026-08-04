@@ -26,6 +26,9 @@ public:
 
     virtual uint8_t getAxleStatusAge(WheelId left, WheelId right) = 0;
 
+    // Reset velocity PID integrators on all wheels (no-op for drives that don't need it)
+    virtual void resetVelocityIntegrators() {}
+
     // Shared wheel helpers available to all implementations and callers
     static bool isLeft(WheelId wheel) {
         return wheel == WheelId::FRONT_LEFT || wheel == WheelId::REAR_LEFT;

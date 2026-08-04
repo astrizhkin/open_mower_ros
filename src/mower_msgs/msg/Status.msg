@@ -36,3 +36,7 @@ ESCStatus rear_right_esc_status
 ESCStatus front_left_esc_status
 ESCStatus front_right_esc_status
 ESCStatus mow_esc_status
+
+# Emergency bitmasks (raw, not collapsed bool)
+uint8 emergency_low_level
+uint8 emergency_high_level

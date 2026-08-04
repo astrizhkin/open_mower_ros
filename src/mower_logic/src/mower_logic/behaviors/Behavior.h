@@ -62,11 +62,12 @@ class Behavior {
     return (ros::Time::now() - startTime).toSec();
   }
 
-  xbot_msgs::ActionInfo createAction(const std::string &id,const std::string &name) {
+  xbot_msgs::ActionInfo createAction(const std::string &id, const std::string &name, uint16_t key = 0) {
     xbot_msgs::ActionInfo action;
     action.action_id = id;
     action.enabled = false;
     action.action_name = name;
+    action.e3_key = key;
     return action;
   }
 
