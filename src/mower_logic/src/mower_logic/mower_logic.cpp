@@ -547,10 +547,10 @@ void checkSafety(const ros::TimerEvent &timer_event) {
 
   // Emergency if mower blade RPM stays below 1000 for 10+ seconds while mower should be on
   bool mowerShouldBeOn = last_config.enable_mower && currentBehavior != nullptr &&
-                         currentBehavior->mower_enabled() && last_config.mower_power > 0;
+                         currentBehavior->mower_enabled() && last_config.mower_power_max*last_config.mower_power > 0;
   if (mowerShouldBeOn && last_status.mow_esc_status.rpm < 1000) {
     if (low_mow_rpm_start.isZero()) {
-      low_mow_rpm_start = ros::Time::now();
+      low_mow_rpm_start = now;
     } else if ((now - low_mow_rpm_start).toSec() >= 10.0) {
       ROS_ERROR_STREAM("[mower_logic] EMERGENCY: mower blade RPM=" << last_status.mow_esc_status.rpm
                            << " below 1000 for over 10 seconds while mower should be running");
