@@ -84,7 +84,19 @@ void onImu(const sensor_msgs::Imu::ConstPtr &msg) {
   //ROS_WARN_STREAM_THROTTLE(1,"[antislip] ROT imu="<<sum_imu_rotation<<" wheel="<<sum_wheel_rotation<<
   //                " LIN pose="<<sum_pose_motion<<" wheel="<<sum_wheel_motion<<
   //                " sizes("<<imu_angular_value_series.size()<<","<<wheel_angular_value_series.size()<<","<<pose_linear_value_series.size()<<","<<wheel_linear_value_series.size()<<")");
-  if(abs(sum_wheel_rotation) > relativeAngularDifference*abs(sum_imu_rotation) && abs(sum_wheel_rotation-sum_imu_rotation)>absoluteAngularDifference) {
+  
+  //core formula from automotive systems:                                                                                                          
+  // Slip ratio s = (V_wheel - V_chassis) / V_wheel
+  float slipRatio = abs ( (sum_wheel_rotation - sum_imu_rotation) / sum_wheel_rotation );
+  bool slipDetected = abs(sum_wheel_rotation) > relativeAngularDifference*abs(sum_imu_rotation) && abs(sum_wheel_rotation-sum_imu_rotation)>absoluteAngularDifference;
+
+  if(slipDetected){
+      ROS_INFO_STREAM_THROTTLE(0.5,"[antislip] Detected! Slip ratio " << slipRatio);
+  }else if (slipRatio > 0.1) {
+    ROS_INFO_STREAM_THROTTLE(0.5,"[antislip] Slip ratio " << slipRatio);
+  }
+
+  if(slipDetected) {
     if(!angularSlip) {
       if(abs(sum_wheel_rotation-sum_imu_rotation)>absoluteAngularDifference*10) {
         ROS_ERROR_STREAM_THROTTLE(0.5,"[antislip] Angular slip unplausible difference. Integral rotations IMU="<<sum_imu_rotation<<" Wheel="<<sum_wheel_rotation);
