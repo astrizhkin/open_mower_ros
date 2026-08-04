@@ -91,9 +91,9 @@ void onImu(const sensor_msgs::Imu::ConstPtr &msg) {
   bool slipDetected = abs(sum_wheel_rotation) > relativeAngularDifference*abs(sum_imu_rotation) && abs(sum_wheel_rotation-sum_imu_rotation)>absoluteAngularDifference;
 
   if(slipDetected){
-      ROS_INFO_STREAM_THROTTLE(0.5,"[antislip] Detected! Slip ratio " << slipRatio);
-  }else if (slipRatio > 0.1) {
-    ROS_INFO_STREAM_THROTTLE(0.5,"[antislip] Slip ratio " << slipRatio);
+    ROS_INFO_STREAM_THROTTLE(0.5,"[antislip] Detected! Slip ratio " << slipRatio << " Integral IMU=" <<sum_imu_rotation<<" Wheel="<<sum_wheel_rotation);
+  } else if (slipRatio > 0.1) {
+    ROS_INFO_STREAM_THROTTLE(0.5,"[antislip] Slip ratio " << slipRatio << " Integral IMU="<<sum_imu_rotation<<" Wheel="<<sum_wheel_rotation);
   }
 
   if(slipDetected) {
