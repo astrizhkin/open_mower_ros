@@ -87,7 +87,8 @@ void onImu(const sensor_msgs::Imu::ConstPtr &msg) {
   
   //core formula from automotive systems:                                                                                                          
   // Slip ratio s = (V_wheel - V_chassis) / V_wheel
-  float slipRatio = abs ( (sum_wheel_rotation - sum_imu_rotation) / sum_wheel_rotation );
+  float slipRatio = abs(sum_wheel_rotation) < 0.05 ? 0 :
+    abs ( (sum_wheel_rotation - sum_imu_rotation) / sum_wheel_rotation );
   bool slipDetected = abs(sum_wheel_rotation) > relativeAngularDifference*abs(sum_imu_rotation) && abs(sum_wheel_rotation-sum_imu_rotation)>absoluteAngularDifference;
 
   if(slipDetected){
