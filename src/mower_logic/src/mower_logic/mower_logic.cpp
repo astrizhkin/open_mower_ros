@@ -106,7 +106,7 @@ ros::Time rain_resume;
 // Mower blade low-RPM safety check
 ros::Time low_mow_rpm_start;
 
-constexpr double WHEEL_THERMAL_WINDOW_LONG = 120.0;
+constexpr double WHEEL_THERMAL_WINDOW_LONG = 180.0;
 constexpr double WHEEL_THERMAL_WINDOW_SHORT = 30.0;
 
 struct ThermalSample {
@@ -132,6 +132,8 @@ void thermalCleanOld(MotorThermalWindow& w, double delete_before) {
 
 void thermalAddSample(MotorThermalWindow& w, double energy, double time,
                       double window_sec) {
+  thermalCleanOld(w, time - window_sec);
+
   if (!w.samples.empty()) {
     double dt = time - w.samples.back().time;
     double energy_dt = energy * dt;
@@ -140,7 +142,6 @@ void thermalAddSample(MotorThermalWindow& w, double energy, double time,
   } else {
     w.samples.push_back({0.0, time});
   }
-  thermalCleanOld(w, time - window_sec);
 }
 
 /**
