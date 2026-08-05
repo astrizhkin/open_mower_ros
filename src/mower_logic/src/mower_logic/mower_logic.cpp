@@ -24,6 +24,7 @@
 
 #include <atomic>
 #include <ios>
+#include <list>
 #include <mutex>
 #include <sstream>
 
@@ -104,6 +105,40 @@ ros::Time rain_resume;
 
 // Mower blade low-RPM safety check
 ros::Time low_mow_rpm_start;
+
+constexpr double WHEEL_THERMAL_WINDOW = 30.0;
+
+struct ThermalSample {
+  double energy;  // I^2*R*dt
+  double time;
+};
+
+struct MotorThermalWindow {
+  std::list<ThermalSample> samples;
+  double sum;
+};
+
+MotorThermalWindow wheel_thermal[4];
+
+void thermalCleanOld(MotorThermalWindow& w, double delete_before) {
+  auto it = w.samples.begin();
+  while (it != w.samples.end() && it->time < delete_before) {
+    w.sum -= it->energy;
+    it = w.samples.erase(it);
+  }
+}
+
+void thermalAddSample(MotorThermalWindow& w, double energy, double time) {
+  if (!w.samples.empty()) {
+    double dt = time - w.samples.back().time;
+    double energy_dt = energy * dt;
+    w.samples.push_back({energy_dt, time});
+    w.sum += energy_dt;
+  } else {
+    w.samples.push_back({0.0, time});
+  }
+  thermalCleanOld(w, time - WHEEL_THERMAL_WINDOW);
+}
 
 /**
  * Some thread safe methods to get a copy of the logic state
@@ -235,6 +270,17 @@ void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
 #endif
   last_status = *msg;
   status_time = ros::Time::now();
+
+  double msg_time = msg->header.stamp.toSec();
+  double R = last_config.wheel_motor_phase_resistance;
+  const auto& esc[4] = {
+    msg->rear_left_esc_status,  msg->rear_right_esc_status,
+    msg->front_left_esc_status, msg->front_right_esc_status
+  };
+  for (int i = 0; i < 4; i++) {
+    double i2r = esc[i].current * esc[i].current * R;
+    thermalAddSample(wheel_thermal[i], i2r, msg_time);
+  }
 }
 
 // Abort the currently running behaviour
@@ -560,6 +606,36 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     }
   } else {
     low_mow_rpm_start = ros::Time(0.0);
+  }
+
+  // Wheel motor thermal overload check (sliding window I^2*R integral)
+  if (last_config.wheel_motor_thermal_enabled) {
+    double max_power = last_config.wheel_motor_rated_power;
+
+    bool overload = false;
+    int worst_motor = 0;
+    double worst_sum = 0.0;
+
+    for (int i = 0; i < 4; i++) {
+      double avg_power = wheel_thermal[i].sum / WHEEL_THERMAL_WINDOW;
+      if (avg_power > max_power && (!overload ||
+          wheel_thermal[i].sum > worst_sum)) {
+        overload = true;
+        worst_motor = i;
+        worst_sum = wheel_thermal[i].sum;
+      }
+    }
+
+    if (overload) {
+      double avg_p = worst_sum / WHEEL_THERMAL_WINDOW;
+      ROS_ERROR_STREAM("[mower_logic] EMERGENCY: wheel motor " << worst_motor
+        << " thermal overload, avg I^2R = " << avg_p
+        << "W over " << WHEEL_THERMAL_WINDOW
+        << "s (max " << max_power << "W)");
+      setEmergencyMode(true,
+        mower_msgs::EmergencyModeSrvRequest::EMERGENCY_TEMPERATURE,
+        "[mower_logic] wheel motor thermal overload", ros::Duration(300.0));
+    }
   }
 
   // We need orientation and a positional accuracy less than configured
@@ -1039,6 +1115,7 @@ int main(int argc, char **argv) {
   ROS_INFO("[mower_logic]  Got all servers, we can mow");
 
   rain_resume = last_rain_check = last_v_battery_check = ros::Time::now();
+  for (int i = 0; i < 4; i++) wheel_thermal[i].sum = 0.0;
   ros::Timer safety_timer = n->createTimer(ros::Duration(0.5), checkSafety);
   ros::Timer ui_timer = n->createTimer(ros::Duration(1.0), updateUI);
 
