@@ -33,7 +33,8 @@ public:
     static constexpr float MOTOR_TEMP_WARN_C  = 70.0f;
     static constexpr float MOTOR_TEMP_ERROR_C = 80.0f;
 
-    static constexpr uint16_t SDO_ENDPOINT_VEL_INTEGRATOR_TORQUE = 275;
+    static constexpr uint16_t SDO_ENDPOINT_VEL_INTEGRATOR_TORQUE_AXIX0 = 275;//see flat_endpoints.json axis0.controller.vel_integrator_torque
+    static constexpr uint16_t SDO_ENDPOINT_VEL_INTEGRATOR_TORQUE_AXIX1 = 595;//see flat_endpoints.json axis1.controller.vel_integrator_torque
 
     void getESCStatus(WheelId wheel, bool esc_power,
                       const ros::Time& esc_enabled_time,
@@ -124,12 +125,13 @@ public:
             WheelId::FRONT_LEFT, WheelId::FRONT_RIGHT,
             WheelId::REAR_LEFT,  WheelId::REAR_RIGHT
         };
+
         for (const auto w : all_wheels) {
             odrive_ros_control::SDORequest req;
             odrive_ros_control::SDOResponse res;
             req.axis_name = wheelName(w);
             req.opcode = 1; // WRITE
-            req.endpoint_id = SDO_ENDPOINT_VEL_INTEGRATOR_TORQUE;
+            req.endpoint_id = SDO_ENDPOINT_VEL_INTEGRATOR_TORQUE_AXIX0;
             req.value = 0; // 0.0f as uint32
             req.timeout_sec = 0.5f;
             req.async = true;
