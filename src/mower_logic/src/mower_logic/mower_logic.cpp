@@ -616,40 +616,42 @@ void checkSafety(const ros::TimerEvent &timer_event) {
 
   // Wheel motor thermal overload check (two sliding windows)
   if (last_config.wheel_motor_thermal_enabled) {
-    double max_long = last_config.wheel_motor_overload_power_long;
-    double max_short = last_config.wheel_motor_overload_power_short;
-    bool overload = false;
-    int worst_motor = 0;
-    double worst_avg = 0.0;
-    double worst_window = 0.0;
+    double max_energy_long = last_config.wheel_motor_overload_power_long * WHEEL_THERMAL_WINDOW_LONG;
+    double max_energy_short = last_config.wheel_motor_overload_power_short * WHEEL_THERMAL_WINDOW_SHORT;
+    int worst_motor_long = 0, worst_motor_short = 0;
+    double worst_sum_long = 0.0, worst_sum_short = 0.0;
 
     for (int i = 0; i < 4; i++) {
-      double avg_long = wheel_thermal_long[i].sum / WHEEL_THERMAL_WINDOW_LONG;
-      if (avg_long > max_long && (!overload || avg_long > worst_avg)) {
-        overload = true; worst_motor = i;
-        worst_avg = avg_long; worst_window = WHEEL_THERMAL_WINDOW_LONG;
+      if (wheel_thermal_long[i].sum > worst_sum_long) {
+        worst_sum_long = wheel_thermal_long[i].sum;
+        worst_motor_long = i;
       }
-      double avg_short = wheel_thermal_short[i].sum / WHEEL_THERMAL_WINDOW_SHORT;
-      if (avg_short > max_short && (!overload || avg_short > worst_avg)) {
-        overload = true; worst_motor = i;
-        worst_avg = avg_short; worst_window = WHEEL_THERMAL_WINDOW_SHORT;
+      if (wheel_thermal_short[i].sum > worst_sum_short) {
+        worst_sum_short = wheel_thermal_short[i].sum;
+        worst_motor_short = i;
       }
     }
 
-    if (overload) {
-      ROS_ERROR_STREAM("[mower_logic] EMERGENCY: wheel motor " << worst_motor
-        << " thermal overload, avg I^2R = " << worst_avg
-        << "W over " << worst_window
-        << "s (max " << (worst_window == WHEEL_THERMAL_WINDOW_LONG ? max_long : max_short) << "W)");
+    if (worst_sum_long > max_energy_long) {
+      double avg_p = worst_sum_long / WHEEL_THERMAL_WINDOW_LONG;
+      ROS_ERROR_STREAM("[mower_logic] EMERGENCY: wheel motor " << worst_motor_long
+        << " thermal overload, avg I^2R = " << avg_p
+        << "W over " << WHEEL_THERMAL_WINDOW_LONG << "s");
+      setEmergencyMode(true,
+        mower_msgs::EmergencyModeSrvRequest::EMERGENCY_TEMPERATURE,
+        "[mower_logic] wheel motor thermal overload", ros::Duration(300.0));
+    } else if (worst_sum_short > max_energy_short) {
+      double avg_p = worst_sum_short / WHEEL_THERMAL_WINDOW_SHORT;
+      ROS_ERROR_STREAM("[mower_logic] EMERGENCY: wheel motor " << worst_motor_short
+        << " thermal overload, avg I^2R = " << avg_p
+        << "W over " << WHEEL_THERMAL_WINDOW_SHORT << "s");
       setEmergencyMode(true,
         mower_msgs::EmergencyModeSrvRequest::EMERGENCY_TEMPERATURE,
         "[mower_logic] wheel motor thermal overload", ros::Duration(300.0));
     } else {
-      double avg_long = wheel_thermal_long[worst_motor].sum / WHEEL_THERMAL_WINDOW_LONG;
-      ROS_INFO_STREAM_THROTTLE(5, "[mower_logic] wheel " << worst_motor
-        << " thermal avg I^2R = " << avg_long << "W (long), "
-        << (wheel_thermal_short[worst_motor].sum / WHEEL_THERMAL_WINDOW_SHORT)
-        << "W (short)");
+      ROS_INFO_STREAM_THROTTLE(5, "[mower_logic] wheel thermal long="
+        << worst_sum_long/WHEEL_THERMAL_WINDOW_LONG << "W short="
+        << worst_sum_short/WHEEL_THERMAL_WINDOW_SHORT << "W");
     }
   }
 
