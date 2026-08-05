@@ -273,12 +273,12 @@ void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
 
   double msg_time = status_time.toSec();
   double R = last_config.wheel_motor_phase_resistance;
-  const auto& esc[4] = {
-    msg->rear_left_esc_status,  msg->rear_right_esc_status,
-    msg->front_left_esc_status, msg->front_right_esc_status
+  const double currents[4] = {
+    msg->rear_left_esc_status.current,  msg->rear_right_esc_status.current,
+    msg->front_left_esc_status.current, msg->front_right_esc_status.current
   };
   for (int i = 0; i < 4; i++) {
-    double i2r = esc[i].current * esc[i].current * R;
+    double i2r = currents[i] * currents[i] * R;
     thermalAddSample(wheel_thermal[i], i2r, msg_time);
   }
 }
