@@ -278,7 +278,7 @@ void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
     msg->front_left_esc_status, msg->front_right_esc_status
   };
   for (int i = 0; i < 4; i++) {
-    double I = (esc[i].status >= mower_msgs::ESCStatus::ESC_STATUS_OK)
+    double I = (esc[i].status >= mower_msgs::ESCStatus::ESC_STATUS_OK || msg->esc_power)
       ? esc[i].current : 0.0;
     double i2r = I * I * R;
     thermalAddSample(wheel_thermal[i], i2r, msg_time);
