@@ -271,7 +271,7 @@ void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
   last_status = *msg;
   status_time = ros::Time::now();
 
-  double msg_time = msg->header.stamp.toSec();
+  double msg_time = status_time.toSec();
   double R = last_config.wheel_motor_phase_resistance;
   const auto& esc[4] = {
     msg->rear_left_esc_status,  msg->rear_right_esc_status,
