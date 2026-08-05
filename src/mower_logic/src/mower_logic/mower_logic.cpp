@@ -106,7 +106,8 @@ ros::Time rain_resume;
 // Mower blade low-RPM safety check
 ros::Time low_mow_rpm_start;
 
-constexpr double WHEEL_THERMAL_WINDOW = 30.0;
+constexpr double WHEEL_THERMAL_WINDOW_LONG = 120.0;
+constexpr double WHEEL_THERMAL_WINDOW_SHORT = 30.0;
 
 struct ThermalSample {
   double energy;  // I^2*R*dt
@@ -118,7 +119,8 @@ struct MotorThermalWindow {
   double sum;
 };
 
-MotorThermalWindow wheel_thermal[4];
+MotorThermalWindow wheel_thermal_long[4];
+MotorThermalWindow wheel_thermal_short[4];
 
 void thermalCleanOld(MotorThermalWindow& w, double delete_before) {
   auto it = w.samples.begin();
@@ -128,7 +130,8 @@ void thermalCleanOld(MotorThermalWindow& w, double delete_before) {
   }
 }
 
-void thermalAddSample(MotorThermalWindow& w, double energy, double time) {
+void thermalAddSample(MotorThermalWindow& w, double energy, double time,
+                      double window_sec) {
   if (!w.samples.empty()) {
     double dt = time - w.samples.back().time;
     double energy_dt = energy * dt;
@@ -137,7 +140,7 @@ void thermalAddSample(MotorThermalWindow& w, double energy, double time) {
   } else {
     w.samples.push_back({0.0, time});
   }
-  thermalCleanOld(w, time - WHEEL_THERMAL_WINDOW);
+  thermalCleanOld(w, time - window_sec);
 }
 
 /**
@@ -281,7 +284,8 @@ void statusReceived(const mower_msgs::Status::ConstPtr &msg) {
     double I = (esc[i].status >= mower_msgs::ESCStatus::ESC_STATUS_OK)
       ? esc[i].current : 0.0;
     double i2r = I * I * R;
-    thermalAddSample(wheel_thermal[i], i2r, msg_time);
+    thermalAddSample(wheel_thermal_long[i], i2r, msg_time, WHEEL_THERMAL_WINDOW_LONG);
+    thermalAddSample(wheel_thermal_short[i], i2r, msg_time, WHEEL_THERMAL_WINDOW_SHORT);
   }
 }
 
@@ -610,34 +614,42 @@ void checkSafety(const ros::TimerEvent &timer_event) {
     low_mow_rpm_start = ros::Time(0.0);
   }
 
-  // Wheel motor thermal overload check (sliding window I^2*R integral)
+  // Wheel motor thermal overload check (two sliding windows)
   if (last_config.wheel_motor_thermal_enabled) {
-    double max_power = last_config.wheel_motor_rated_power;
-
+    double max_long = last_config.wheel_motor_overload_power_long;
+    double max_short = last_config.wheel_motor_overload_power_short;
+    bool overload = false;
     int worst_motor = 0;
-    double worst_sum = 0.0;
+    double worst_avg = 0.0;
+    double worst_window = 0.0;
 
     for (int i = 0; i < 4; i++) {
-      if(wheel_thermal[i].sum > worst_sum) {
-        worst_motor = i;
-        worst_sum = wheel_thermal[i].sum;
+      double avg_long = wheel_thermal_long[i].sum / WHEEL_THERMAL_WINDOW_LONG;
+      if (avg_long > max_long && (!overload || avg_long > worst_avg)) {
+        overload = true; worst_motor = i;
+        worst_avg = avg_long; worst_window = WHEEL_THERMAL_WINDOW_LONG;
+      }
+      double avg_short = wheel_thermal_short[i].sum / WHEEL_THERMAL_WINDOW_SHORT;
+      if (avg_short > max_short && (!overload || avg_short > worst_avg)) {
+        overload = true; worst_motor = i;
+        worst_avg = avg_short; worst_window = WHEEL_THERMAL_WINDOW_SHORT;
       }
     }
-    double worst_avg_p = worst_sum / WHEEL_THERMAL_WINDOW;
 
-    if (worst_avg_p > max_power) {
+    if (overload) {
       ROS_ERROR_STREAM("[mower_logic] EMERGENCY: wheel motor " << worst_motor
-        << " thermal overload, avg I^2R = " << worst_avg_p
-        << "W over " << WHEEL_THERMAL_WINDOW
-        << "s (max " << max_power << "W)");
+        << " thermal overload, avg I^2R = " << worst_avg
+        << "W over " << worst_window
+        << "s (max " << (worst_window == WHEEL_THERMAL_WINDOW_LONG ? max_long : max_short) << "W)");
       setEmergencyMode(true,
         mower_msgs::EmergencyModeSrvRequest::EMERGENCY_TEMPERATURE,
         "[mower_logic] wheel motor thermal overload", ros::Duration(300.0));
-    }else{
-      ROS_INFO_STREAM_THROTTLE(5,"[mower_logic] worst wheel " << worst_motor
-          << " thermal , avg I^2R = " << worst_avg_p
-          << "W over " << WHEEL_THERMAL_WINDOW
-          << "s");
+    } else {
+      double avg_long = wheel_thermal_long[worst_motor].sum / WHEEL_THERMAL_WINDOW_LONG;
+      ROS_INFO_STREAM_THROTTLE(5, "[mower_logic] wheel " << worst_motor
+        << " thermal avg I^2R = " << avg_long << "W (long), "
+        << (wheel_thermal_short[worst_motor].sum / WHEEL_THERMAL_WINDOW_SHORT)
+        << "W (short)");
     }
   }
 
@@ -1118,7 +1130,7 @@ int main(int argc, char **argv) {
   ROS_INFO("[mower_logic]  Got all servers, we can mow");
 
   rain_resume = last_rain_check = last_v_battery_check = ros::Time::now();
-  for (int i = 0; i < 4; i++) wheel_thermal[i].sum = 0.0;
+  for (int i = 0; i < 4; i++) { wheel_thermal_long[i].sum = 0.0; wheel_thermal_short[i].sum = 0.0; }
   ros::Timer safety_timer = n->createTimer(ros::Duration(0.5), checkSafety);
   ros::Timer ui_timer = n->createTimer(ros::Duration(1.0), updateUI);
 
