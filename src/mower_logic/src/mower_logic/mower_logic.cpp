@@ -618,18 +618,24 @@ void checkSafety(const ros::TimerEvent &timer_event) {
 
     for (int i = 0; i < 4; i++) {
       double avg_power = wheel_thermal[i].sum / WHEEL_THERMAL_WINDOW;
-      if (avg_power > max_power && (!overload ||
-          wheel_thermal[i].sum > worst_sum)) {
+      if (avg_power > max_power && wheel_thermal[i].sum > worst_sum) {
         overload = true;
         worst_motor = i;
         worst_sum = wheel_thermal[i].sum;
       }
     }
+    double worst_avg_p = worst_sum / WHEEL_THERMAL_WINDOW;
+      
+
+    ROS_INFO_STREAM_THROTTLE(5,"[mower_logic] worst wheel " << worst_motor
+        << " thermal , avg I^2R = " << worst_avg_p
+        << "W over " << WHEEL_THERMAL_WINDOW
+        << "s");
+
 
     if (overload) {
-      double avg_p = worst_sum / WHEEL_THERMAL_WINDOW;
       ROS_ERROR_STREAM("[mower_logic] EMERGENCY: wheel motor " << worst_motor
-        << " thermal overload, avg I^2R = " << avg_p
+        << " thermal overload, avg I^2R = " << worst_avg_p
         << "W over " << WHEEL_THERMAL_WINDOW
         << "s (max " << max_power << "W)");
       setEmergencyMode(true,
