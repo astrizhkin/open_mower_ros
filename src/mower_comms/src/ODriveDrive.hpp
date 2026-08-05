@@ -125,17 +125,14 @@ public:
             WheelId::FRONT_LEFT, WheelId::FRONT_RIGHT,
             WheelId::REAR_LEFT,  WheelId::REAR_RIGHT
         };
-        static const uint16_t wheels_endpoint[] = {
-            SDO_ENDPOINT_VEL_INTEGRATOR_TORQUE_AXIX0, SDO_ENDPOINT_VEL_INTEGRATOR_TORQUE_AXIX1,
-            SDO_ENDPOINT_VEL_INTEGRATOR_TORQUE_AXIX0, SDO_ENDPOINT_VEL_INTEGRATOR_TORQUE_AXIX1
-        };
 
-        for (int i=0;i<4;i++) {
+        for (const auto w : all_wheels) {
             odrive_ros_control::SDORequest req;
             odrive_ros_control::SDOResponse res;
-            req.axis_name = wheelName(all_wheels[i]);
+            req.axis_name = wheelName(w);
             req.opcode = 1; // WRITE
-            req.endpoint_id = wheels_endpoint[i];
+            req.endpoint_id = req.endpoint_id = isLeft(w) ? 
+                    SDO_ENDPOINT_VEL_INTEGRATOR_TORQUE_AXIX0 : SDO_ENDPOINT_VEL_INTEGRATOR_TORQUE_AXIX1;;
             req.value = 0; // 0.0f as uint32
             req.timeout_sec = 0.5f;
             req.async = true;
