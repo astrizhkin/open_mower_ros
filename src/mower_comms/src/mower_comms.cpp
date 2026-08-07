@@ -533,12 +533,17 @@ void sendWheelTickAndMeasuredTwist(ros::Time& stamp) {
 }*/
 
 void  publishLowLevelConfig(const uint8_t address,const uint8_t address2,const ConfigValue value) {
+  uint8_t type = (address >= ConfigAddress::END)
+      ? PACKET_ID_LL_HIGH_LEVEL_CONFIG_GET
+      : PACKET_ID_LL_HIGH_LEVEL_CONFIG_SET;
   struct ll_high_level_config ll_config = {
-      .type = PACKET_ID_LL_HIGH_LEVEL_CONFIG_SET,
+      .type = type,
       .address = address,
       .address2 = address2,
       .value = value};
-  ROS_INFO("[mower_comms] Sending LL config %d,%d=%d",(int)ll_config.address,(int)ll_config.address2,(int)ll_config.value.int32Value);
+  ROS_INFO("[mower_comms] Sending LL config %d,%d=%d type=%s",
+    (int)ll_config.address,(int)ll_config.address2,(int)ll_config.value.int32Value,
+    type == PACKET_ID_LL_HIGH_LEVEL_CONFIG_GET ? "GET" : "SET");
   sendLLMessage((uint8_t *)&ll_config, sizeof(struct ll_high_level_config));
 }
 
@@ -547,6 +552,20 @@ struct AddressAndValue {
   uint8_t address2;//3 bits actually
   ConfigValue value;
 };
+
+const char* restartReasonToString(uint8_t r) {
+    switch(r) {
+        case 0: return "Unknown";
+        case 1: return "Power-On";
+        case 2: return "Run-Pin";
+        case 3: return "Soft-Reset";
+        case 4: return "Watchdog";
+        case 5: return "Debug";
+        case 6: return "Glitch";
+        case 7: return "Brownout";
+        default: return "Invalid";
+    }
+}
 
 /**
  * @brief A simple config tracker (struct-class) for managing lost response packets as well as simpler handling of
@@ -581,7 +600,15 @@ struct {
           executedUpdates.push_back(response);
         }
       } else if(type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_GET) {
-        ROS_INFO_STREAM("[mower_comms] Config value unchanged "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
+        if(response.address == ConfigAddress::MEAS_RESTART_REASON) {
+          ROS_INFO_STREAM("[mower_comms] Sensorboard restart reason: "
+            << restartReasonToString(response.value.uint8Value)
+            << " (" << (int)response.value.uint8Value << ")");
+        } else {
+          ROS_INFO_STREAM("[mower_comms] Config value unchanged "
+            <<(int)response.address <<","<<(int)response.address2
+            <<"="<<(int)response.value.int32Value);
+        }
       }
       scheduledUpdates.erase(scheduledUpdates.begin());
       tries_left = 5;
@@ -1192,6 +1219,10 @@ int main(int argc, char **argv) {
         // this will only be set if no error was set
 
         allow_send = true;
+
+        // Request restart reason from sensorboard on every connect
+        ConfigValue restart_val{};
+        configTracker.scheduleUpdate(ConfigAddress::MEAS_RESTART_REASON, 0, restart_val);
       } catch (std::exception &e) {
         retryDelay.sleep();
         ROS_ERROR_STREAM("[mower_comms] Error during reconnect.");
