@@ -604,6 +604,15 @@ struct {
           ROS_INFO_STREAM("[mower_comms] Sensorboard restart reason: "
             << restartReasonToString(response.value.uint8Value)
             << " (" << (int)response.value.uint8Value << ")");
+        } else if(response.address == ConfigAddress::MEAS_UPTIME) {
+          ROS_INFO_STREAM("[mower_comms] Sensorboard uptime: "
+            << response.value.uint32Value << " ms");
+        } else if(response.address == ConfigAddress::MEAS_FW_BUILD_NUMBER) {
+          ROS_INFO_STREAM("[mower_comms] Sensorboard fw build: "
+            << response.value.uint32Value);
+        } else if(response.address == ConfigAddress::MEAS_FW_VERSION) {
+          ROS_INFO_STREAM("[mower_comms] Sensorboard fw version: 0x"
+            << std::hex << response.value.uint32Value << std::dec);
         } else {
           ROS_INFO_STREAM("[mower_comms] Config value unchanged "
             <<(int)response.address <<","<<(int)response.address2
@@ -1220,9 +1229,12 @@ int main(int argc, char **argv) {
 
         allow_send = true;
 
-        // Request restart reason from sensorboard on every connect
-        ConfigValue restart_val{};
-        configTracker.scheduleUpdate(ConfigAddress::MEAS_RESTART_REASON, 0, restart_val);
+        // Request diagnostic measurements from sensorboard on every connect
+        ConfigValue diag_val{};
+        configTracker.scheduleUpdate(ConfigAddress::MEAS_RESTART_REASON, 0, diag_val);
+        configTracker.scheduleUpdate(ConfigAddress::MEAS_UPTIME, 0, diag_val);
+        configTracker.scheduleUpdate(ConfigAddress::MEAS_FW_BUILD_NUMBER, 0, diag_val);
+        configTracker.scheduleUpdate(ConfigAddress::MEAS_FW_VERSION, 0, diag_val);
       } catch (std::exception &e) {
         retryDelay.sleep();
         ROS_ERROR_STREAM("[mower_comms] Error during reconnect.");
