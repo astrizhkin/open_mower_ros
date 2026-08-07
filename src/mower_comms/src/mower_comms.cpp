@@ -132,6 +132,10 @@ int emebrgncy_bit_position[] = {EMERGENCY_CONTACT1_BIT, EMERGENCY_CONTACT2_BIT, 
 int kill_switch_emergeny_mask = 0;
 int latch_contact_mask = 0;
 
+// Sensorboard uptime monitoring
+uint32_t last_sensorboard_uptime = 0;
+bool sensorboard_uptime_initialized = false;
+
 sensor_msgs::MagneticField sensor_mag_msg;
 sensor_msgs::Imu sensor_imu_msg;
 double imu_gyro_multiplier[] = {0.0, 0.0, 0.0};
@@ -605,8 +609,18 @@ struct {
             << restartReasonToString(response.value.uint8Value)
             << " (" << (int)response.value.uint8Value << ")");
         } else if(response.address == ConfigAddress::MEAS_UPTIME) {
+          uint32_t current_uptime = response.value.uint32Value;
+          if (!sensorboard_uptime_initialized) {
+            sensorboard_uptime_initialized = true;
+          } else if (current_uptime < last_sensorboard_uptime) {
+            ROS_WARN_STREAM("[mower_comms] Sensorboard restart detected! Uptime dropped from "
+              << last_sensorboard_uptime << " ms to " << current_uptime << " ms");
+            ConfigValue diag_val{};
+            configTracker.scheduleUpdate(ConfigAddress::MEAS_RESTART_REASON, 0, diag_val);
+          }
+          last_sensorboard_uptime = current_uptime;
           ROS_INFO_STREAM("[mower_comms] Sensorboard uptime: "
-            << response.value.uint32Value << " ms");
+            << current_uptime << " ms");
         } else if(response.address == ConfigAddress::MEAS_FW_BUILD_NUMBER) {
           ROS_INFO_STREAM("[mower_comms] Sensorboard fw build: "
             << response.value.uint32Value);
@@ -682,6 +696,11 @@ void publishActuatorsTimerTask(const ros::TimerEvent &timer_event) {
   publishActuators();
   publishStatus();
   configTracker.executeUpdate();
+}
+
+void sensorboardUptimeMonitorTask(const ros::TimerEvent &timer_event) {
+  ConfigValue diag_val{};
+  configTracker.scheduleUpdate(ConfigAddress::MEAS_UPTIME, 0, diag_val);
 }
 
 bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerControlSrvResponse &res) {
@@ -1183,6 +1202,7 @@ int main(int argc, char **argv) {
   ros::Subscriber cmd_vel_sub = n.subscribe("cmd_vel", 0, onCmdVelReceived, ros::TransportHints().tcpNoDelay(true));
   ros::Subscriber high_level_status_sub = n.subscribe("/mower_logic/current_state", 0, highLevelStatusReceived);
   ros::Timer publish_timer = n.createTimer(ros::Duration(0.02), publishActuatorsTimerTask);
+  ros::Timer uptime_timer = n.createTimer(ros::Duration(10.0), sensorboardUptimeMonitorTask);
 
   if (drive_type == "hoverboard") {
       wheel_drive = std::make_unique<HoverboardDrive>();
