@@ -586,6 +586,35 @@ struct {
     executedUpdates.clear();
   }
 
+  void scheduleUpdate(ConfigAddress address, uint8_t address2,ConfigValue value){
+    ROS_INFO_STREAM("[mower_comms] Schedule config packet "<<(int)address <<","<<(int)address2<<"="<<(int)value.int32Value);
+    struct AddressAndValue request = {
+      .address = address,
+      .address2 = address2,
+      .value = value};
+    scheduledUpdates.push_back(request);
+    tries_left = 5;
+  }
+
+  void scheduleUpdate(ConfigAddress address, uint8_t address2,double value){
+    scheduleUpdate(address, address2, ConfigValue{.floatValue = (float)value});
+  }
+  void scheduleUpdate(ConfigAddress address, uint8_t address2,float value){
+    scheduleUpdate(address, address2, ConfigValue{.floatValue = value});
+  }
+  void scheduleUpdate(ConfigAddress address, uint8_t address2,int32_t value){
+    scheduleUpdate(address, address2, ConfigValue{.int32Value = value});
+  }
+  void scheduleUpdate(ConfigAddress address, uint8_t address2,int16_t value){
+    scheduleUpdate(address, address2, ConfigValue{.int16Value = value});
+  }
+  void scheduleUpdate(ConfigAddress address, uint8_t address2,int8_t value){
+    scheduleUpdate(address, address2, ConfigValue{.int8Value = value});
+  }
+  void scheduleUpdate(ConfigAddress address, uint8_t address2,bool value){
+    scheduleUpdate(address, address2, ConfigValue{.boolValue = value});
+  }
+
   void ackResponse(uint8_t type,AddressAndValue &response) {  // Call this on receive of a response packet to stop monitoring
     AddressAndValue &expected = scheduledUpdates.at(0);
     if(expected.address==response.address && expected.address2==response.address2) {
@@ -616,7 +645,7 @@ struct {
             ROS_WARN_STREAM("[mower_comms] Sensorboard restart detected! Uptime dropped from "
               << last_sensorboard_uptime << " ms to " << current_uptime << " ms");
             ConfigValue diag_val{};
-            configTracker.scheduleUpdate(ConfigAddress::MEAS_RESTART_REASON, 0, diag_val);
+            scheduleUpdate(ConfigAddress::MEAS_RESTART_REASON, 0, diag_val);
           }
           last_sensorboard_uptime = current_uptime;
           ROS_INFO_STREAM("[mower_comms] Sensorboard uptime: "
@@ -642,35 +671,6 @@ struct {
 
   bool isComplete() {
     return scheduledUpdates.empty();
-  }
-
-  void scheduleUpdate(ConfigAddress address, uint8_t address2,ConfigValue value){
-    ROS_INFO_STREAM("[mower_comms] Schedule config packet "<<(int)address <<","<<(int)address2<<"="<<(int)value.int32Value);
-    struct AddressAndValue request = {
-      .address = address,
-      .address2 = address2,
-      .value = value};
-    scheduledUpdates.push_back(request);
-    tries_left = 5;
-  }
-
-  void scheduleUpdate(ConfigAddress address, uint8_t address2,double value){
-    scheduleUpdate(address, address2, ConfigValue{.floatValue = (float)value});
-  }
-  void scheduleUpdate(ConfigAddress address, uint8_t address2,float value){
-    scheduleUpdate(address, address2, ConfigValue{.floatValue = value});
-  }
-  void scheduleUpdate(ConfigAddress address, uint8_t address2,int32_t value){
-    scheduleUpdate(address, address2, ConfigValue{.int32Value = value});
-  }
-  void scheduleUpdate(ConfigAddress address, uint8_t address2,int16_t value){
-    scheduleUpdate(address, address2, ConfigValue{.int16Value = value});
-  }
-  void scheduleUpdate(ConfigAddress address, uint8_t address2,int8_t value){
-    scheduleUpdate(address, address2, ConfigValue{.int8Value = value});
-  }
-  void scheduleUpdate(ConfigAddress address, uint8_t address2,bool value){
-    scheduleUpdate(address, address2, ConfigValue{.boolValue = value});
   }
 
   void executeUpdate() {
