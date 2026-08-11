@@ -221,7 +221,11 @@ typedef enum ConfigAddress {
   //measurement read only group (128 ... ) outside of EEPROM
   MEAS_BAT_ADC          = 128, 
   MEAS_CHARGE_ADC       = 129, 
-  MEAS_CURRENT_ADC      = 130, 
+  MEAS_CURRENT_ADC      = 130,
+  MEAS_RESTART_REASON   = 192,
+  MEAS_UPTIME           = 193,
+  MEAS_FW_BUILD_NUMBER  = 194,
+  MEAS_FW_VERSION       = 195, 
 
   //end
   END = 127

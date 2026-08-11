@@ -132,6 +132,10 @@ int emebrgncy_bit_position[] = {EMERGENCY_CONTACT1_BIT, EMERGENCY_CONTACT2_BIT, 
 int kill_switch_emergeny_mask = 0;
 int latch_contact_mask = 0;
 
+// Sensorboard uptime monitoring
+uint32_t last_sensorboard_uptime = 0;
+bool sensorboard_uptime_initialized = false;
+
 sensor_msgs::MagneticField sensor_mag_msg;
 sensor_msgs::Imu sensor_imu_msg;
 double imu_gyro_multiplier[] = {0.0, 0.0, 0.0};
@@ -533,12 +537,17 @@ void sendWheelTickAndMeasuredTwist(ros::Time& stamp) {
 }*/
 
 void  publishLowLevelConfig(const uint8_t address,const uint8_t address2,const ConfigValue value) {
+  uint8_t type = (address >= ConfigAddress::END)
+      ? PACKET_ID_LL_HIGH_LEVEL_CONFIG_GET
+      : PACKET_ID_LL_HIGH_LEVEL_CONFIG_SET;
   struct ll_high_level_config ll_config = {
-      .type = PACKET_ID_LL_HIGH_LEVEL_CONFIG_SET,
+      .type = type,
       .address = address,
       .address2 = address2,
       .value = value};
-  ROS_INFO("[mower_comms] Sending LL config %d,%d=%d",(int)ll_config.address,(int)ll_config.address2,(int)ll_config.value.int32Value);
+  ROS_INFO("[mower_comms] Sending LL config %d,%d=%d type=%s",
+    (int)ll_config.address,(int)ll_config.address2,(int)ll_config.value.int32Value,
+    type == PACKET_ID_LL_HIGH_LEVEL_CONFIG_GET ? "GET" : "SET");
   sendLLMessage((uint8_t *)&ll_config, sizeof(struct ll_high_level_config));
 }
 
@@ -547,6 +556,20 @@ struct AddressAndValue {
   uint8_t address2;//3 bits actually
   ConfigValue value;
 };
+
+const char* restartReasonToString(uint8_t r) {
+    switch(r) {
+        case 0: return "Unknown";
+        case 1: return "Power-On";
+        case 2: return "Run-Pin";
+        case 3: return "Soft-Reset";
+        case 4: return "Watchdog";
+        case 5: return "Debug";
+        case 6: return "Glitch";
+        case 7: return "Brownout";
+        default: return "Invalid";
+    }
+}
 
 /**
  * @brief A simple config tracker (struct-class) for managing lost response packets as well as simpler handling of
@@ -561,37 +584,6 @@ struct {
   void clean() {
     scheduledUpdates.clear();
     executedUpdates.clear();
-  }
-
-  void ackResponse(uint8_t type,AddressAndValue &response) {  // Call this on receive of a response packet to stop monitoring
-    AddressAndValue &expected = scheduledUpdates.at(0);
-    if(expected.address==response.address && expected.address2==response.address2) {
-      if(type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_ERR) {
-        if(response.address==ConfigAddress::COMMAND) {
-          ROS_ERROR_STREAM("[mower_comms] Command "<<(int)response.value.int8Value<<" execution failed");
-        }else{
-          ROS_ERROR_STREAM("[mower_comms] Get error config response "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
-        }
-        return;
-      } else if(type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_SET) {
-        if(response.address==ConfigAddress::COMMAND) {
-          ROS_INFO_STREAM("[mower_comms] Command "<<(int)response.value.int8Value<<" executed successfully");
-        } else {
-          ROS_WARN_STREAM("[mower_comms] New config value accepted "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
-          executedUpdates.push_back(response);
-        }
-      } else if(type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_GET) {
-        ROS_INFO_STREAM("[mower_comms] Config value unchanged "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
-      }
-      scheduledUpdates.erase(scheduledUpdates.begin());
-      tries_left = 5;
-    }else{
-      ROS_ERROR_STREAM("[mower_comms] Got unexpected config packet. Expected " << (int)expected.address <<","<<(int)expected.address2 << " received "<<(int)response.address <<","<<(int)response.address2);
-    }
-  };
-
-  bool isComplete() {
-    return scheduledUpdates.empty();
   }
 
   void scheduleUpdate(ConfigAddress address, uint8_t address2,ConfigValue value){
@@ -623,6 +615,64 @@ struct {
     scheduleUpdate(address, address2, ConfigValue{.boolValue = value});
   }
 
+  void ackResponse(uint8_t type,AddressAndValue &response) {  // Call this on receive of a response packet to stop monitoring
+    AddressAndValue &expected = scheduledUpdates.at(0);
+    if(expected.address==response.address && expected.address2==response.address2) {
+      if(type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_ERR) {
+        if(response.address==ConfigAddress::COMMAND) {
+          ROS_ERROR_STREAM("[mower_comms] Command "<<(int)response.value.int8Value<<" execution failed");
+        }else{
+          ROS_ERROR_STREAM("[mower_comms] Get error config response "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
+        }
+        return;
+      } else if(type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_SET) {
+        if(response.address==ConfigAddress::COMMAND) {
+          ROS_INFO_STREAM("[mower_comms] Command "<<(int)response.value.int8Value<<" executed successfully");
+        } else {
+          ROS_WARN_STREAM("[mower_comms] New config value accepted "<<(int)response.address <<","<<(int)response.address2<<"="<<(int)response.value.int32Value);
+          executedUpdates.push_back(response);
+        }
+      } else if(type==PACKET_ID_LL_HIGH_LEVEL_CONFIG_GET) {
+        if(response.address == ConfigAddress::MEAS_RESTART_REASON) {
+          ROS_INFO_STREAM("[mower_comms] Sensorboard restart reason: "
+            << restartReasonToString(response.value.uint8Value)
+            << " (" << (int)response.value.uint8Value << ")");
+        } else if(response.address == ConfigAddress::MEAS_UPTIME) {
+          uint32_t current_uptime = response.value.uint32Value;
+          if (!sensorboard_uptime_initialized) {
+            sensorboard_uptime_initialized = true;
+          } else if (current_uptime < last_sensorboard_uptime) {
+            ROS_WARN_STREAM("[mower_comms] Sensorboard restart detected! Uptime dropped from "
+              << last_sensorboard_uptime << " ms to " << current_uptime << " ms");
+            ConfigValue diag_val{};
+            scheduleUpdate(ConfigAddress::MEAS_RESTART_REASON, 0, diag_val);
+          }
+          last_sensorboard_uptime = current_uptime;
+          ROS_INFO_STREAM("[mower_comms] Sensorboard uptime: "
+            << current_uptime << " ms");
+        } else if(response.address == ConfigAddress::MEAS_FW_BUILD_NUMBER) {
+          ROS_INFO_STREAM("[mower_comms] Sensorboard fw build: "
+            << response.value.uint32Value);
+        } else if(response.address == ConfigAddress::MEAS_FW_VERSION) {
+          ROS_INFO_STREAM("[mower_comms] Sensorboard fw version: 0x"
+            << std::hex << response.value.uint32Value << std::dec);
+        } else {
+          ROS_INFO_STREAM("[mower_comms] Config value unchanged "
+            <<(int)response.address <<","<<(int)response.address2
+            <<"="<<(int)response.value.int32Value);
+        }
+      }
+      scheduledUpdates.erase(scheduledUpdates.begin());
+      tries_left = 5;
+    }else{
+      ROS_ERROR_STREAM("[mower_comms] Got unexpected config packet. Expected " << (int)expected.address <<","<<(int)expected.address2 << " received "<<(int)response.address <<","<<(int)response.address2);
+    }
+  };
+
+  bool isComplete() {
+    return scheduledUpdates.empty();
+  }
+
   void executeUpdate() {
     if (!tries_left ||                                            // No request tries left (probably old LL-FW)
         !serial_port.isOpen() || !allow_send ||                   // Serial not ready
@@ -646,6 +696,11 @@ void publishActuatorsTimerTask(const ros::TimerEvent &timer_event) {
   publishActuators();
   publishStatus();
   configTracker.executeUpdate();
+}
+
+void sensorboardUptimeMonitorTask(const ros::TimerEvent &timer_event) {
+  ConfigValue diag_val{};
+  configTracker.scheduleUpdate(ConfigAddress::MEAS_UPTIME, 0, diag_val);
 }
 
 bool setMowEnabled(mower_msgs::MowerControlSrvRequest &req, mower_msgs::MowerControlSrvResponse &res) {
@@ -1147,6 +1202,7 @@ int main(int argc, char **argv) {
   ros::Subscriber cmd_vel_sub = n.subscribe("cmd_vel", 0, onCmdVelReceived, ros::TransportHints().tcpNoDelay(true));
   ros::Subscriber high_level_status_sub = n.subscribe("/mower_logic/current_state", 0, highLevelStatusReceived);
   ros::Timer publish_timer = n.createTimer(ros::Duration(0.02), publishActuatorsTimerTask);
+  ros::Timer uptime_timer = n.createTimer(ros::Duration(10.0), sensorboardUptimeMonitorTask);
 
   if (drive_type == "hoverboard") {
       wheel_drive = std::make_unique<HoverboardDrive>();
@@ -1192,6 +1248,13 @@ int main(int argc, char **argv) {
         // this will only be set if no error was set
 
         allow_send = true;
+
+        // Request diagnostic measurements from sensorboard on every connect
+        ConfigValue diag_val{};
+        configTracker.scheduleUpdate(ConfigAddress::MEAS_RESTART_REASON, 0, diag_val);
+        configTracker.scheduleUpdate(ConfigAddress::MEAS_UPTIME, 0, diag_val);
+        configTracker.scheduleUpdate(ConfigAddress::MEAS_FW_BUILD_NUMBER, 0, diag_val);
+        configTracker.scheduleUpdate(ConfigAddress::MEAS_FW_VERSION, 0, diag_val);
       } catch (std::exception &e) {
         retryDelay.sleep();
         ROS_ERROR_STREAM("[mower_comms] Error during reconnect.");

@@ -29,7 +29,9 @@ double antislipVel;
 double angularAntislipTimeout;
 double integrationTime;
 double absoluteAngularDifference;
-double relativeAngularDifference;
+//double relativeAngularDifference;
+double wheelNoiseAngularThreshold;
+double slipRatoThreshold;
 
 void cleanOldValues(std::list<StampedValue>& list, double &sum, double delete_up_to_time) {
   std::list<StampedValue>::iterator it = list.begin();
@@ -84,12 +86,28 @@ void onImu(const sensor_msgs::Imu::ConstPtr &msg) {
   //ROS_WARN_STREAM_THROTTLE(1,"[antislip] ROT imu="<<sum_imu_rotation<<" wheel="<<sum_wheel_rotation<<
   //                " LIN pose="<<sum_pose_motion<<" wheel="<<sum_wheel_motion<<
   //                " sizes("<<imu_angular_value_series.size()<<","<<wheel_angular_value_series.size()<<","<<pose_linear_value_series.size()<<","<<wheel_linear_value_series.size()<<")");
-  if(abs(sum_wheel_rotation) > relativeAngularDifference*abs(sum_imu_rotation) && abs(sum_wheel_rotation-sum_imu_rotation)>absoluteAngularDifference) {
+  
+  //core formula from automotive systems:                                                                                                          
+  // Slip ratio s = (V_wheel - V_chassis) / V_wheel
+  float slipRatio = abs(sum_wheel_rotation) < wheelNoiseAngularThreshold ? 0 :
+    abs ( (sum_wheel_rotation - sum_imu_rotation) / sum_wheel_rotation );
+
+  //bool slipDetected = abs(sum_wheel_rotation) > relativeAngularDifference*abs(sum_imu_rotation) 
+  //                    && abs(sum_wheel_rotation-sum_imu_rotation)>absoluteAngularDifference;
+
+  //if(slipDetected){
+  //  ROS_INFO_STREAM_THROTTLE(0.5,"[antislip] Detected! Slip ratio " << slipRatio << " Integral IMU=" <<sum_imu_rotation<<" Wheel="<<sum_wheel_rotation);
+  //} else if (slipRatio > slipRatoThreshold) {
+  //  ROS_INFO_STREAM_THROTTLE(0.5,"[antislip] Slip ratio " << slipRatio << " Integral IMU="<<sum_imu_rotation<<" Wheel="<<sum_wheel_rotation);
+  //}
+  bool slipDetected = slipRatio > slipRatoThreshold;
+
+  if(slipDetected) {
     if(!angularSlip) {
       if(abs(sum_wheel_rotation-sum_imu_rotation)>absoluteAngularDifference*10) {
         ROS_ERROR_STREAM_THROTTLE(0.5,"[antislip] Angular slip unplausible difference. Integral rotations IMU="<<sum_imu_rotation<<" Wheel="<<sum_wheel_rotation);
       }else{
-        ROS_WARN_STREAM("[antislip] Angular slip started. Integral rotations IMU="<<sum_imu_rotation<<" Wheel="<<sum_wheel_rotation);
+        ROS_WARN_STREAM("[antislip] Angular slip started. Integral rotations IMU="<<sum_imu_rotation<<" Wheel="<<sum_wheel_rotation<<" Slip ratio=" << slipRatio);
         angularSlip = true;
         angularSlipStarted = msg->header.stamp;
       }
@@ -140,11 +158,17 @@ int main(int argc, char **argv) {
   if (paramNh.param("integration_time", integrationTime, 2.0)) {
     ROS_INFO_STREAM("[antislip] Configured integration time: " << integrationTime);
   }
-  if (paramNh.param("relative_angular_difference", relativeAngularDifference, 10.0)) {
-    ROS_INFO_STREAM("[antislip] Configured relative angular difference: " << relativeAngularDifference);
-  }
+  //if (paramNh.param("relative_angular_difference", relativeAngularDifference, 10.0)) {
+  //  ROS_INFO_STREAM("[antislip] Configured relative angular difference: " << relativeAngularDifference);
+  //}
   if (paramNh.param("absolute_angular_difference", absoluteAngularDifference, 0.45)) {
     ROS_INFO_STREAM("[antislip] Configured absolute angular difference: " << absoluteAngularDifference);
+  }
+  if (paramNh.param("slip_ratio_threshold", slipRatoThreshold, 0.95)) {
+    ROS_INFO_STREAM("[antislip] Configured slip ratio threshold: " << slipRatoThreshold);
+  }
+  if (paramNh.param("wheel_noise_angular_threshold", wheelNoiseAngularThreshold, 0.1)) {
+    ROS_INFO_STREAM("[antislip] Configured wheel noise angular threshold: " << wheelNoiseAngularThreshold);
   }
   if (paramNh.param("antislip_vel", antislipVel, 0.3)) {
     ROS_INFO_STREAM("[antislip] Configured antislip_vel: " << antislipVel);

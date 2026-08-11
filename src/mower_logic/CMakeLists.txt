@@ -105,7 +105,6 @@ generate_messages(
 ## Generate dynamic reconfigure parameters in the 'cfg' folder
  generate_dynamic_reconfigure_options(
          cfg/MowerLogic.cfg
-         cfg/MowerOdometry.cfg
  )
 
 ###################################
@@ -188,10 +187,6 @@ add_executable(mower_logic
         )
 add_dependencies(mower_logic ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(mower_logic ${catkin_LIBRARIES} ${CRYPTOPP_LIBRARIES})
-
-add_executable(mower_odometry src/mower_odometry/mower_odometry.cpp)
-add_dependencies(mower_odometry ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(mower_odometry ${catkin_LIBRARIES})
 
 add_executable(mag_calibration src/mag_calibration/mag_calibration.cpp)
 add_dependencies(mag_calibration ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
