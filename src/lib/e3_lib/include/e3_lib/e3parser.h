@@ -166,6 +166,7 @@ inline std::string key_range_name(uint16_t key) {
     if (key < 0x0300) return "Command";
     if (key < 0x0500) return "Sensor";
     if (key < 0x0900) return "Telemetry";
+    if (key < 0x0A00) return "FlowControl";
     return "Unknown";
 }
 
