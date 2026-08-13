@@ -805,6 +805,8 @@ void reconfigureCB(mower_logic::MowerLogicConfig &c, uint32_t level) {
   last_config = c;
 }
 
+bool handleNewMapAction(const std::string &map_name);
+
 bool highLevelCommand(mower_msgs::HighLevelControlSrvRequest &req, mower_msgs::HighLevelControlSrvResponse &res) {
   switch (req.command) {
     case mower_msgs::HighLevelControlSrvRequest::COMMAND_HOME:
