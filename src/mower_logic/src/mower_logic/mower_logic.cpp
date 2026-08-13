@@ -958,6 +958,13 @@ void buildRootActions() {
   reset_emergency_action.action_name = "Reset Emergency";
   reset_emergency_action.e3_key = 0x03E0;
   rootActions.push_back(reset_emergency_action);
+
+  xbot_msgs::ActionInfo new_map_action;
+  new_map_action.action_id = "new_map";
+  new_map_action.enabled = true;
+  new_map_action.action_name = "New Map";
+  new_map_action.e3_key = 0x03E1;
+  rootActions.push_back(new_map_action);
 }
 
 int main(int argc, char **argv) {
