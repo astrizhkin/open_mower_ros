@@ -1,0 +1,7 @@
+string map_name
+float64 latitude
+float64 longitude
+float64 height
+---
+bool success
+string message

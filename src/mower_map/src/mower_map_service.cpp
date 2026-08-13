@@ -39,6 +39,7 @@
 #include "mower_map/AddMowingAreaSrv.h"
 #include "mower_map/AppendMapSrv.h"
 #include "mower_map/ClearMapSrv.h"
+#include "mower_map/NewMapSrv.h"
 #include "mower_map/ClearNavPointSrv.h"
 #include "mower_map/ConvertToNavigationAreaSrv.h"
 #include "mower_map/DeleteMowingAreaSrv.h"
@@ -1310,6 +1311,23 @@ bool clearMap(mower_map::ClearMapSrvRequest &req, mower_map::ClearMapSrvResponse
   return true;
 }
 
+bool newMap(mower_map::NewMapSrvRequest &req, mower_map::NewMapSrvResponse &res) {
+  ROS_INFO_STREAM("[mower_map_service] Creating new map: " << req.map_name);
+
+  areas.clear();
+  has_docking_point = false;
+  map_name = req.map_name;
+
+  setBasePoint(true, req.longitude, req.latitude, req.height);
+
+  saveMap();
+  buildMap();
+
+  res.success = true;
+  res.message = "New map initialized";
+  return true;
+}
+
 int main(int argc, char **argv) {
   ros::init(argc, argv, "mower_map_service");
   has_docking_point = false;
@@ -1399,6 +1417,7 @@ int main(int argc, char **argv) {
   ros::ServiceServer set_nav_point_srv = n.advertiseService("mower_map_service/set_nav_point", setNavPoint);
   ros::ServiceServer clear_nav_point_srv = n.advertiseService("mower_map_service/clear_nav_point", clearNavPoint);
   ros::ServiceServer clear_map_srv = n.advertiseService("mower_map_service/clear_map", clearMap);
+  ros::ServiceServer new_map_srv = n.advertiseService("mower_map_service/new_map", newMap);
 
   ros::spin();
   return 0;
