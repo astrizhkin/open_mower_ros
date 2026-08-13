@@ -38,6 +38,7 @@
 #include "mower_logic/MowerLogicConfig.h"
 #include "mower_map/ClearMapSrv.h"
 #include "mower_map/ClearNavPointSrv.h"
+#include "mower_map/NewMapSrv.h"
 #include "mower_map/GetDockingPointSrv.h"
 #include "mower_map/GetMowingAreaSrv.h"
 #include "mower_map/SetDockingPointSrv.h"
@@ -56,12 +57,13 @@
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "xbot_msgs/AbsolutePose.h"
 #include "xbot_msgs/ActionData.h"
+#include "xbot_msgs/GNSSInfo.h"
 #include "xbot_msgs/RegisterActionsSrv.h"
 #include "xbot_positioning/GPSControlSrv.h"
 #include "xbot_positioning/SetPoseSrv.h"
 
 ros::ServiceClient pathClient, getAreaClient, getAreasClient, dockingPointClient, gpsClient, mowClient, emergencyClient, pathProgressClient,
-    setNavPointClient, clearNavPointClient, clearMapClient, positioningClient, actionRegistrationClient;
+    setNavPointClient, clearNavPointClient, clearMapClient, newMapClient, positioningClient, actionRegistrationClient;
 
 ros::NodeHandle *n;
 ros::NodeHandle *paramNh;
@@ -89,6 +91,9 @@ float joy_mower_power = 0.0;
 ros::Time joy_mower_power_time(0.0);
 
 ros::Time last_good_gps(0.0);
+
+xbot_msgs::GNSSInfo last_gnss_info;
+bool has_gnss_info = false;
 
 std::recursive_mutex mower_logic_mutex;
 
@@ -841,6 +846,10 @@ bool highLevelCommand(mower_msgs::HighLevelControlSrvRequest &req, mower_msgs::H
       // to a fresh AreaRecorder
       currentBehavior->abort();
     } break;
+    case mower_msgs::HighLevelControlSrvRequest::COMMAND_NEW_MAP:
+      ROS_WARN_STREAM("[mower_logic] COMMAND_NEW_MAP");
+      handleNewMapAction("new_map");
+      break;
     case mower_msgs::HighLevelControlSrvRequest::COMMAND_RESET_EMERGENCY:
       ROS_WARN_STREAM("[mower_logic] COMMAND_RESET_EMERGENCY");
       setEmergencyMode(false, mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ALL,
@@ -850,10 +859,40 @@ bool highLevelCommand(mower_msgs::HighLevelControlSrvRequest &req, mower_msgs::H
   return true;
 }
 
+bool handleNewMapAction(const std::string &map_name) {
+  if (currentBehavior != &AreaRecordingBehavior::INSTANCE && currentBehavior != &IdleBehavior::INSTANCE &&
+      currentBehavior != &IdleBehavior::DOCKED_INSTANCE && currentBehavior != nullptr) {
+    ROS_ERROR_STREAM("[mower_logic] Creating new map is only allowed during IDLE or AreaRecording!");
+    return false;
+  }
+  if (!has_gnss_info || last_gnss_info.rtcm1005_age_sec <= 0 || last_gnss_info.rtcm1005_age_sec >= 60.0) {
+    ROS_ERROR_STREAM("[mower_logic] Cannot create new map - RTCM 1005 base station data unavailable or stale (age=" << (has_gnss_info ? last_gnss_info.rtcm1005_age_sec : -1) << "s)");
+    return false;
+  }
+  ROS_WARN_STREAM("[mower_logic] Creating new map: " << map_name);
+  ROS_INFO_STREAM("[mower_logic] Using base station LL(" << last_gnss_info.base_lon_deg << ", " << last_gnss_info.base_lat_deg << ", " << last_gnss_info.base_height_m << ")");
+  mower_map::NewMapSrv new_map_srv;
+  new_map_srv.request.map_name = map_name;
+  new_map_srv.request.latitude = last_gnss_info.base_lat_deg;
+  new_map_srv.request.longitude = last_gnss_info.base_lon_deg;
+  new_map_srv.request.height = last_gnss_info.base_height_m;
+  if (!newMapClient.call(new_map_srv) || !new_map_srv.response.success) {
+    ROS_ERROR_STREAM("[mower_logic] Failed to create new map");
+    return false;
+  }
+  currentBehavior->abort();
+  return true;
+}
+
 void actionReceived(const std_msgs::String::ConstPtr &action) {
   if (action->data == "mower_logic/reset_emergency") {
     ROS_WARN_STREAM("Got reset emergency action.");
     setEmergencyMode(false, mower_msgs::EmergencyModeSrvRequest::EMERGENCY_ALL, "[mower_logic] reset action", ros::Duration::ZERO);
+    return;
+  }
+
+  if (action->data == "mower_logic/new_map") {
+    handleNewMapAction("new_map");
     return;
   }
 
@@ -869,10 +908,21 @@ void actionExtReceived(const xbot_msgs::ActionData::ConstPtr &action) {
     return;
   }
 
+  if (action->action_id == "mower_logic/new_map") {
+    handleNewMapAction(action->parameters);
+    return;
+  }
+
   if (currentBehavior) {
     currentBehavior->handle_action(action->action_id, action->parameters);
   }
 }
+
+void gnssInfoReceived(const xbot_msgs::GNSSInfo::ConstPtr &msg) {
+  last_gnss_info = *msg;
+  has_gnss_info = true;
+}
+
 void joyVelReceived(const geometry_msgs::Twist::ConstPtr &joy_vel) {
   joy_vel_time = ros::Time::now();
   if (currentBehavior && currentBehavior->redirect_joystick()) {
@@ -935,6 +985,7 @@ int main(int argc, char **argv) {
   getAreaClient = n->serviceClient<mower_map::GetMowingAreaSrv>("mower_map_service/get_mowing_area");
   getAreasClient = n->serviceClient<mower_map::GetMowingAreasSrv>("mower_map_service/get_mowing_areas");
   clearMapClient = n->serviceClient<mower_map::ClearMapSrv>("mower_map_service/clear_map");
+  newMapClient = n->serviceClient<mower_map::NewMapSrv>("mower_map_service/new_map");
 
   gpsClient = n->serviceClient<xbot_positioning::GPSControlSrv>("xbot_positioning/set_gps_state");
   positioningClient = n->serviceClient<xbot_positioning::SetPoseSrv>("xbot_positioning/set_robot_pose");
@@ -964,6 +1015,7 @@ int main(int argc, char **argv) {
       n->subscribe("/joy_mower", 0, joyMowerReceived, ros::TransportHints().tcpNoDelay(true));
   ros::Subscriber action = n->subscribe("xbot/action", 0, actionReceived, ros::TransportHints().tcpNoDelay(true));
   ros::Subscriber action_ext = n->subscribe("xbot/action_ext", 0, actionExtReceived, ros::TransportHints().tcpNoDelay(true));
+  ros::Subscriber gnss_info_sub = n->subscribe("xbot_driver_gps/gnss_info", 0, gnssInfoReceived, ros::TransportHints().tcpNoDelay(true));
 
   ROS_INFO("[mower_logic] Subscribed to all topics");
   ros::ServiceServer high_level_control_srv = n->advertiseService("mower_service/high_level_control", highLevelCommand);
