@@ -392,7 +392,9 @@ void publishStatus() {
 
   // Latched bumper emergency: set HL bit 7 when any L-mode contact active
   if (last_ll_status.contacts & latch_contact_mask) {
-    emergency_high_level_bits |= (1 << mower_msgs::EmergencyModeSrvRequest::EMERGENCY_7);
+    if(mower_logic_config.sensor_behavior != 0) {
+      emergency_high_level_bits |= (1 << mower_msgs::EmergencyModeSrvRequest::EMERGENCY_7);
+    }
   }
 
   // overwrite emergency with the LL value.
