@@ -28,9 +28,8 @@ static const int    USS_COUNT             = 5;
 static const double USS_STALE_TIMEOUT     = 1.0;   // s; a reading older than this is ignored
 static const double USS_MAX_RANGE         = 2.55;  // m; >= this means "no obstacle"
 static const double USS_FILT_SCALE        = 65536.0; // Q16 scale: alpha = uss_average_coef / USS_FILT_SCALE
-static const double USS_AVG_LOG_PERIOD    = 10.0;  // s; log the low-pass average this often
 static const double USS_SIDE_CLOSING_FACTOR = 0.6; // side sensors close at ~0.6x forward speed
-static const double NAV_VEL_TIMEOUT       = 0.5;   // s; /nav_vel older than this is "stale"
+static const double NAV_VEL_TIMEOUT       = 2.0;   // s; /nav_vel older than this is "stale" (nav publishes at ~1 Hz)
 
 // ---- node-local tuning params (private) ----
 static double uss_front_slowdown_percent;
@@ -54,7 +53,6 @@ static ros::Time last_nav_vel_time;
 static uint8_t hl_state = mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_NULL;
 
 static double uss_average = 1.0;  // low-pass filtered average (m), seeded at 1.0 m
-static ros::Time uss_last_avg_log;
 
 static mower_logic::MowerLogicConfig cfg;
 static dynamic_reconfigure::Client<mower_logic::MowerLogicConfig> *reconfigClient;
@@ -160,11 +158,8 @@ static void onUss(const sensor_msgs::Range::ConstPtr &msg) {
   }
 
   // log the average every 10 s
-  if (uss_last_avg_log == ros::Time(0) || (now - uss_last_avg_log).toSec() >= USS_AVG_LOG_PERIOD) {
-    ROS_INFO("[uss_slowdown] low-pass US avg (readings < %.2f m) = %.3f m",
-             uss_average_threshold, uss_average);
-    uss_last_avg_log = now;
-  }
+  ROS_INFO_THROTTLE(10, "[uss_slowdown] low-pass US avg (readings < %.2f m) = %.3f m",
+                    uss_average_threshold, uss_average);
 
   // gate: only override the autonomous command
   if (hl_state != mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_AUTONOMOUS) return;
@@ -172,6 +167,11 @@ static void onUss(const sensor_msgs::Range::ConstPtr &msg) {
   if ((now - last_nav_vel_time).toSec() > NAV_VEL_TIMEOUT) return;  // nav stale -> don't override
 
   double f = overallFactor(now);
+
+  // debug: log the overall factor while the slowdown is active
+  if (f < 1.0) {
+    ROS_INFO_THROTTLE(0.5, "[uss_slowdown] active: overall slowdown factor = %.3f", f);
+  }
 
   geometry_msgs::Twist out;
   if (f >= 1.0) {
@@ -190,7 +190,7 @@ static void onUss(const sensor_msgs::Range::ConstPtr &msg) {
 
 static void onNavVel(const geometry_msgs::Twist::ConstPtr &msg) {
   last_nav_vel = *msg;
-  last_nav_vel_time = msg->header.stamp;
+  last_nav_vel_time = ros::Time::now();  // Twist has no header; use receive time
 }
 
 static void onState(const mower_msgs::HighLevelStatus::ConstPtr &msg) {
