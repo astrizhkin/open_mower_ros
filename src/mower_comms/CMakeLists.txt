@@ -178,6 +178,12 @@ add_executable(antislip
 add_dependencies(antislip ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(antislip ${catkin_LIBRARIES})
 
+add_executable(uss_slowdown
+        src/uss_slowdown.cpp
+        )
+add_dependencies(uss_slowdown ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(uss_slowdown ${catkin_LIBRARIES})
+
 
 #############
 ## Install ##

@@ -17,6 +17,11 @@ topics:
     timeout : 0.1
     priority: 50
   -
+    name    : uss
+    topic   : uss_vel
+    timeout : 0.3
+    priority: 70
+  -
     name    : logic
     topic   : logic_vel
     timeout : 0.5
