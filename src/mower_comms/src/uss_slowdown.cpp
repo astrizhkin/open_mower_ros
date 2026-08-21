@@ -6,6 +6,10 @@
 // (/uss_vel, priority 70) so the wheels taper from full speed down to a stop
 // as an obstacle closes in, and auto-resume when the path clears.
 //
+// The overall slowdown factor (1.0 = full speed, 0.0 = stop) is published on
+// /mower/uss_slowdown (std_msgs/Float32) with every US reading, so playback
+// bags carry a continuous diagnostic trace.
+//
 // Config: sensor_behavior + uss_input_config come from the mower_logic
 // dynamic-reconfigure config (live). The 6 US tuning params are node-local.
 //
@@ -14,6 +18,7 @@
 #include "ros/ros.h"
 #include <sensor_msgs/Range.h>
 #include <geometry_msgs/Twist.h>
+#include <std_msgs/Float32.h>
 #include <mower_msgs/HighLevelStatus.h>
 #include <dynamic_reconfigure/client.h>
 #include "mower_logic/MowerLogicConfig.h"
@@ -58,6 +63,7 @@ static mower_logic::MowerLogicConfig cfg;
 static dynamic_reconfigure::Client<mower_logic::MowerLogicConfig> *reconfigClient;
 
 static ros::Publisher uss_vel_pub;
+static ros::Publisher uss_factor_pub;
 
 // ---- helpers ----
 static bool isSideSensor(int i) {
@@ -161,17 +167,24 @@ static void onUss(const sensor_msgs::Range::ConstPtr &msg) {
   ROS_INFO_THROTTLE(10, "[uss_slowdown] low-pass US avg (readings < %.2f m) = %.3f m",
                     uss_average_threshold, uss_average);
 
-  // gate: only override the autonomous command
-  if (hl_state != mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_AUTONOMOUS) return;
-  if (cfg.sensor_behavior !=2) return;
-  if ((now - last_nav_vel_time).toSec() > NAV_VEL_TIMEOUT) return;  // nav stale -> don't override
-
+  // compute + publish the overall factor (continuous diagnostic trace,
+  // 1.0 when clear) — before the gate so the trace is recorded even when
+  // the velocity override is not active
   double f = overallFactor(now);
+
+  std_msgs::Float32 factor_msg;
+  factor_msg.data = static_cast<float>(f);
+  uss_factor_pub.publish(factor_msg);
 
   // debug: log the overall factor while the slowdown is active
   if (f < 1.0) {
     ROS_INFO_THROTTLE(0.5, "[uss_slowdown] active: overall slowdown factor = %.3f", f);
   }
+
+  // gate: only override the autonomous command
+  if (hl_state != mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_AUTONOMOUS) return;
+  if (cfg.sensor_behavior !=2) return;
+  if ((now - last_nav_vel_time).toSec() > NAV_VEL_TIMEOUT) return;  // nav stale -> don't override
 
   geometry_msgs::Twist out;
   if (f >= 1.0) {
@@ -222,6 +235,7 @@ int main(int argc, char **argv) {
     ROS_INFO_STREAM("[uss_slowdown] uss_average_coef = " << uss_average_coef);
 
   uss_vel_pub = n.advertise<geometry_msgs::Twist>("/uss_vel", 1);
+  uss_factor_pub = n.advertise<std_msgs::Float32>("/mower/uss_slowdown", 10);
 
   ros::Subscriber uss_sub     = n.subscribe("/mower/uss", 5, onUss);
   ros::Subscriber nav_vel_sub = n.subscribe("/nav_vel", 10, onNavVel);
