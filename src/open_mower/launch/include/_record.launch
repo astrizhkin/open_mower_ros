@@ -4,21 +4,14 @@
 <launch>
     <arg name="prefix" default="record"/>
 
+    <!-- Records every topic EXCEPT the heavy ones (negated regex via -e):
+         /heatmap/* point clouds (~74% of bag size; raw values stay in /xbot_monitoring/sensors/om_*/data),
+         /move_base_flex/global_costmap/costmap_updates (full-size map updates, rebuilt on playback),
+         /move_base_flex/GlobalPlanner/potential (planner debug grid),
+         /rosout_agg (duplicate of /rosout, which rosbag records automatically).
+         To drop another topic, add '|<topic>$' to the group before ').*'. -->
     <node if="$(optenv OM_ENABLE_RECORDING False)" pkg="rosbag" type="record" name="rosbag_record_diag"
-          args="record -j --split --duration 1h --max-splits 6 -o $(env RECORDINGS_PATH)/$(arg prefix)
-/clock
-/time_reference
-/tf
-/tf_static
-/joy
-/cmd_vel
-/mower/status
-/mower/imu
-/mower/uss
-/imu/data_raw
-/imu/mag
-/ublox/navrelposned
-/ublox/fix " />
+          args="record -j --split --duration 1h --max-splits 6 -o $(env RECORDINGS_PATH)/$(arg prefix) -e ^(?!/heatmap/|/rosout_agg$|/move_base_flex/global_costmap/costmap_updates$|/move_base_flex/GlobalPlanner/potential$).* " />
 
     <node if="$(optenv OM_ENABLE_RECORDING_ALL False)" pkg="rosbag" type="record" name="rosbag_record_diag_alle"
           args="record -j --split --duration 1h --max-splits 6 -o $(env RECORDINGS_PATH)/all_$(arg prefix) -a" />
