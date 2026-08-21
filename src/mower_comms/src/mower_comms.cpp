@@ -124,6 +124,7 @@ bool has_prev_wheel_tick_msg= false;
 std::mutex ll_status_mutex;
 struct ll_status last_ll_status = {0};
 ros::Time last_ll_status_time(0.0);
+ros::Time last_ll_status_processed_time(0.0);
 ros::Time last_ll_status_esc_enabled(0.0);
 ros::Time last_uss_stamp[USS_COUNT];
 
@@ -329,34 +330,7 @@ void convertXescStatus(bool esc_power, xesc_msgs::XescStateStamped &vesc_status,
   ros_esc_status.temperature_pcb = vesc_status.state.temperature_pcb;
 }
 
-void publishStatus() {
-  mower_msgs::Status status_msg;
-  status_msg.stamp = ros::Time::now();
-
-  if (last_ll_status.status_bitmask & (1 << STATUS_INIT_BIT)) {
-    // LL OK, fill the message
-    status_msg.mower_status = mower_msgs::Status::MOWER_STATUS_OK;
-  } else {
-    // LL initializing
-    status_msg.mower_status = mower_msgs::Status::MOWER_STATUS_INITIALIZING;
-  }
-  double llAge = (status_msg.stamp - last_ll_status_time).toSec();
-  double imuAge = (status_msg.stamp - sensor_imu_msg.header.stamp).toSec();
-
-  status_msg.raspberry_pi_power = (last_ll_status.status_bitmask & (1 << STATUS_POWER_RAIL_BIT)) != 0;
-  status_msg.charging = (last_ll_status.status_bitmask & (1 << STATUS_CHARGING_BIT)) != 0;
-  status_msg.esc_power = (last_ll_status.status_bitmask & (1 << STATUS_ESC_ENABLED_BIT)) != 0;
-  status_msg.rain_detected = (last_ll_status.status_bitmask & (1 << STATUS_RAIN_BIT)) != 0;
-  status_msg.uss_timeout = (last_ll_status.status_bitmask & (1 << STATUS_USS_TIMEOUT_BIT)) != 0;
-  status_msg.imu_timeout = imuAge > 0.2 || (last_ll_status.status_bitmask & (1 << STATUS_IMU_TIMEOUT_BIT)) != 0;
-  status_msg.battery_empty = (last_ll_status.status_bitmask & (1 << STATUS_BATTERY_EMPTY_BIT)) != 0;
-  status_msg.bms_timeout = (last_ll_status.status_bitmask & (1 << STATUS_BMS_TIMEOUT_BIT)) != 0;
-  status_msg.ll_timeout = llAge > 1.0;
-  status_msg.mow_enabled = mower_enabled;
-  if(status_msg.imu_timeout || status_msg.ll_timeout) {
-    ROS_ERROR_STREAM_THROTTLE(1,"[mower_comms] IMU ("<< ((int)status_msg.imu_timeout) <<") or LL ("<<((int)status_msg.ll_timeout)<<") timeout");
-  }
-
+void publishSensors() {
   for (int i = 0; i < USS_COUNT; i++) {
     sensor_msgs::Range range_msg;
     ros::Time current_uss_stamp = last_ll_status_time - ros::Duration(((double)last_ll_status.uss_age_ms[i])/1000);
@@ -388,6 +362,40 @@ void publishStatus() {
     contact_msg.header.frame_id = contact_frame_id.str();
     contact_msg.is_active = last_ll_status.contacts & (1 << i);
     contact_pub.publish(contact_msg);
+  }
+}
+
+void publishStatus() {
+  mower_msgs::Status status_msg;
+  status_msg.stamp = ros::Time::now();
+
+  if (last_ll_status.status_bitmask & (1 << STATUS_INIT_BIT)) {
+    // LL OK, fill the message
+    status_msg.mower_status = mower_msgs::Status::MOWER_STATUS_OK;
+  } else {
+    // LL initializing
+    status_msg.mower_status = mower_msgs::Status::MOWER_STATUS_INITIALIZING;
+  }
+  double llAge = (status_msg.stamp - last_ll_status_time).toSec();
+  double imuAge = (status_msg.stamp - sensor_imu_msg.header.stamp).toSec();
+
+  status_msg.raspberry_pi_power = (last_ll_status.status_bitmask & (1 << STATUS_POWER_RAIL_BIT)) != 0;
+  status_msg.charging = (last_ll_status.status_bitmask & (1 << STATUS_CHARGING_BIT)) != 0;
+  status_msg.esc_power = (last_ll_status.status_bitmask & (1 << STATUS_ESC_ENABLED_BIT)) != 0;
+  status_msg.rain_detected = (last_ll_status.status_bitmask & (1 << STATUS_RAIN_BIT)) != 0;
+  status_msg.uss_timeout = (last_ll_status.status_bitmask & (1 << STATUS_USS_TIMEOUT_BIT)) != 0;
+  status_msg.imu_timeout = imuAge > 0.2 || (last_ll_status.status_bitmask & (1 << STATUS_IMU_TIMEOUT_BIT)) != 0;
+  status_msg.battery_empty = (last_ll_status.status_bitmask & (1 << STATUS_BATTERY_EMPTY_BIT)) != 0;
+  status_msg.bms_timeout = (last_ll_status.status_bitmask & (1 << STATUS_BMS_TIMEOUT_BIT)) != 0;
+  status_msg.ll_timeout = llAge > 1.0;
+  status_msg.mow_enabled = mower_enabled;
+  if(status_msg.imu_timeout || status_msg.ll_timeout) {
+    ROS_ERROR_STREAM_THROTTLE(1,"[mower_comms] IMU ("<< ((int)status_msg.imu_timeout) <<") or LL ("<<((int)status_msg.ll_timeout)<<") timeout");
+  }
+
+  //update to uss and contact comes only from last_ll_status. no need to update if no new last_ll_status
+  if(last_ll_status_processed_time!=last_ll_status_time) {
+    publishSensors();
   }
 
   // Latched bumper emergency: set HL bit 7 when any L-mode contact active
@@ -456,10 +464,10 @@ void publishStatus() {
 
   sendLLMessage((uint8_t *)&ll_motor_state, sizeof(struct ll_motor_state));
 
-  // publis topic status
   status_pub.publish(status_msg);
-
   sendWheelTickAndMeasuredTwist(status_msg.stamp);
+
+  last_ll_status_processed_time = last_ll_status_time;
 }
 
 void sendWheelTickAndMeasuredTwist(ros::Time& stamp) {
@@ -958,6 +966,7 @@ void handleLowLevelStatus(struct ll_status *status) {
   last_ll_status = *status;
   last_ll_status_time = ros::Time::now();
   //ROS_INFO("[mower_comms] LLStatus contacts: 0x%x, emergency: 0x%x", last_ll_status.contacts, last_ll_status.emergency_bitmask);
+  //publishSensors();
 }
 
 void handleLowLevelIMU(struct ll_imu *imu) {

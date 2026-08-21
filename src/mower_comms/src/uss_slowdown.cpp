@@ -87,13 +87,13 @@ static double sensorFactor(int i, const ros::Time &now) {
 
   double dist = predictedRange(i, now);
 
-  double T = isSideSensor(i) ? uss_side_stop_distance : uss_front_stop_distance;
+  double stop_distance = isSideSensor(i) ? uss_side_stop_distance : uss_front_stop_distance;
   double percent = isSideSensor(i) ? uss_side_slowdown_percent : uss_front_slowdown_percent;
-  double S = std::max(percent * uss_average, T);  // adaptive slowdown start, clamped >= T
+  double slowdown_distance = std::max(percent * uss_average, stop_distance);  // adaptive slowdown start, clamped >= T
 
-  if (dist >= S) return 1.0;
-  if (dist <= T) return 0.0;
-  return (dist - T) / (S - T);
+  if (dist <= stop_distance) return 0.0;
+  if (dist >= slowdown_distance) return 1.0;
+  return (dist - stop_distance) / (slowdown_distance - stop_distance);
 }
 
 // Overall factor = min across all enabled sensors (1.0 if none enabled).

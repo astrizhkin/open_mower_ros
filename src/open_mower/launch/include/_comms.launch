@@ -25,8 +25,8 @@
     <node pkg="mower_comms" type="uss_slowdown" name="uss_slowdown" output="screen">
       <param name="uss_front_slowdown_percent" value="0.75"/>
       <param name="uss_side_slowdown_percent"  value="0.50"/>
-      <param name="uss_front_stop_distance"    value="0.15"/>
-      <param name="uss_side_stop_distance"     value="0.10"/>
+      <param name="uss_front_stop_distance"    value="0.20"/>
+      <param name="uss_side_stop_distance"     value="0.15"/>
       <param name="uss_average_threshold"      value="1.0"/>
       <param name="uss_average_coef"           value="218"/>
     </node>
