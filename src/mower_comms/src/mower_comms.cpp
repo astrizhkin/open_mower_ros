@@ -1102,7 +1102,7 @@ void reconfigCB(const mower_logic::MowerLogicConfig &config) {
     bool active = false;
     while (*uss_token != 0) {
       switch (std::toupper(*uss_token)) {
-        case 'A': active = true; break;
+        case 'E': active = true; break;
         default: break;
       }
       uss_token++;

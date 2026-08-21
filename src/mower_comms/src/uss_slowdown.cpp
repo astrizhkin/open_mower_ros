@@ -107,7 +107,7 @@ static double overallFactor(const ros::Time &now) {
 }
 
 // Parse uss_input_config into uss_enabled[] using the same rule as
-// mower_comms.cpp: a token is active iff it contains 'A' (case-insensitive).
+// mower_comms.cpp: a token is active if it contains 'A' (case-insensitive).
 static void parseUssInputConfig(const std::string &config) {
   for (int i = 0; i < USS_COUNT; i++) uss_enabled[i] = false;
 
@@ -125,7 +125,7 @@ static void parseUssInputConfig(const std::string &config) {
     }
     bool active = false;
     for (size_t k = 0; k < token.size(); k++) {
-      if (std::toupper(static_cast<unsigned char>(token[k])) == 'A') { active = true; break; }
+      if (std::toupper(static_cast<unsigned char>(token[k])) == 'E') { active = true; break; }
     }
     uss_enabled[sensor_idx] = active;
     sensor_idx++;
@@ -163,7 +163,7 @@ static void onUss(const sensor_msgs::Range::ConstPtr &msg) {
 
   // gate: only override the autonomous command
   if (hl_state != mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_AUTONOMOUS) return;
-  if (cfg.sensor_behavior != 1) return;
+  if (cfg.sensor_behavior !=2) return;
   if ((now - last_nav_vel_time).toSec() > NAV_VEL_TIMEOUT) return;  // nav stale -> don't override
 
   double f = overallFactor(now);
