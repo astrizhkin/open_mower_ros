@@ -339,12 +339,18 @@ void publishSensors() {
   for (int i = 0; i < USS_COUNT; i++) {
     sensor_msgs::Range range_msg;
 
-    if(last_ll_status.uss_age_ms[i]>500) {
-      //we have missing uss probe. publish max disatnce reading after 500ms
-      //last_uss_probe_time[i] = last_ll_status_time - ros::Duration(ll_transfer_time_sec);
-      //range_msg.range = 2.55;//fixed 2.55 range 
-      continue;
-    }else{
+    if (last_ll_status.uss_age_ms[i] > 500) {
+      //we have missing uss probe. publish dummy max distance reading after 500ms
+      ros::Time dummy_probe_time = last_ll_status_time - ros::Duration(0.25);//publish stamp 250ms past
+      double dummy_probe_diff_s = (dummy_probe_time - last_uss_probe_time[i]).toSec();
+      //skip publish to frequently
+      if(abs(dummy_probe_diff_s)<0.5) {
+        continue;
+      }
+      last_uss_probe_time[i] = dummy_probe_time;
+      range_msg.range = 2.55;//fixed 2.55 range 
+      //continue;
+    } else {
       ros::Time uss_probe_time = last_ll_status_time - ros::Duration( 
                                     ((double)last_ll_status.uss_age_ms[i])/1000 //probe age reported by sensorboard
                                     + ll_transfer_time_sec) ;//mimimum packet transfer time
