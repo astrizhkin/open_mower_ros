@@ -10,8 +10,20 @@
 // /mower/uss_slowdown (std_msgs/Float32) with every US reading, so playback
 // bags carry a continuous diagnostic trace.
 //
+// Near-range hysteresis: each sensor keeps a 1cm occupancy-probability map
+// over [0, uss_occ_range). A reading d below the horizon adds +uss_occ_inc%
+// to the cells from d to the horizon and decays the cells before d by the
+// uss_occ_decay factor; a reading at/above the horizon decays all cells.
+// A cell is occupied when its probability is above uss_occ_threshold, and
+// the obstacle edge is the first occupied cell. The edge (extrapolated with
+// the closing speed, like the raw range) feeds the slowdown band instead of
+// the raw range, so a single noisy blip cannot move the edge: the saturated
+// cells near a real obstacle must decay below the threshold over several
+// consecutive readings first. When no cell is occupied (far / clear) the
+// raw range is used, so behavior beyond the horizon is unchanged.
+//
 // Config: sensor_behavior + uss_input_config come from the mower_logic
-// dynamic-reconfigure config (live). The 6 US tuning params are node-local.
+// dynamic-reconfigure config (live). The US tuning params are node-local.
 //
 // Modeled on antislip.cpp (same package).
 
@@ -35,6 +47,7 @@ static const double USS_MAX_RANGE         = 2.55;  // m; >= this means "no obsta
 static const double USS_FILT_SCALE        = 65536.0; // Q16 scale: alpha = uss_average_coef / USS_FILT_SCALE
 static const double USS_SIDE_CLOSING_FACTOR = 0.6; // side sensors close at ~0.6x forward speed
 static const double NAV_VEL_TIMEOUT       = 2.0;   // s; /nav_vel older than this is "stale" (nav publishes at ~1 Hz)
+static const int    USS_OCC_CELLS         = 100;   // occupancy map: 1cm cells over uss_occ_range
 
 // ---- node-local tuning params (private) ----
 static double uss_front_slowdown_percent;
@@ -43,6 +56,10 @@ static double uss_front_stop_distance;
 static double uss_side_stop_distance;
 static double uss_average_threshold;
 static int    uss_average_coef;
+static double uss_occ_range;      // m; occupancy horizon (cells above it are ignored)
+static double uss_occ_inc;        // % probability added per reading to cells [d, horizon)
+static double uss_occ_decay;      // multiplier applied per reading to cells before d (0..1]
+static double uss_occ_threshold;  // % probability above which a cell counts as occupied
 
 // ---- state ----
 struct UssReading {
@@ -59,6 +76,8 @@ static uint8_t hl_state = mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_NULL;
 
 static double uss_average = 1.0;  // low-pass filtered average (m), seeded at 1.0 m
 
+static double uss_occ[USS_COUNT][USS_OCC_CELLS] = {};  // occupancy probability per cell, %
+
 static mower_logic::MowerLogicConfig cfg;
 static dynamic_reconfigure::Client<mower_logic::MowerLogicConfig> *reconfigClient;
 
@@ -70,13 +89,43 @@ static bool isSideSensor(int i) {
   return i == 0 || i == 4;
 }
 
-// Predict the current range of sensor i: the stored range minus how far the
-// bot has moved toward the object since the measurement was taken.
+// Apply one reading of sensor i to its occupancy map: a reading below the
+// horizon adds +uss_occ_inc% to the cells from d to the horizon and decays
+// the cells before d; a reading at/above the horizon decays all cells.
+static void updateOccupancy(int i, double d) {
+  if (d >= uss_occ_range) {
+    for (int k = 0; k < USS_OCC_CELLS; k++) uss_occ[i][k] *= uss_occ_decay;
+    return;
+  }
+  int id = static_cast<int>(d / uss_occ_range * USS_OCC_CELLS);
+  if (id < 0) id = 0;
+  if (id >= USS_OCC_CELLS) id = USS_OCC_CELLS - 1;
+  for (int k = id; k < USS_OCC_CELLS; k++)
+    uss_occ[i][k] = std::min(100.0, uss_occ[i][k] + uss_occ_inc);
+  for (int k = 0; k < id; k++)
+    uss_occ[i][k] *= uss_occ_decay;
+}
+
+// Predict the current distance of sensor i: the obstacle range minus how
+// far the bot has moved toward the object since the measurement was taken.
+// Inside the occupancy horizon the range is the map's obstacle edge (first
+// cell above uss_occ_threshold) instead of the raw range, so a single noisy
+// blip cannot move the edge; with no occupied cell (far / clear) the raw
+// range is used unchanged.
 static double predictedRange(int i, const ros::Time &now) {
   double age = (now - uss_readings[i].stamp).toSec();
   if (age < 0.0) age = 0.0;
   double closing = (isSideSensor(i) ? USS_SIDE_CLOSING_FACTOR : 1.0) * last_nav_vel.linear.x;
-  double predicted = uss_readings[i].range - closing * age;
+
+  double range = uss_readings[i].range;
+  for (int k = 0; k < USS_OCC_CELLS; k++) {
+    if (uss_occ[i][k] > uss_occ_threshold) {
+      range = k * uss_occ_range / USS_OCC_CELLS;
+      break;
+    }
+  }
+
+  double predicted = range - closing * age;
   if (predicted < 0.0) predicted = 0.0;
   return predicted;
 }
@@ -158,6 +207,10 @@ static void onUss(const sensor_msgs::Range::ConstPtr &msg) {
   uss_readings[i].range = msg->range;
   uss_readings[i].stamp = msg->header.stamp;
 
+  // update the sensor's occupancy map (noise-resistant near-range memory)
+  if (uss_enabled[i] && std::isfinite(msg->range))
+    updateOccupancy(i, msg->range);
+
   // update the low-pass average (enabled sensors, readings below threshold only)
   if (uss_enabled[i] && std::isfinite(msg->range) && msg->range < uss_average_threshold) {
     uss_average += (static_cast<double>(uss_average_coef) / USS_FILT_SCALE) * (msg->range - uss_average);
@@ -233,6 +286,14 @@ int main(int argc, char **argv) {
     ROS_INFO_STREAM("[uss_slowdown] uss_average_threshold = " << uss_average_threshold);
   if (paramNh.param("uss_average_coef", uss_average_coef, 218))
     ROS_INFO_STREAM("[uss_slowdown] uss_average_coef = " << uss_average_coef);
+  if (paramNh.param("uss_occ_range", uss_occ_range, 1.0))
+    ROS_INFO_STREAM("[uss_slowdown] uss_occ_range = " << uss_occ_range);
+  if (paramNh.param("uss_occ_inc", uss_occ_inc, 50.0))
+    ROS_INFO_STREAM("[uss_slowdown] uss_occ_inc = " << uss_occ_inc);
+  if (paramNh.param("uss_occ_decay", uss_occ_decay, 0.9))
+    ROS_INFO_STREAM("[uss_slowdown] uss_occ_decay = " << uss_occ_decay);
+  if (paramNh.param("uss_occ_threshold", uss_occ_threshold, 50.0))
+    ROS_INFO_STREAM("[uss_slowdown] uss_occ_threshold = " << uss_occ_threshold);
 
   uss_vel_pub = n.advertise<geometry_msgs::Twist>("/uss_vel", 1);
   uss_factor_pub = n.advertise<std_msgs::Float32>("/mower/uss_slowdown", 10);

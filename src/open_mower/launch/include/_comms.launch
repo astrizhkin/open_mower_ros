@@ -29,6 +29,10 @@
       <param name="uss_side_stop_distance"     value="0.15"/>
       <param name="uss_average_threshold"      value="1.0"/>
       <param name="uss_average_coef"           value="218"/>
+      <param name="uss_occ_range"              value="1.0"/>
+      <param name="uss_occ_inc"                value="50"/>
+      <param name="uss_occ_decay"              value="0.9"/>
+      <param name="uss_occ_threshold"          value="50"/>
     </node>
     
     <include file="$(find open_mower)/launch/include/_$(env OM_DRIVE_ESC_TYPE).launch" />
