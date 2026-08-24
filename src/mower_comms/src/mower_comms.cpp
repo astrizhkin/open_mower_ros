@@ -54,6 +54,8 @@
 #include "std_msgs/Float64.h"
 #include "mower_logic/MowerLogicConfig.h"
 
+#define LL_PORT_BAUD_RATE 115200
+
 ros::Publisher status_pub;
 
 ros::Publisher sensor_imu_pub;
@@ -126,7 +128,7 @@ struct ll_status last_ll_status = {0};
 ros::Time last_ll_status_time(0.0);
 ros::Time last_ll_status_processed_time(0.0);
 ros::Time last_ll_status_esc_enabled(0.0);
-ros::Time last_uss_stamp[USS_COUNT];
+ros::Time last_uss_probe_time[USS_COUNT];
 
 int contact_mode[CONTACT_COUNT];
 int emebrgncy_bit_position[] = {EMERGENCY_CONTACT1_BIT, EMERGENCY_CONTACT2_BIT, EMERGENCY_CONTACT3_BIT, EMERGENCY_CONTACT4_BIT};
@@ -331,19 +333,35 @@ void convertXescStatus(bool esc_power, xesc_msgs::XescStateStamped &vesc_status,
 }
 
 void publishSensors() {
+  size_t ll_packet_size_uart_bits = sizeof(last_ll_status)*10;
+  double ll_transfer_time_sec = ((double)ll_packet_size_uart_bits) / LL_PORT_BAUD_RATE;
+
   for (int i = 0; i < USS_COUNT; i++) {
     sensor_msgs::Range range_msg;
-    ros::Time current_uss_stamp = last_ll_status_time - ros::Duration(((double)last_ll_status.uss_age_ms[i])/1000);
-    double uss_stamp_diff_s = (current_uss_stamp - last_uss_stamp[i]).toSec();
-    if(last_ll_status.uss_age_ms[i]>1000 || abs(uss_stamp_diff_s)<0.01) {
+
+    if(last_ll_status.uss_age_ms[i]>500) {
+      //we have missing uss probe. publish max disatnce reading after 500ms
+      //last_uss_probe_time[i] = last_ll_status_time - ros::Duration(ll_transfer_time_sec);
+      //range_msg.range = 2.55;//fixed 2.55 range 
       continue;
+    }else{
+      ros::Time uss_probe_time = last_ll_status_time - ros::Duration( 
+                                    ((double)last_ll_status.uss_age_ms[i])/1000 //probe age reported by sensorboard
+                                    + ll_transfer_time_sec) ;//mimimum packet transfer time
+      double uss_probe_diff_s = (uss_probe_time - last_uss_probe_time[i]).toSec();
+      //skip same readings. exepcted rate of uss measurement is 4-5Hz, 50ms is very conservative
+      if(abs(uss_probe_diff_s)<0.05) {
+        continue;
+      }
+      last_uss_probe_time[i] = uss_probe_time;
+      range_msg.range = ((float)last_ll_status.uss_ranges_cm[i])/100;
     }
-    last_uss_stamp[i] = current_uss_stamp;
-    range_msg.header.stamp = current_uss_stamp;
+
+    range_msg.header.stamp = last_uss_probe_time[i];
+
     std::ostringstream uss_frame_id;
     uss_frame_id << "uss_" << i;
     range_msg.header.frame_id=uss_frame_id.str();
-    range_msg.range = ((float)last_ll_status.uss_ranges_cm[i])/100;
     range_msg.field_of_view = 60 * M_PI / 180;
     range_msg.min_range=0.0;
     range_msg.max_range=2.55;
@@ -1249,7 +1267,7 @@ int main(int argc, char **argv) {
       allow_send = false;
       try {
         serial_port.setPort(ll_serial_port_name);
-        serial_port.setBaudrate(115200);
+        serial_port.setBaudrate(LL_PORT_BAUD_RATE);
         auto to = serial::Timeout::simpleTimeout(100);
         serial_port.setTimeout(to);
         serial_port.open();
