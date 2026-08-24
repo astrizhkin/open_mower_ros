@@ -14,7 +14,7 @@ local_costmap:
   #observation_persistence: 0.0???
   map_topic: mower_map_service/map
   plugins:
-    - {name: static_layer,    type: "costmap_2d::StaticLayer"}
+#uncomment to see in local map global bounds    - {name: static_layer,    type: "costmap_2d::StaticLayer"}
 #    - {name: obstacle_layer,  type: "costmap_2d::ObstacleLayer"}
     - {name: uss_layer, type: "range_sensor_layer::RangeSensorLayer"}
     - {name: contact_layer, type: "contact_sensor_layer::ContactSensorLayer"}
