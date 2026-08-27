@@ -31,7 +31,7 @@ uss_layer:
   clear_on_max_reading: false
   clear_threshold: 0.20
   mark_threshold: 0.80
-  debug_publisher: false
+  debug_publisher: true
   # Fill + decay: while a sensor keeps "seeing" a cell it stays occupied;
   # a cell is freed pixel_decay seconds after the reading recedes or the
   # sensor cone leaves it. World-coordinate keyed, so it tracks the bot
