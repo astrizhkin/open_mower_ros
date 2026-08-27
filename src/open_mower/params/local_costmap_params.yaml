@@ -16,7 +16,12 @@ local_costmap:
   plugins:
 #uncomment to see in local map global bounds    - {name: static_layer,    type: "costmap_2d::StaticLayer"}
 #    - {name: obstacle_layer,  type: "costmap_2d::ObstacleLayer"}
-    - {name: uss_layer, type: "range_sensor_layer::RangeSensorLayer"}
+#
+#      Note: the ultrasonic range_sensor_layer is NOT a plugin here on purpose —
+#      US occupancy runs in the standalone uss_costmap node (see
+#      _move_base.launch / uss_costmap_params.yaml) so it never reaches the
+#      planner's local costmap.
+#    - {name: uss_layer, type: "range_sensor_layer::RangeSensorLayer"}
     - {name: contact_layer, type: "contact_sensor_layer::ContactSensorLayer"}
 #    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
   

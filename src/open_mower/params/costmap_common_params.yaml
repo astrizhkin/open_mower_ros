@@ -9,15 +9,18 @@ max_obstacle_height: 1.0
 static_layer:
   trinary_costmap: false
 
-uss_layer:
-  topics: ["/mower/uss"]
-  no_readings_timeout: 1.0
-  clear_on_max_reading: false
-  clear_threshold: 0.20
-  mark_threshold: 0.80
-  debug_publisher: true
-  use_decay: false
-  pixel_decay: 10.0
+# uss_layer (range_sensor_layer) is configured for the standalone uss_costmap
+# node instead (uss_costmap_params.yaml) — the US layer must not be part of
+# the navigation costmaps.
+#uss_layer:
+#  topics: ["/mower/uss"]
+#  no_readings_timeout: 1.0
+#  clear_on_max_reading: false
+#  clear_threshold: 0.20
+#  mark_threshold: 0.80
+#  debug_publisher: false
+#  use_decay: false
+#  pixel_decay: 10.0
 
 contact_layer:
   topics: ["/mower/bumper"]

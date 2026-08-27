@@ -26,4 +26,12 @@
     <param name="base_global_planner" value="GlobalPlanner" />
   </node>
 
+  <!-- Standalone ultrasonic occupancy costmap (visualization/diagnostics only):
+       range_sensor_layer with fill+decay on /mower/uss, published on
+       /uss_costmap/costmap/costmap. Not a plugin of the navigation costmaps,
+       so US obstacles never reach the planners. -->
+  <node name="uss_costmap" pkg="costmap_2d" type="costmap_2d_node" output="screen">
+    <rosparam file="$(find open_mower)/params/uss_costmap_params.yaml" command="load" ns="costmap"/>
+  </node>
+
 </launch>

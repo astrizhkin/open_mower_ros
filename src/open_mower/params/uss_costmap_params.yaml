@@ -1,0 +1,46 @@
+# Standalone ultrasonic occupancy costmap.
+#
+# Runs range_sensor_layer (US obstacles from /mower/uss) in its OWN costmap,
+# published on /uss_costmap/costmap/costmap for visualization/diagnostics.
+# It is intentionally NOT part of move_base's local/global costmaps, so the
+# (noisy) US occupancy never influences the navigation stack.
+#
+# Layout matches costmap_2d_node, which builds Costmap2DROS("costmap") and
+# reads its config from the "costmap" sub-namespace of the node.
+global_frame: map
+robot_base_frame: base_footprint
+update_frequency: 4.0
+publish_frequency: 2.0
+resolution: 0.05
+rolling_window: true
+width: 5
+height: 5
+static_map: false
+# Always publish the full grid, even while the robot (and the rolling
+# window origin) is still: the publisher otherwise switches to incremental
+# costmap_updates, which is awkward for a standalone visualizer.
+always_send_full_costmap: true
+# Cells the US sensors cannot see stay unknown (255) instead of free.
+track_unknown_space: true
+plugins:
+  - {name: uss_layer, type: "range_sensor_layer::RangeSensorLayer"}
+uss_layer:
+  topics: ["/mower/uss"]
+  input_sensor_type: ALL
+  no_readings_timeout: 1.0
+  clear_on_max_reading: false
+  clear_threshold: 0.20
+  mark_threshold: 0.80
+  debug_publisher: false
+  # Fill + decay: while a sensor keeps "seeing" a cell it stays occupied;
+  # a cell is freed pixel_decay seconds after the reading recedes or the
+  # sensor cone leaves it. World-coordinate keyed, so it tracks the bot
+  # across rolling-window moves.
+  use_decay: true
+  pixel_decay: 10.0
+  # This layer is the ONLY layer of this costmap, so it must be allowed to
+  # clear (lower) master cells — otherwise decayed cells would stay lethal
+  # forever (no static layer to rewrite the master). In a multi-layer
+  # navigation costmap keep this false so US clear cones cannot erase
+  # static/contact obstacles.
+  allow_clearing: true
