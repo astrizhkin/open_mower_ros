@@ -11,10 +11,10 @@ global_frame: map
 robot_base_frame: base_footprint
 update_frequency: 5.0
 publish_frequency: 5.0
-resolution: 0.05
+resolution: 0.03
 rolling_window: true
-width: 5
-height: 5
+width: 3
+height: 3
 static_map: false
 # Always publish the full grid, even while the robot (and the rolling
 # window origin) is still: the publisher otherwise switches to incremental
@@ -32,6 +32,8 @@ uss_layer:
   clear_threshold: 0.20
   mark_threshold: 0.80
   debug_publisher: true
+  min_obstacle_thickness: 0.15
+  obstacle_center_offset: 0.3
   # Fill + decay: while a sensor keeps "seeing" a cell it stays occupied;
   # a cell is freed pixel_decay seconds after the reading recedes or the
   # sensor cone leaves it. World-coordinate keyed, so it tracks the bot
