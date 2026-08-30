@@ -29,7 +29,7 @@ uss_layer:
   input_sensor_type: ALL
   no_readings_timeout: 1.0
   clear_on_max_reading: false
-  clear_threshold: 0.20
+  clear_threshold: 0.50
   mark_threshold: 0.80
   debug_publisher: true
   min_obstacle_thickness: 0.15
@@ -39,7 +39,7 @@ uss_layer:
   # sensor cone leaves it. World-coordinate keyed, so it tracks the bot
   # across rolling-window moves.
   use_decay: true
-  pixel_decay: 10.0
+  pixel_decay: 2.0
   # This layer is the ONLY layer of this costmap, so it must be allowed to
   # clear (lower) master cells — otherwise decayed cells would stay lethal
   # forever (no static layer to rewrite the master). In a multi-layer
