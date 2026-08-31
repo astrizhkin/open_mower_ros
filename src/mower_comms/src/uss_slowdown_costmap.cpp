@@ -202,21 +202,26 @@ static void computeAndMaybeOverride()
   ttc_pub.publish(ttc_msg);
   front_dist_pub.publish(dist_msg);
 
+  bool run_comand = true;
+
   // gate: only override the autonomous command (same as uss_slowdown)
   if ((now - grid_time).toSec() > grid_timeout) return;                 // grid stale
-  if (hl_state != mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_AUTONOMOUS) return;
-  if (cfg.sensor_behavior != 2) return;
+  if (hl_state != mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_AUTONOMOUS) run_comand = false;
+  if (cfg.sensor_behavior != 2) run_comand = false;
   if ((now - last_nav_vel_time).toSec() > NAV_VEL_TIMEOUT) return;  // nav stale
-  if (v < min_speed) return;                                        // not closing
 
   if (dist < stop_distance) {
     // HARD STOP — keep publishing so the mux holds it
-    geometry_msgs::Twist stop;
-    uss_vel_pub.publish(stop);
-    ROS_INFO_THROTTLE(0.5, "[uss_slowdown_costmap] STOP: in-front dist %.2f m < %.2f m",
-                      dist, stop_distance);
+    if(run_comand) {
+      geometry_msgs::Twist stop;
+      uss_vel_pub.publish(stop);
+    }
+    ROS_INFO_THROTTLE(0.5, "[uss_slowdown_costmap] %sSTOP: in-front dist %.2f m < %.2f m",
+                      run_comand ? "" : "SIM ", dist, stop_distance);
     return;
   }
+
+  if (v < min_speed) return;                                        // not closing
 
   if (ttc < ttc_threshold) {
     // GRADED TAPER — scale the nav command so TTC is brought back to the threshold
@@ -225,9 +230,11 @@ static void computeAndMaybeOverride()
     geometry_msgs::Twist out = last_nav_vel;
     out.linear.x  *= s;
     out.angular.z *= s;
-    uss_vel_pub.publish(out);
-    ROS_INFO_THROTTLE(0.5, "[uss_slowdown_costmap] taper: dist %.2f m ttc %.2f s -> scale %.2f",
-                      dist, ttc, s);
+    if(run_comand) {
+      uss_vel_pub.publish(out);
+    }
+    ROS_INFO_THROTTLE(0.5, "[uss_slowdown_costmap] %staper: dist %.2f m ttc %.2f s -> scale %.2f",
+                      run_comand ? "" : "SIM ", dist, ttc, s);
   }
   // else clear: publish nothing -> twist_mux timeout releases /uss_vel
 }
@@ -288,7 +295,7 @@ int main(int argc, char **argv)
     ROS_INFO_STREAM("[uss_slowdown_costmap] ttc_threshold sec = " << ttc_threshold);
   if (paramNh.param("stop_distance", stop_distance, 0.30))
     ROS_INFO_STREAM("[uss_slowdown_costmap] stop_distance = " << stop_distance);
-  if (paramNh.param("min_speed", min_speed, 0.1))
+  if (paramNh.param("min_speed", min_speed, 0.05))
     ROS_INFO_STREAM("[uss_slowdown_costmap] min_speed = " << min_speed);
   if (paramNh.param("occupied_threshold", occupied_threshold, 90))
     ROS_INFO_STREAM("[uss_slowdown_costmap] occupied_threshold = " << occupied_threshold);
