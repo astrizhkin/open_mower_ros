@@ -257,7 +257,7 @@ static void onFootprint(const geometry_msgs::PolygonStamped::ConstPtr &msg)
   }
   footprint_time = msg->header.stamp;
   footprint_valid = (footprint_n > 0);
-  ROS_INFO_STREAM("[uss_slowdown_costmap] footprint received, valid "<<footprint_valid<<", points "<<footprint_n);
+  //ROS_INFO_STREAM("[uss_slowdown_costmap] footprint received, valid "<<footprint_valid<<", points "<<footprint_n);
 }
 
 static void onMeasuredVel(const geometry_msgs::TwistStamped::ConstPtr &msg)
