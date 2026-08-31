@@ -250,6 +250,7 @@ static void onFootprint(const geometry_msgs::PolygonStamped::ConstPtr &msg)
   }
   footprint_time = msg->header.stamp;
   footprint_valid = (footprint_n > 0);
+  ROS_INFO_STREAM("[uss_slowdown_costmap] footprint received, valid "<<footprint_valid<<", points "<<footprint_n);
 }
 
 static void onMeasuredVel(const geometry_msgs::TwistStamped::ConstPtr &msg)
@@ -284,16 +285,16 @@ int main(int argc, char **argv)
   ros::NodeHandle paramNh("~");
 
   if (paramNh.param("ttc_threshold", ttc_threshold, 1.0))
-    ROS_INFO_STREAM("[uss_slowdown_costmap] ttc_threshold = " << ttc_threshold);
+    ROS_INFO_STREAM("[uss_slowdown_costmap] ttc_threshold sec = " << ttc_threshold);
   if (paramNh.param("stop_distance", stop_distance, 0.30))
     ROS_INFO_STREAM("[uss_slowdown_costmap] stop_distance = " << stop_distance);
-  if (paramNh.param("min_speed", min_speed, 0.03))
+  if (paramNh.param("min_speed", min_speed, 0.1))
     ROS_INFO_STREAM("[uss_slowdown_costmap] min_speed = " << min_speed);
   if (paramNh.param("occupied_threshold", occupied_threshold, 90))
     ROS_INFO_STREAM("[uss_slowdown_costmap] occupied_threshold = " << occupied_threshold);
-  if (paramNh.param("corridor_margin", corridor_margin, 0.05))
+  if (paramNh.param("corridor_margin", corridor_margin, 0.1))
     ROS_INFO_STREAM("[uss_slowdown_costmap] corridor_margin = " << corridor_margin);
-  if (paramNh.param("footprint_radius", footprint_radius, 0.30))
+  if (paramNh.param("footprint_radius", footprint_radius, 0.40))
     ROS_INFO_STREAM("[uss_slowdown_costmap] footprint_radius = " << footprint_radius);
   if (paramNh.param("grid_timeout", grid_timeout, 0.5))
     ROS_INFO_STREAM("[uss_slowdown_costmap] grid_timeout = " << grid_timeout);
