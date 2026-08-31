@@ -19,6 +19,10 @@
   <build_depend>ublox_msgs</build_depend>
   <build_depend>contact_sensor_layer</build_depend>
   <build_depend>odrive_ros_control</build_depend>
+  <build_depend>nav_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>tf2_ros</build_depend>
   <build_export_depend>xbot_msgs</build_export_depend>
   <build_export_depend>mower_msgs</build_export_depend>
   <build_export_depend>hoverboard_driver</build_export_depend>
@@ -34,6 +38,10 @@
   <exec_depend>roscpp</exec_depend>
   <exec_depend>serial</exec_depend>
   <exec_depend>xesc_driver</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
   <depend>xesc_msgs</depend>
 
 

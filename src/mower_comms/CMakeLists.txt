@@ -21,6 +21,10 @@ find_package(catkin REQUIRED COMPONENTS
         odrive_ros_control
         xbot_msgs
         contact_sensor_layer
+        nav_msgs
+        geometry_msgs
+        std_msgs
+        tf2_ros
 )
 
 find_package(
@@ -183,6 +187,12 @@ add_executable(uss_slowdown
         )
 add_dependencies(uss_slowdown ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(uss_slowdown ${catkin_LIBRARIES})
+
+add_executable(uss_slowdown_costmap
+        src/uss_slowdown_costmap.cpp
+        )
+add_dependencies(uss_slowdown_costmap ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(uss_slowdown_costmap ${catkin_LIBRARIES})
 
 
 #############

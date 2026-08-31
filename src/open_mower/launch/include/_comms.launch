@@ -22,7 +22,15 @@
       <!--remap from="~odom3d_in" to="/xbot_positioning/odom_3d_out"/-->
     </node>
 
-    <node pkg="mower_comms" type="uss_slowdown" name="uss_slowdown" output="screen">
+    <!-- Choose-one US slowdown: both nodes publish /uss_vel (twist_mux prio 70).
+         uss_slowdown_use_costmap=true  -> new costmap/TTC-based node (default)
+         uss_slowdown_use_costmap=false -> old raw-range node -->
+    <node if="$(arg uss_slowdown_use_costmap, default=true)" pkg="mower_comms" type="uss_slowdown_costmap" name="uss_slowdown_costmap" output="screen">
+      <param name="ttc_threshold" value="1.0"/>
+      <param name="stop_distance" value="0.30"/>
+      <param name="min_speed"     value="0.03"/>
+    </node>
+    <node unless="$(arg uss_slowdown_use_costmap, default=true)" pkg="mower_comms" type="uss_slowdown" name="uss_slowdown" output="screen">
       <param name="uss_front_slowdown_percent" value="0.75"/>
       <param name="uss_side_slowdown_percent"  value="0.50"/>
       <param name="uss_front_stop_distance"    value="0.20"/>
