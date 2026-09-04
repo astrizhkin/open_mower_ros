@@ -2,19 +2,31 @@
 //
 // Complementary to uss_slowdown (raw per-sensor ranges). This node reads the
 // fused uss_costmap grid and, on every grid update, measures the distance from
-// the robot FOOTPRINT to the FIRST occupied cell in front of the direction of
-// motion, then predicts the time-to-collision (TTC) with the current MEASURED
-// velocity. When TTC < ttc_threshold it slows the autonomous command through
-// the same twist_mux input as uss_slowdown (/uss_vel, priority 70) so the two
+// the robot FOOTPRINT to the FIRST occupied cell in front of the robot, then
+// predicts the time-to-collision (TTC) with the current MEASURED velocity
+// (forward motion only — the robot has no rear sensors). When TTC <
+// ttc_threshold it slows the autonomous command through the same twist_mux
+// input as uss_slowdown (/uss_vel, priority 70) so the two
 // nodes are mutually exclusive; a hard stop is issued when the in-front
 // distance drops below stop_distance.
 //
-// "In front of motion": a cell that is (a) ahead of the footprint along the
-// motion direction and (b) within a lateral corridor matching the footprint
-// width (+ corridor_margin). Side/rear obstacles do not trigger a slowdown.
+// "In front": the robot forward direction, within a lateral corridor matching
+// the footprint width (+ corridor_margin). Side/rear obstacles do not trigger
+// a slowdown; backward motion is never checked.
+//
+// Footprint source (global frame): primarily the uss_costmap's transformed
+// footprint topic (~footprint_topic) — the costmap re-transforms and
+// republishes it every cycle with the current robot pose, so the node tracks
+// whatever footprint the costmap is configured with, no re-anchoring needed.
+// Falls back to the robot-frame rectangle from the ~robot_front/~robot_rear/
+// ~robot_width params placed at the current TF pose while the topic is
+// missing, stale (~footprint_timeout), or degenerate.
 //
 // Diagnostics published every update (so bags carry the trace): /uss_costmap_ttc
 // (s) and /uss_costmap_front_dist (m), 1e3 = clear / not closing.
+// /uss_slowdown_costmap/local_footprint (PolygonStamped, global frame) is the
+// node's own param footprint, always published for RViz overlay against the
+// costmap's footprint topic.
 //
 // Gate (same as uss_slowdown): override only in HIGH_LEVEL_STATE_AUTONOMOUS with
 // mower_logic sensor_behavior == 2 and a fresh /nav_vel.
@@ -45,10 +57,12 @@ static double stop_distance;      // m; hard stop when in-front distance < this
 static double min_speed;          // m/s; below this the robot is not "closing"
 static int    occupied_threshold; // grid value >= this counts as occupied
 static double corridor_margin;    // m; extra lateral half-width around the footprint
-static double footprint_radius;   // m; fallback footprint half-extent if topic is stale
 static double grid_timeout;       // s
-static double footprint_timeout;  // s
 static double measured_vel_timeout; // s
+static double footprint_timeout;  // s; stale costmap footprint -> param fallback
+static double robot_front;        // m; front edge distance from the base_link origin
+static double robot_rear;         // m; rear edge distance from the base_link origin
+static double robot_width;        // m; total robot width
 static const  double NAV_VEL_TIMEOUT = 2.0;  // s (nav publishes ~1 Hz)
 
 static std::string grid_topic;
@@ -64,17 +78,16 @@ static const double CLEAR_SENTINEL = 1000.0;  // "no obstacle in front"
 static nav_msgs::OccupancyGrid grid;          // latest grid
 static ros::Time grid_time;
 
-static struct { double x, y; } footprint_pts[128];
-static int footprint_n = 0;
-static ros::Time footprint_time;
-static bool footprint_valid = false;
-
-static double meas_vx = 0.0, meas_vy = 0.0;
+static double meas_vx = 0.0;
 static ros::Time measured_vel_time;
 static bool measured_vel_valid = false;
 
 static geometry_msgs::Twist last_nav_vel;
 static ros::Time last_nav_vel_time;
+
+static geometry_msgs::PolygonStamped footprint_msg;  // latest costmap footprint (map frame)
+static ros::Time footprint_time;
+static bool have_footprint = false;
 
 static uint8_t hl_state = mower_msgs::HighLevelStatus::HIGH_LEVEL_STATE_NULL;
 static mower_logic::MowerLogicConfig cfg;
@@ -86,6 +99,7 @@ static tf2_ros::TransformListener *tf_listener;
 static ros::Publisher uss_vel_pub;
 static ros::Publisher ttc_pub;
 static ros::Publisher front_dist_pub;
+static ros::Publisher local_footprint_pub;
 
 struct Pt { double x, y; };
 
@@ -150,10 +164,11 @@ static void computeAndMaybeOverride()
   ros::Time now = ros::Time::now();
   if (now == ros::Time(0)) return;  // sim time not started yet
 
-  // measured velocity (base_link)
-  double vx = 0.0, vy = 0.0, v = 0.0;
+  // measured velocity (base_link). Differential drive: the publisher fills
+  // linear.x and angular.z only. The slowdown acts on forward motion only.
+  double vx = 0.0;
   if (measured_vel_valid && (now - measured_vel_time).toSec() <= measured_vel_timeout) {
-    vx = meas_vx; vy = meas_vy; v = std::hypot(vx, vy);
+    vx = meas_vx;
   }
 
   // robot pose in the global frame (position + yaw)
@@ -169,31 +184,89 @@ static void computeAndMaybeOverride()
     have_tf = false;
   }
 
-  // footprint corners in the global frame (topic, else a square around the pose)
-  std::vector<Pt> corners;
-  if (footprint_valid && footprint_n > 0 &&
-      (now - footprint_time).toSec() <= footprint_timeout) {
-    corners.reserve(footprint_n);
-    for (int i = 0; i < footprint_n; ++i)
-      corners.push_back({footprint_pts[i].x, footprint_pts[i].y});
-  } else if (have_tf) {
-    for (double sx : {-1.0, 1.0})
-      for (double sy : {-1.0, 1.0}) {
-        Pt p;
-        p.x = px + sx * footprint_radius * std::cos(yaw) - sy * footprint_radius * std::sin(yaw);
-        p.y = py + sx * footprint_radius * std::sin(yaw) + sy * footprint_radius * std::cos(yaw);
-        corners.push_back(p);
-      }
+  // local (param) footprint: the robot-frame rectangle from
+  // ~robot_front/~robot_rear/~robot_width at the current TF pose. It is the
+  // fallback footprint source, and it is ALWAYS published on
+  // /uss_slowdown_costmap/local_footprint (same format as the costmap's
+  // footprint) so RViz can overlay it on the costmap layer for comparison.
+  std::vector<Pt> local_corners;
+  if (have_tf) {
+    const double cw = std::cos(yaw), sw = std::sin(yaw);
+    const double hw = 0.5 * robot_width;
+    auto place = [&, cw, sw](double lx, double ly) {
+      local_corners.push_back({px + lx * cw - ly * sw, py + lx * sw + ly * cw});
+    };
+    place(robot_front, hw);
+    place(robot_front, -hw);
+    place(-robot_rear, -hw);
+    place(-robot_rear, hw);
+  }
+  if (!local_corners.empty()) {
+    geometry_msgs::PolygonStamped local_fp;
+    local_fp.header.stamp = now;
+    local_fp.header.frame_id = global_frame;
+    for (const auto &p : local_corners) {
+      geometry_msgs::Point32 pt;
+      pt.x = p.x; pt.y = p.y;
+      local_fp.polygon.points.push_back(pt);
+    }
+    local_footprint_pub.publish(local_fp);
   }
 
-  // distance + TTC
+  // footprint used for the forward corridor. PRIMARY: the costmap's
+  // transformed footprint topic (fresh, non-degenerate, right frame) — the
+  // same pose the grid was built from, republished every costmap cycle.
+  // FALLBACK: the local rectangle above.
+  std::vector<Pt> corners;
+  bool from_topic = false;
+  if (have_footprint &&
+      (now - footprint_time).toSec() <= footprint_timeout &&
+      footprint_msg.header.frame_id == global_frame &&
+      footprint_msg.polygon.points.size() >= 3) {
+    // a zero-area polygon (all points collapsed) would give a degenerate
+    // corridor — treat it as unusable
+    double area = 0.0;
+    const auto &pts = footprint_msg.polygon.points;
+    for (size_t i = 0; i < pts.size(); ++i) {
+      const auto &p = pts[i];
+      const auto &q = pts[(i + 1) % pts.size()];
+      area += p.x * q.y - q.x * p.y;
+    }
+    if (fabs(area) > 1e-6) {
+      from_topic = true;
+      for (const auto &p : pts) corners.push_back({p.x, p.y});
+    }
+  }
+  if (!from_topic) corners = local_corners;
+
+  // log the initial source and every switch (rare; guarded against
+  // flapping at the timeout edge) — a silently running fallback is bad
+  static bool src_logged = false;
+  static bool last_from_topic = false;
+  static ros::Time last_src_log;
+  if ((!src_logged || from_topic != last_from_topic) &&
+      now - last_src_log > ros::Duration(1.0)) {
+    if (from_topic)
+      ROS_INFO("[uss_slowdown_costmap] footprint source: costmap topic (%zu points)",
+               footprint_msg.polygon.points.size());
+    else
+      ROS_INFO("[uss_slowdown_costmap] footprint source: local params (topic %s)",
+               have_footprint ? "stale/degenerate" : "not received");
+    src_logged = true;
+    last_from_topic = from_topic;
+    last_src_log = now;
+  }
+
+  // distance to the first occupied cell in front of the robot (forward only —
+  // there are no rear sensors, so backward motion is never checked). Reported
+  // whenever we have geometry, at any speed (the low-speed hard stop below
+  // relies on it). TTC: only while moving forward faster than min_speed.
   double dist = CLEAR_SENTINEL;
   double ttc = CLEAR_SENTINEL;
-  if (have_tf && v > min_speed && corners.size() >= 3) {
-    const double phi = yaw + std::atan2(vy, vx);
-    const double ux = std::cos(phi), uy = std::sin(phi);
+  if (have_tf && corners.size() >= 3) {
+    const double ux = std::cos(yaw), uy = std::sin(yaw);
     dist = frontDistance(grid, corners, ux, uy);
-    ttc = (dist < CLEAR_SENTINEL) ? dist / v : CLEAR_SENTINEL;
+    ttc = (dist < CLEAR_SENTINEL && vx > min_speed) ? dist / vx : CLEAR_SENTINEL;
   }
 
   // diagnostics (always, so bags carry the trace)
@@ -221,12 +294,12 @@ static void computeAndMaybeOverride()
     return;
   }
 
-  if (v < min_speed) return;                                        // not closing
+  if (vx <= min_speed) return;                    // not closing forward
 
   if (ttc < ttc_threshold) {
     // GRADED TAPER — scale the nav command so TTC is brought back to the threshold
     double target = dist / ttc_threshold;
-    double s = std::min(1.0, target / std::max(last_nav_vel.linear.x, 1e-3));
+    double s = std::min(1.0, target / std::max(std::fabs(last_nav_vel.linear.x), 1e-3));
     geometry_msgs::Twist out = last_nav_vel;
     out.linear.x  *= s;
     out.angular.z *= s;
@@ -246,24 +319,10 @@ static void onGrid(const nav_msgs::OccupancyGrid::ConstPtr &msg)
   computeAndMaybeOverride();
 }
 
-static void onFootprint(const geometry_msgs::PolygonStamped::ConstPtr &msg)
-{
-  footprint_n = 0;
-  const auto &pts = msg->polygon.points;
-  for (size_t i = 0; i < pts.size() && footprint_n < 128; ++i) {
-    footprint_pts[footprint_n].x = pts[i].x;
-    footprint_pts[footprint_n].y = pts[i].y;
-    ++footprint_n;
-  }
-  footprint_time = msg->header.stamp;
-  footprint_valid = (footprint_n > 0);
-  //ROS_INFO_STREAM("[uss_slowdown_costmap] footprint received, valid "<<footprint_valid<<", points "<<footprint_n);
-}
-
 static void onMeasuredVel(const geometry_msgs::TwistStamped::ConstPtr &msg)
 {
+  // differential drive: only linear.x (and angular.z) are ever filled
   meas_vx = msg->twist.linear.x;
-  meas_vy = msg->twist.linear.y;
   measured_vel_time = msg->header.stamp;
   measured_vel_valid = true;
 }
@@ -272,6 +331,13 @@ static void onNavVel(const geometry_msgs::Twist::ConstPtr &msg)
 {
   last_nav_vel = *msg;
   last_nav_vel_time = ros::Time::now();  // Twist has no header
+}
+
+static void onFootprint(const geometry_msgs::PolygonStamped::ConstPtr &msg)
+{
+  footprint_msg = *msg;
+  footprint_time = msg->header.stamp;
+  have_footprint = true;
 }
 
 static void onState(const mower_msgs::HighLevelStatus::ConstPtr &msg)
@@ -301,14 +367,18 @@ int main(int argc, char **argv)
     ROS_INFO_STREAM("[uss_slowdown_costmap] occupied_threshold = " << occupied_threshold);
   if (paramNh.param("corridor_margin", corridor_margin, 0.1))
     ROS_INFO_STREAM("[uss_slowdown_costmap] corridor_margin = " << corridor_margin);
-  if (paramNh.param("footprint_radius", footprint_radius, 0.40))
-    ROS_INFO_STREAM("[uss_slowdown_costmap] footprint_radius = " << footprint_radius);
   if (paramNh.param("grid_timeout", grid_timeout, 0.5))
     ROS_INFO_STREAM("[uss_slowdown_costmap] grid_timeout = " << grid_timeout);
   if (paramNh.param("footprint_timeout", footprint_timeout, 0.5))
     ROS_INFO_STREAM("[uss_slowdown_costmap] footprint_timeout = " << footprint_timeout);
   if (paramNh.param("measured_vel_timeout", measured_vel_timeout, 0.3))
     ROS_INFO_STREAM("[uss_slowdown_costmap] measured_vel_timeout = " << measured_vel_timeout);
+  if (paramNh.param("robot_front", robot_front, 0.39))
+    ROS_INFO_STREAM("[uss_slowdown_costmap] robot_front = " << robot_front);
+  if (paramNh.param("robot_rear", robot_rear, 0.33))
+    ROS_INFO_STREAM("[uss_slowdown_costmap] robot_rear = " << robot_rear);
+  if (paramNh.param("robot_width", robot_width, 0.66))
+    ROS_INFO_STREAM("[uss_slowdown_costmap] robot_width = " << robot_width);
   if (paramNh.param("grid_topic", grid_topic, std::string("/uss_costmap/costmap/costmap")))
     ROS_INFO_STREAM("[uss_slowdown_costmap] grid_topic = " << grid_topic);
   if (paramNh.param("footprint_topic", footprint_topic, std::string("/uss_costmap/costmap/footprint")))
@@ -325,9 +395,10 @@ int main(int argc, char **argv)
   uss_vel_pub       = n.advertise<geometry_msgs::Twist>("/uss_vel", 1);
   ttc_pub           = n.advertise<std_msgs::Float32>("/uss_costmap_ttc", 10);
   front_dist_pub    = n.advertise<std_msgs::Float32>("/uss_costmap_front_dist", 10);
+  local_footprint_pub = n.advertise<geometry_msgs::PolygonStamped>("/uss_slowdown_costmap/local_footprint", 10);
 
   ros::Subscriber grid_sub   = n.subscribe(grid_topic, 1, onGrid);
-  ros::Subscriber fp_sub     = n.subscribe(footprint_topic, 5, onFootprint);
+  ros::Subscriber foot_sub   = n.subscribe(footprint_topic, 1, onFootprint);
   ros::Subscriber meas_sub   = n.subscribe(measured_vel_topic, 5, onMeasuredVel);
   ros::Subscriber nav_sub    = n.subscribe(nav_vel_topic, 10, onNavVel);
   ros::Subscriber state_sub  = n.subscribe("/mower_logic/current_state", 10, onState);

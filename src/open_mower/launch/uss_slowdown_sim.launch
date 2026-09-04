@@ -1,0 +1,106 @@
+<!-- Simulate uss_costmap + uss_slowdown_costmap from a recorded bag.
+
+     Replays the bag with `rosbag play` in clock mode (topic list below —
+     add or
+     drop topics in `topics`, no separate rosbag filter step needed), runs
+     the real uss_costmap node (fed by the replayed /mower/uss) and
+     uss_slowdown_costmap, and records the result bag.
+
+     The mower_logic node does not run in replay, so its two gate inputs
+     are faked by two plain python publishers that live OUTSIDE the repo
+     (keep them in your sim working dir, e.g.
+     recordings/uss_costmap_verify/uss_sim_fake_state.py + _reconf.py, and
+     run them against the same master as this launch):
+         python3 uss_sim_fake_state.py &  python3 uss_sim_fake_reconf.py &
+     (the headless run_*.sh scripts in recordings/uss_costmap_verify do
+     exactly this). Without the fakes the node runs in SIM mode: it
+     publishes all diagnostics but never overrides /uss_vel.
+     For bags that contain real autonomous segments, skip the state fake
+     and add /mower_logic/current_state to `topics` to use the recorded
+     state instead.
+
+     The slowdown node's command source is the recorded /cmd_vel (in
+     production it follows ~nav_vel_topic; the bags carry /cmd_vel).
+
+     Usage:
+       roslaunch open_mower uss_slowdown_sim.launch bagfile:=/data/recordings/record_xxx.bag
+       roslaunch open_mower uss_slowdown_sim.launch bagfile:=... start:=3000 rate:=2
+       roslaunch open_mower uss_slowdown_sim.launch bagfile:=... out:=/data/recordings/sim_out
+
+     The recorded /tf is high-rate; drop it from `topics` if the output bag
+     size matters more than offline pose reference.
+-->
+<launch>
+    <arg name="bagfile"/>
+    <arg name="start" default="0"/>
+    <arg name="rate" default="1"/>
+    <!-- play only this many seconds (0 = to the end of the bag) -->
+    <arg name="duration" default="0"/>
+    <arg name="out" default="uss_sim_out"/>
+    <arg name="record" default="true"/>
+    <!-- The bag's /mower_logic/current_state is NOT replayed by default so
+         the fake state publisher owns the topic (see `fake_state`). -->
+    <arg name="topics" default="/tf /mower/uss /mower/measured_vel /cmd_vel /mower/bumper"/>
+    <!-- point this at a non-existent topic to force the local-params
+         footprint fallback in uss_slowdown_costmap -->
+    <arg name="footprint_topic" default="/uss_costmap/costmap/footprint"/>
+    <!-- visualization (see test_playback.launch for the pattern): rviz
+         shows the uss_costmap layer + both footprints; headless run_*.sh
+         scripts pass rviz:=false. rqt_reconfigure is optional. -->
+    <arg name="rviz" default="true"/>
+    <arg name="rqt_reconfigure" default="false"/>
+
+    <!-- rosbag play publishes /clock; every node must follow it. Without
+         this the nodes run on wall time while the bag's TF/stamps are
+         from the recording date: the wall-time stamps of the static US
+         TF edges make the costmap's TF cache treat the bag's map
+         transform as ancient and drop it, so the costmap never starts.
+         Each span runs on its own master (see the run script), so the
+         global param cannot leak anywhere. -->
+    <param name="use_sim_time" value="true"/>
+
+    <!-- ultrasonic occupancy costmap (same node + params as production) -->
+    <node name="uss_costmap" pkg="costmap_2d" type="costmap_2d_node" output="screen">
+      <rosparam file="$(find open_mower)/params/uss_costmap_params.yaml" command="load" ns="costmap"/>
+    </node>
+
+    <!-- the slowdown node under test (same params as _comms.launch, plus the
+         replay command source) -->
+    <node pkg="mower_comms" type="uss_slowdown_costmap" name="uss_slowdown_costmap" output="screen">
+      <param name="ttc_threshold"   value="1.0"/>
+      <param name="stop_distance"   value="0.30"/>
+      <param name="min_speed"       value="0.03"/>
+      <param name="nav_vel_topic"   value="/cmd_vel"/>
+      <param name="footprint_topic" value="$(arg footprint_topic)"/>
+    </node>
+
+    <!-- static US sensor frames (base_link -> uss_i), positions from the
+         STRIGA URDF: the bags' /tf only carries map->base_footprint->
+         base_link, so without these the costmap cannot place the US readings -->
+    <node pkg="tf" type="static_transform_publisher" name="stp_uss_0"
+          args="0.25 0.20 0.17 1.05 0 0 base_link uss_0 100"/>
+    <node pkg="tf" type="static_transform_publisher" name="stp_uss_1"
+          args="0.30 0.16 0.17 0.52 0 0 base_link uss_1 100"/>
+    <node pkg="tf" type="static_transform_publisher" name="stp_uss_2"
+          args="0.32 0.00 0.17 0.00 0 0 base_link uss_2 100"/>
+    <node pkg="tf" type="static_transform_publisher" name="stp_uss_3"
+          args="0.30 -0.16 0.17 -0.52 0 0 base_link uss_3 100"/>
+    <node pkg="tf" type="static_transform_publisher" name="stp_uss_4"
+          args="0.25 -0.20 0.17 -1.05 0 0 base_link uss_4 100"/>
+
+    <!-- rviz + optional rqt_reconfigure, same pattern as test_playback.launch -->
+    <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
+          args="-d $(find open_mower)/rviz/uss_slowdown_sim.rviz" required="true"/>
+    <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure"
+          if="$(arg rqt_reconfigure)"/>
+
+    <!-- replay. Noetic rosbag play flags: -s start, -r rate, -u duration
+         (-d is delay-after-advertise, NOT duration); topics go in the
+         topics flag, which is greedy and must stay last -->
+    <node pkg="rosbag" type="play" name="bag_play" output="screen"
+          args="--clock -s $(arg start) -r $(arg rate) -u $(arg duration) --bags $(arg bagfile) --topics $(arg topics)"/>
+
+    <!-- record the node outputs + the inputs they react to -->
+    <node if="$(arg record)" pkg="rosbag" type="record" name="sim_record" output="screen"
+          args="-o $(arg out) /uss_vel /uss_costmap_ttc /uss_costmap_front_dist /uss_costmap/costmap/costmap /uss_costmap/costmap/footprint /uss_slowdown_costmap/local_footprint /cmd_vel /mower/measured_vel /mower/bumper /tf"/>
+</launch>

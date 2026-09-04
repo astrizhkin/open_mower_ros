@@ -9,6 +9,11 @@
 # reads its config from the "costmap" sub-namespace of the node.
 global_frame: map
 robot_base_frame: base_footprint
+# Robot footprint (robot frame, m): rectangle 0.66 wide x 0.72 long, front
+# edge 0.39 m and rear edge 0.33 m from the base_link origin (shifted to the
+# front). Published on /uss_costmap/costmap/footprint (global frame); consumed
+# by uss_slowdown_costmap and the costmap itself.
+footprint: [[0.39, 0.33], [0.39, -0.33], [-0.33, -0.33], [-0.33, 0.33]]
 update_frequency: 5.0
 publish_frequency: 5.0
 resolution: 0.03
