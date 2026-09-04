@@ -1,7 +1,9 @@
 // uss_slowdown_costmap: TTC-based ultrasonic slowdown for the autonomous drive.
 //
 // Complementary to uss_slowdown (raw per-sensor ranges). This node reads the
-// fused uss_costmap grid and, on every grid update, measures the distance from
+// fused uss_costmap grid and, at the compute rate (~compute_rate, default
+// 50 Hz — fast enough to follow the robot pose between 5 Hz grid updates),
+// measures the distance from
 // the robot FOOTPRINT to the FIRST occupied cell in front of the robot, then
 // predicts the time-to-collision (TTC) with the current MEASURED velocity
 // (forward motion only — the robot has no rear sensors). When TTC <
@@ -58,6 +60,7 @@ static double min_speed;          // m/s; below this the robot is not "closing"
 static int    occupied_threshold; // grid value >= this counts as occupied
 static double corridor_margin;    // m; extra lateral half-width around the footprint
 static double grid_timeout;       // s
+static double compute_rate;       // Hz; TF-rate timer for compute + local footprint
 static double measured_vel_timeout; // s
 static double footprint_timeout;  // s; stale costmap footprint -> param fallback
 static double robot_front;        // m; front edge distance from the base_link origin
@@ -316,7 +319,8 @@ static void onGrid(const nav_msgs::OccupancyGrid::ConstPtr &msg)
 {
   grid = *msg;
   grid_time = msg->header.stamp;
-  computeAndMaybeOverride();
+  // compute runs on the compute_rate timer, not here: at the 5 Hz grid rate
+  // the published local footprint lagged visibly behind the robot in RViz
 }
 
 static void onMeasuredVel(const geometry_msgs::TwistStamped::ConstPtr &msg)
@@ -369,6 +373,8 @@ int main(int argc, char **argv)
     ROS_INFO_STREAM("[uss_slowdown_costmap] corridor_margin = " << corridor_margin);
   if (paramNh.param("grid_timeout", grid_timeout, 0.5))
     ROS_INFO_STREAM("[uss_slowdown_costmap] grid_timeout = " << grid_timeout);
+  if (paramNh.param("compute_rate", compute_rate, 50.0))
+    ROS_INFO_STREAM("[uss_slowdown_costmap] compute_rate = " << compute_rate);
   if (paramNh.param("footprint_timeout", footprint_timeout, 0.5))
     ROS_INFO_STREAM("[uss_slowdown_costmap] footprint_timeout = " << footprint_timeout);
   if (paramNh.param("measured_vel_timeout", measured_vel_timeout, 0.3))
@@ -411,6 +417,14 @@ int main(int argc, char **argv)
   tf_listener = new tf2_ros::TransformListener(*tf_buffer);
 
   ROS_INFO("[uss_slowdown_costmap] started (waiting for grid + measured vel + TF)");
+
+  // TF-rate compute: the local footprint (and the decision) must track the
+  // robot between the 5 Hz grid updates
+  ros::Timer compute_timer = n.createTimer(ros::Duration(1.0 / compute_rate),
+                                           [](const ros::TimerEvent &) {
+                                             computeAndMaybeOverride();
+                                           });
+  (void)compute_timer;
 
   ros::spin();
 

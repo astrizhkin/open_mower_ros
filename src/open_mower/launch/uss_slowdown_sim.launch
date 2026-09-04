@@ -25,6 +25,7 @@
      Usage:
        roslaunch open_mower uss_slowdown_sim.launch bagfile:=/data/recordings/record_xxx.bag
        roslaunch open_mower uss_slowdown_sim.launch bagfile:=... start:=3000 rate:=2
+       roslaunch open_mower uss_slowdown_sim.launch bagfile:=... duration:=600
        roslaunch open_mower uss_slowdown_sim.launch bagfile:=... out:=/data/recordings/sim_out
 
      The recorded /tf is high-rate; drop it from `topics` if the output bag
@@ -34,8 +35,10 @@
     <arg name="bagfile"/>
     <arg name="start" default="0"/>
     <arg name="rate" default="1"/>
-    <!-- play only this many seconds (0 = to the end of the bag) -->
-    <arg name="duration" default="0"/>
+    <!-- play only this many seconds; the Noetic C++ player rejects 0
+         (FATAL "Invalid duration, must be > 0.0"), so the default is a
+         large value — playback always ends at the end of the bag anyway -->
+    <arg name="duration" default="100000"/>
     <arg name="out" default="uss_sim_out"/>
     <arg name="record" default="true"/>
     <!-- The bag's /mower_logic/current_state is NOT replayed by default so
@@ -44,6 +47,11 @@
     <!-- point this at a non-existent topic to force the local-params
          footprint fallback in uss_slowdown_costmap -->
     <arg name="footprint_topic" default="/uss_costmap/costmap/footprint"/>
+    <!-- slowdown tuning knobs (defaults = production _comms.launch values) -->
+    <arg name="ttc_threshold" default="1.0"/>
+    <arg name="stop_distance" default="0.20"/>
+    <arg name="min_speed" default="0.03"/>
+    <arg name="corridor_margin" default="0.1"/>
     <!-- visualization (see test_playback.launch for the pattern): rviz
          shows the uss_costmap layer + both footprints; headless run_*.sh
          scripts pass rviz:=false. rqt_reconfigure is optional. -->
@@ -67,9 +75,10 @@
     <!-- the slowdown node under test (same params as _comms.launch, plus the
          replay command source) -->
     <node pkg="mower_comms" type="uss_slowdown_costmap" name="uss_slowdown_costmap" output="screen">
-      <param name="ttc_threshold"   value="1.0"/>
-      <param name="stop_distance"   value="0.30"/>
-      <param name="min_speed"       value="0.03"/>
+      <param name="ttc_threshold"   value="$(arg ttc_threshold)"/>
+      <param name="stop_distance"   value="$(arg stop_distance)"/>
+      <param name="min_speed"       value="$(arg min_speed)"/>
+      <param name="corridor_margin" value="$(arg corridor_margin)"/>
       <param name="nav_vel_topic"   value="/cmd_vel"/>
       <param name="footprint_topic" value="$(arg footprint_topic)"/>
     </node>
