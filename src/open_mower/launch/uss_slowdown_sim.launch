@@ -111,5 +111,5 @@
 
     <!-- record the node outputs + the inputs they react to -->
     <node if="$(arg record)" pkg="rosbag" type="record" name="sim_record" output="screen"
-          args="-o $(arg out) /uss_vel /uss_costmap_ttc /uss_costmap_front_dist /uss_costmap/costmap/costmap /uss_costmap/costmap/footprint /uss_slowdown_costmap/local_footprint /cmd_vel /mower/measured_vel /mower/bumper /tf"/>
+          args="-o $(arg out) /uss_vel /uss_costmap_ttc /uss_costmap_front_dist /uss_costmap/costmap/costmap /uss_costmap/costmap/footprint /uss_slowdown_costmap/local_footprint /cmd_vel /mower/measured_vel /mower/bumper /mower/uss /tf"/>
 </launch>

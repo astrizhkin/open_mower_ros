@@ -1,9 +1,7 @@
 // uss_slowdown_costmap: TTC-based ultrasonic slowdown for the autonomous drive.
 //
 // Complementary to uss_slowdown (raw per-sensor ranges). This node reads the
-// fused uss_costmap grid and, at the compute rate (~compute_rate, default
-// 50 Hz — fast enough to follow the robot pose between 5 Hz grid updates),
-// measures the distance from
+// fused uss_costmap grid and, on every grid update, measures the distance from
 // the robot FOOTPRINT to the FIRST occupied cell in front of the robot, then
 // predicts the time-to-collision (TTC) with the current MEASURED velocity
 // (forward motion only — the robot has no rear sensors). When TTC <
@@ -27,8 +25,9 @@
 // Diagnostics published every update (so bags carry the trace): /uss_costmap_ttc
 // (s) and /uss_costmap_front_dist (m), 1e3 = clear / not closing.
 // /uss_slowdown_costmap/local_footprint (PolygonStamped, global frame) is the
-// node's own param footprint, always published for RViz overlay against the
-// costmap's footprint topic.
+// node's own param footprint, republished at ~local_footprint_rate (default
+// 20 Hz) at the current TF pose for RViz overlay against the costmap's
+// footprint topic.
 //
 // Gate (same as uss_slowdown): override only in HIGH_LEVEL_STATE_AUTONOMOUS with
 // mower_logic sensor_behavior == 2 and a fresh /nav_vel.
@@ -60,7 +59,7 @@ static double min_speed;          // m/s; below this the robot is not "closing"
 static int    occupied_threshold; // grid value >= this counts as occupied
 static double corridor_margin;    // m; extra lateral half-width around the footprint
 static double grid_timeout;       // s
-static double compute_rate;       // Hz; TF-rate timer for compute + local footprint
+static double local_footprint_rate; // Hz; timer that republishes local_footprint at TF pose
 static double measured_vel_timeout; // s
 static double footprint_timeout;  // s; stale costmap footprint -> param fallback
 static double robot_front;        // m; front edge distance from the base_link origin
@@ -162,6 +161,52 @@ static double frontDistance(const nav_msgs::OccupancyGrid &g,
   return best;
 }
 
+// The robot-frame rectangle from ~robot_front/~robot_rear/~robot_width placed
+// at the given pose (global frame). Shared by the fallback corridor geometry
+// and the local_footprint publisher.
+static void localFootprintCorners(double px, double py, double yaw,
+                                  std::vector<Pt> &out)
+{
+  out.clear();
+  const double cw = std::cos(yaw), sw = std::sin(yaw);
+  const double hw = 0.5 * robot_width;
+  auto place = [&](double lx, double ly) {
+    out.push_back({px + lx * cw - ly * sw, py + lx * sw + ly * cw});
+  };
+  place(robot_front, hw);
+  place(robot_front, -hw);
+  place(-robot_rear, -hw);
+  place(-robot_rear, hw);
+}
+
+// Local-footprint publisher: republish the param rectangle at the current TF
+// pose at ~local_footprint_rate, so RViz sees the node's own footprint track
+// the robot between the 5 Hz grid updates. Deliberately separate from the
+// grid-rate decision compute below.
+static void publishLocalFootprint()
+{
+  ros::Time now = ros::Time::now();
+  if (now == ros::Time(0)) return;  // sim time not started yet
+  geometry_msgs::TransformStamped t;
+  try {
+    t = tf_buffer->lookupTransform(global_frame, base_frame, ros::Time(0));
+  } catch (std::exception &) {
+    return;
+  }
+  std::vector<Pt> corners;
+  localFootprintCorners(t.transform.translation.x, t.transform.translation.y,
+                        tf2::getYaw(t.transform.rotation), corners);
+  geometry_msgs::PolygonStamped local_fp;
+  local_fp.header.stamp = now;
+  local_fp.header.frame_id = global_frame;
+  for (const auto &p : corners) {
+    geometry_msgs::Point32 pt;
+    pt.x = p.x; pt.y = p.y;
+    local_fp.polygon.points.push_back(pt);
+  }
+  local_footprint_pub.publish(local_fp);
+}
+
 static void computeAndMaybeOverride()
 {
   ros::Time now = ros::Time::now();
@@ -187,34 +232,10 @@ static void computeAndMaybeOverride()
     have_tf = false;
   }
 
-  // local (param) footprint: the robot-frame rectangle from
-  // ~robot_front/~robot_rear/~robot_width at the current TF pose. It is the
-  // fallback footprint source, and it is ALWAYS published on
-  // /uss_slowdown_costmap/local_footprint (same format as the costmap's
-  // footprint) so RViz can overlay it on the costmap layer for comparison.
+  // fallback footprint source: the param rectangle at the current pose
+  // (the local_footprint topic itself is published by the 20 Hz timer)
   std::vector<Pt> local_corners;
-  if (have_tf) {
-    const double cw = std::cos(yaw), sw = std::sin(yaw);
-    const double hw = 0.5 * robot_width;
-    auto place = [&, cw, sw](double lx, double ly) {
-      local_corners.push_back({px + lx * cw - ly * sw, py + lx * sw + ly * cw});
-    };
-    place(robot_front, hw);
-    place(robot_front, -hw);
-    place(-robot_rear, -hw);
-    place(-robot_rear, hw);
-  }
-  if (!local_corners.empty()) {
-    geometry_msgs::PolygonStamped local_fp;
-    local_fp.header.stamp = now;
-    local_fp.header.frame_id = global_frame;
-    for (const auto &p : local_corners) {
-      geometry_msgs::Point32 pt;
-      pt.x = p.x; pt.y = p.y;
-      local_fp.polygon.points.push_back(pt);
-    }
-    local_footprint_pub.publish(local_fp);
-  }
+  if (have_tf) localFootprintCorners(px, py, yaw, local_corners);
 
   // footprint used for the forward corridor. PRIMARY: the costmap's
   // transformed footprint topic (fresh, non-degenerate, right frame) — the
@@ -319,8 +340,7 @@ static void onGrid(const nav_msgs::OccupancyGrid::ConstPtr &msg)
 {
   grid = *msg;
   grid_time = msg->header.stamp;
-  // compute runs on the compute_rate timer, not here: at the 5 Hz grid rate
-  // the published local footprint lagged visibly behind the robot in RViz
+  computeAndMaybeOverride();  // the decision runs on grid updates
 }
 
 static void onMeasuredVel(const geometry_msgs::TwistStamped::ConstPtr &msg)
@@ -373,8 +393,8 @@ int main(int argc, char **argv)
     ROS_INFO_STREAM("[uss_slowdown_costmap] corridor_margin = " << corridor_margin);
   if (paramNh.param("grid_timeout", grid_timeout, 0.5))
     ROS_INFO_STREAM("[uss_slowdown_costmap] grid_timeout = " << grid_timeout);
-  if (paramNh.param("compute_rate", compute_rate, 50.0))
-    ROS_INFO_STREAM("[uss_slowdown_costmap] compute_rate = " << compute_rate);
+  if (paramNh.param("local_footprint_rate", local_footprint_rate, 20.0))
+    ROS_INFO_STREAM("[uss_slowdown_costmap] local_footprint_rate = " << local_footprint_rate);
   if (paramNh.param("footprint_timeout", footprint_timeout, 0.5))
     ROS_INFO_STREAM("[uss_slowdown_costmap] footprint_timeout = " << footprint_timeout);
   if (paramNh.param("measured_vel_timeout", measured_vel_timeout, 0.3))
@@ -418,13 +438,14 @@ int main(int argc, char **argv)
 
   ROS_INFO("[uss_slowdown_costmap] started (waiting for grid + measured vel + TF)");
 
-  // TF-rate compute: the local footprint (and the decision) must track the
-  // robot between the 5 Hz grid updates
-  ros::Timer compute_timer = n.createTimer(ros::Duration(1.0 / compute_rate),
-                                           [](const ros::TimerEvent &) {
-                                             computeAndMaybeOverride();
-                                           });
-  (void)compute_timer;
+  // republish the local footprint at the current TF pose at ~20 Hz so it
+  // tracks the robot in RViz between the 5 Hz grid updates; the decision
+  // compute itself stays on the grid updates (onGrid)
+  ros::Timer footprint_timer = n.createTimer(ros::Duration(1.0 / local_footprint_rate),
+                                             [](const ros::TimerEvent &) {
+                                               publishLocalFootprint();
+                                             });
+  (void)footprint_timer;
 
   ros::spin();
 
