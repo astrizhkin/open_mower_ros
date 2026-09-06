@@ -39,6 +39,20 @@ uss_layer:
   debug_publisher: true
   min_obstacle_thickness: 0.15
   obstacle_center_offset: 0.3
+  # Trust profiles (sweeps 2026-09-05/06, record_2026-09-05-08-29-15 bag).
+  # MARKING (obstacle band): gamma_exp — stock center-peaked 2.0 (trust the
+  # boresight, less on the angles). CLEARING (free space ahead):
+  # gamma_exp_clear. Old-geometry (09-05) held-time sweep: single exp
+  # 0.5/1.25/1.5/1.75 all ~1-2% (vs stock 14%), exp 1.0 is a 76% cliff
+  # (avoid). Re-verified 2026-09-06 on the REAL US geometry (yaws
+  # +/-60.2/+/-20.0 deg, mean front_dist to first occupied cell): mark 2.0
+  # + clear 2.0 -> mean 0.387 m / 8.8% of frames <0.20 m; clear 2.5 -> 0.409
+  # m / 3.5% <0.20 m; clear 3.0 -> catastrophic (footprint ringed by
+  # phantoms, 100% hard-stop frames). So: stock mark profile, clear 2.5
+  # (slightly flatter than stock, fewer near-miss frames, wall distance
+  # preserved).
+  gamma_exp: 2.0
+  gamma_exp_clear: 2.5
   # Fill + decay: while a sensor keeps "seeing" a cell it stays occupied;
   # a cell is freed pixel_decay seconds after the reading recedes or the
   # sensor cone leaves it. World-coordinate keyed, so it tracks the bot

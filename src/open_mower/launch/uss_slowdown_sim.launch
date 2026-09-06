@@ -41,6 +41,8 @@
     <arg name="duration" default="100000"/>
     <arg name="out" default="uss_sim_out"/>
     <arg name="record" default="true"/>
+    <!-- costmap parameter file (layer config swaps for sweeps) -->
+    <arg name="params_file" default="$(find open_mower)/params/uss_costmap_params.yaml"/>
     <!-- The bag's /mower_logic/current_state is NOT replayed by default so
          the fake state publisher owns the topic (see `fake_state`). -->
     <arg name="topics" default="/tf /mower/uss /mower/measured_vel /cmd_vel /mower/bumper"/>
@@ -67,17 +69,22 @@
          global param cannot leak anywhere. -->
     <param name="use_sim_time" value="true"/>
 
+  <!-- US sensor frames come from the real STRIGA URDF via
+       robot_state_publisher (all base_link->uss_i joints are fixed, so the
+       joint_states remap can point at a non-existent topic). -->
   <param name="robot_model" textfile="$(find open_mower)/params/hardware_specific/STRIGA/urdf.xml"/>
-    
+
   <node pkg="robot_state_publisher" type="robot_state_publisher" name="rob_st_pub" output="screen">
     <remap from="robot_description" to="robot_model" />
     <remap from="joint_states" to="different_joint_states" />
     <param name="publish_frequency" value="5"/>
   </node>
 
-    <!-- ultrasonic occupancy costmap (same node + params as production) -->
+    <!-- ultrasonic occupancy costmap (same node + params as production;
+         params_file lets a sweep swap the layer config without touching the
+         production yaml) -->
     <node name="uss_costmap" pkg="costmap_2d" type="costmap_2d_node" output="screen">
-      <rosparam file="$(find open_mower)/params/uss_costmap_params.yaml" command="load" ns="costmap"/>
+      <rosparam file="$(arg params_file)" command="load" ns="costmap"/>
     </node>
 
     <!-- the slowdown node under test (same params as _comms.launch, plus the
@@ -91,19 +98,20 @@
       <param name="footprint_topic" value="$(arg footprint_topic)"/>
     </node>
 
-    <!-- static US sensor frames (base_link -> uss_i), positions from the
-         STRIGA URDF: the bags' /tf only carries map->base_footprint->
-         base_link, so without these the costmap cannot place the US readings -->
+    <!-- Fallback static US sensor frames (base_link -> uss_i). DISABLED: the
+         URDF (actualized 2026-09-06) now carries the US joints and
+         robot_state_publisher above publishes them. Enabling these would
+         double-publish base_link->uss_i and fight the RSP. -->
     <!--node pkg="tf" type="static_transform_publisher" name="stp_uss_0"
-          args="0.25 0.20 0.17 1.05 0 0 base_link uss_0 100"/>
+          args="0.245 0.20 0.17 1.05 0 0 base_link uss_0 100"/>
     <node pkg="tf" type="static_transform_publisher" name="stp_uss_1"
-          args="0.30 0.16 0.17 0.52 0 0 base_link uss_1 100"/>
+          args="0.29 0.155 0.17 0.35 0 0 base_link uss_1 100"/>
     <node pkg="tf" type="static_transform_publisher" name="stp_uss_2"
-          args="0.32 0.00 0.17 0.00 0 0 base_link uss_2 100"/>
+          args="0.31 0.00 0.17 0.00 0 0 base_link uss_2 100"/>
     <node pkg="tf" type="static_transform_publisher" name="stp_uss_3"
-          args="0.30 -0.16 0.17 -0.52 0 0 base_link uss_3 100"/>
+          args="0.29 -0.155 0.17 -0.35 0 0 base_link uss_3 100"/>
     <node pkg="tf" type="static_transform_publisher" name="stp_uss_4"
-          args="0.25 -0.20 0.17 -1.05 0 0 base_link uss_4 100"/-->
+          args="0.245 -0.20 0.17 -1.05 0 0 base_link uss_4 100"/-->
 
     <!-- rviz + optional rqt_reconfigure, same pattern as test_playback.launch -->
     <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
