@@ -67,6 +67,14 @@
          global param cannot leak anywhere. -->
     <param name="use_sim_time" value="true"/>
 
+  <param name="robot_model" textfile="$(find open_mower)/params/hardware_specific/STRIGA/urdf.xml"/>
+    
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="rob_st_pub" output="screen">
+    <remap from="robot_description" to="robot_model" />
+    <remap from="joint_states" to="different_joint_states" />
+    <param name="publish_frequency" value="5"/>
+  </node>
+
     <!-- ultrasonic occupancy costmap (same node + params as production) -->
     <node name="uss_costmap" pkg="costmap_2d" type="costmap_2d_node" output="screen">
       <rosparam file="$(find open_mower)/params/uss_costmap_params.yaml" command="load" ns="costmap"/>
@@ -86,7 +94,7 @@
     <!-- static US sensor frames (base_link -> uss_i), positions from the
          STRIGA URDF: the bags' /tf only carries map->base_footprint->
          base_link, so without these the costmap cannot place the US readings -->
-    <node pkg="tf" type="static_transform_publisher" name="stp_uss_0"
+    <!--node pkg="tf" type="static_transform_publisher" name="stp_uss_0"
           args="0.25 0.20 0.17 1.05 0 0 base_link uss_0 100"/>
     <node pkg="tf" type="static_transform_publisher" name="stp_uss_1"
           args="0.30 0.16 0.17 0.52 0 0 base_link uss_1 100"/>
@@ -95,7 +103,7 @@
     <node pkg="tf" type="static_transform_publisher" name="stp_uss_3"
           args="0.30 -0.16 0.17 -0.52 0 0 base_link uss_3 100"/>
     <node pkg="tf" type="static_transform_publisher" name="stp_uss_4"
-          args="0.25 -0.20 0.17 -1.05 0 0 base_link uss_4 100"/>
+          args="0.25 -0.20 0.17 -1.05 0 0 base_link uss_4 100"/-->
 
     <!-- rviz + optional rqt_reconfigure, same pattern as test_playback.launch -->
     <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
