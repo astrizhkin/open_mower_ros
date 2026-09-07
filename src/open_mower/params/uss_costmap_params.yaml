@@ -44,8 +44,8 @@ uss_layer:
   clear_threshold: 0.50
   mark_threshold: 0.80
   debug_publisher: true
-  min_obstacle_thickness: 0.15
-  obstacle_center_offset: 0.3
+  min_obstacle_thickness: 0.3
+  obstacle_center_offset: 0.4
   # Trust profiles (sweeps 2026-09-05/06, record_2026-09-05-08-29-15 bag).
   # MARKING (obstacle band): gamma_exp — stock center-peaked 2.0 (trust the
   # boresight, less on the angles). CLEARING (free space ahead):
@@ -58,13 +58,13 @@ uss_layer:
   # phantoms, 100% hard-stop frames). So: stock mark profile, clear 2.5
   # (slightly flatter than stock, fewer near-miss frames, wall distance
   # preserved).
-  gamma_exp: 1.75
-  gamma_exp_clear: 2.5
+  gamma_exp: 1.5
+  gamma_exp_clear: 3.0
   # Fill + decay: while a sensor keeps "seeing" a cell it stays occupied;
   # a cell is freed pixel_decay seconds after the reading recedes or the
   # sensor cone leaves it. World-coordinate keyed, so it tracks the bot
   # across rolling-window moves.
-  use_decay: true
+  use_decay: false
   pixel_decay: 2.0
   # This layer is the ONLY layer of this costmap, so it must be allowed to
   # clear (lower) master cells — otherwise decayed cells would stay lethal

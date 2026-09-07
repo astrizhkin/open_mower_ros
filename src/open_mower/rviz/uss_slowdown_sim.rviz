@@ -3,7 +3,8 @@ Panels:
     Help Height: 70
     Name: Displays
     Property Tree Widget:
-      Expanded: ~
+      Expanded:
+        - /Polygon1
       Splitter Ratio: 0.5
     Tree Height: 572
   - Class: rviz/Selection
@@ -164,6 +165,15 @@ Visualization Manager:
       Topic: /move_base_flex/FTCPlanner/global_plan
       Unreliable: false
       Value: true
+    - Alpha: 1
+      Class: rviz/Polygon
+      Color: 255; 0; 0
+      Enabled: true
+      Name: Polygon
+      Queue Size: 10
+      Topic: /uss_costmap/costmap/footprint
+      Unreliable: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -201,10 +211,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 26.916677474975586
+      Scale: 107.3701400756836
       Target Frame: base_link
-      X: -0.7037973403930664
-      Y: -2.983980894088745
+      X: -0.5048104524612427
+      Y: -0.1549544781446457
     Saved:
       - Angle: 0
         Class: rviz/TopDownOrtho
