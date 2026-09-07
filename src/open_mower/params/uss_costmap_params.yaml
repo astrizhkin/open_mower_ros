@@ -15,7 +15,14 @@ robot_base_frame: base_footprint
 # by uss_slowdown_costmap and the costmap itself.
 footprint: [[0.37, 0.34], [0.37, -0.34], [-0.32, -0.34], [-0.32, 0.34]]
 update_frequency: 5.0
-publish_frequency: 5.0
+# Must stay ABOVE update_frequency. costmap_2d 1.17.3 publishes from the
+# update loop with the gate `last_publish_ + publish_cycle < now` (strict <);
+# at publish_frequency == update_frequency the 5.00 Hz loop sits on the
+# 0.199/0.201 s knife-edge and every OTHER grid publish is skipped — the
+# /costmap topic ends up at ~2.5-3.2 Hz while the map itself updates at a
+# clean 5.00 Hz (2026-09-07 diagnosis: footprint topic 5.00 Hz, grid topic
+# 3.16 Hz on the 09-06 session bags; 10 Hz gate -> grid topic 5.01 Hz in sim).
+publish_frequency: 10.0
 resolution: 0.03
 rolling_window: true
 width: 3
