@@ -53,7 +53,7 @@
     <arg name="ttc_threshold" default="1.0"/>
     <arg name="stop_distance" default="0.20"/>
     <arg name="min_speed" default="0.03"/>
-    <arg name="corridor_margin" default="0.1"/>
+    <arg name="corridor_margin" default="0.05"/>
     <!-- visualization (see test_playback.launch for the pattern): rviz
          shows the uss_costmap layer + both footprints; headless run_*.sh
          scripts pass rviz:=false. rqt_reconfigure is optional. -->

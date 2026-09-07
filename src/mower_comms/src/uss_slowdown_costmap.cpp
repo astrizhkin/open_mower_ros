@@ -389,7 +389,7 @@ int main(int argc, char **argv)
     ROS_INFO_STREAM("[uss_slowdown_costmap] min_speed = " << min_speed);
   if (paramNh.param("occupied_threshold", occupied_threshold, 90))
     ROS_INFO_STREAM("[uss_slowdown_costmap] occupied_threshold = " << occupied_threshold);
-  if (paramNh.param("corridor_margin", corridor_margin, 0.1))
+  if (paramNh.param("corridor_margin", corridor_margin, 0.05))
     ROS_INFO_STREAM("[uss_slowdown_costmap] corridor_margin = " << corridor_margin);
   if (paramNh.param("grid_timeout", grid_timeout, 0.5))
     ROS_INFO_STREAM("[uss_slowdown_costmap] grid_timeout = " << grid_timeout);
