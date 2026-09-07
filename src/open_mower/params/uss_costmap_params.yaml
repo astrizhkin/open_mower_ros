@@ -58,7 +58,7 @@ uss_layer:
   # phantoms, 100% hard-stop frames). So: stock mark profile, clear 2.5
   # (slightly flatter than stock, fewer near-miss frames, wall distance
   # preserved).
-  gamma_exp: 2.0
+  gamma_exp: 1.75
   gamma_exp_clear: 2.5
   # Fill + decay: while a sensor keeps "seeing" a cell it stays occupied;
   # a cell is freed pixel_decay seconds after the reading recedes or the

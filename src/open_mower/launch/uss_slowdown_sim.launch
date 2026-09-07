@@ -45,7 +45,7 @@
     <arg name="params_file" default="$(find open_mower)/params/uss_costmap_params.yaml"/>
     <!-- The bag's /mower_logic/current_state is NOT replayed by default so
          the fake state publisher owns the topic (see `fake_state`). -->
-    <arg name="topics" default="/tf /mower/uss /mower/measured_vel /cmd_vel /mower/bumper"/>
+    <arg name="topics" default="/move_base_flex/exe_path/goal /move_base_flex/FTCPlanner/global_plan /move_base_flex/GlobalPlanner/plan /tf /mower/uss /mower/measured_vel /cmd_vel /mower/bumper"/>
     <!-- point this at a non-existent topic to force the local-params
          footprint fallback in uss_slowdown_costmap -->
     <arg name="footprint_topic" default="/uss_costmap/costmap/footprint"/>
@@ -59,6 +59,7 @@
          scripts pass rviz:=false. rqt_reconfigure is optional. -->
     <arg name="rviz" default="true"/>
     <arg name="rqt_reconfigure" default="false"/>
+    <arg name="plotjuggler" default="false"/>
 
     <!-- rosbag play publishes /clock; every node must follow it. Without
          this the nodes run on wall time while the bag's TF/stamps are
@@ -98,26 +99,14 @@
       <param name="footprint_topic" value="$(arg footprint_topic)"/>
     </node>
 
-    <!-- Fallback static US sensor frames (base_link -> uss_i). DISABLED: the
-         URDF (actualized 2026-09-06) now carries the US joints and
-         robot_state_publisher above publishes them. Enabling these would
-         double-publish base_link->uss_i and fight the RSP. -->
-    <!--node pkg="tf" type="static_transform_publisher" name="stp_uss_0"
-          args="0.245 0.20 0.17 1.05 0 0 base_link uss_0 100"/>
-    <node pkg="tf" type="static_transform_publisher" name="stp_uss_1"
-          args="0.29 0.155 0.17 0.35 0 0 base_link uss_1 100"/>
-    <node pkg="tf" type="static_transform_publisher" name="stp_uss_2"
-          args="0.31 0.00 0.17 0.00 0 0 base_link uss_2 100"/>
-    <node pkg="tf" type="static_transform_publisher" name="stp_uss_3"
-          args="0.29 -0.155 0.17 -0.35 0 0 base_link uss_3 100"/>
-    <node pkg="tf" type="static_transform_publisher" name="stp_uss_4"
-          args="0.245 -0.20 0.17 -1.05 0 0 base_link uss_4 100"/-->
-
     <!-- rviz + optional rqt_reconfigure, same pattern as test_playback.launch -->
     <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
           args="-d $(find open_mower)/rviz/uss_slowdown_sim.rviz" required="true"/>
-    <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure"
-          if="$(arg rqt_reconfigure)"/>
+
+    <node if="$(arg rqt_reconfigure)" pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure"/>
+
+    <node if="$(arg plotjuggler)" pkg="plotjuggler" type="plotjuggler" name="plotjuggler"
+          args="-l $(find open_mower)/rviz/uss_slowdown_pj.xml" />
 
     <!-- replay. Noetic rosbag play flags: -s start, -r rate, -u duration
          (-d is delay-after-advertise, NOT duration); topics go in the
@@ -128,4 +117,5 @@
     <!-- record the node outputs + the inputs they react to -->
     <node if="$(arg record)" pkg="rosbag" type="record" name="sim_record" output="screen"
           args="-o $(arg out) /uss_vel /uss_costmap_ttc /uss_costmap_front_dist /uss_costmap/costmap/costmap /uss_costmap/costmap/footprint /uss_slowdown_costmap/local_footprint /cmd_vel /mower/measured_vel /mower/bumper /mower/uss /tf"/>
+          
 </launch>
